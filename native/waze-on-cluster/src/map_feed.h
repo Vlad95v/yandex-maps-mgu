@@ -137,7 +137,11 @@ struct FeedStatus {
     std::string hud_state = "off";   /* off, disabled, or the HUD feed's state */
     unsigned hud_width_pct = 0;   /* the HUD map's size setting (0: the default) */
     int hud_offset_x = 0, hud_offset_y = 0;   /* and where it is moved to from the centre */
-    int cluster_offset_x = 0;                 /* the cluster map's horizontal offset */
+    int cluster_offset_x = 0;                 /* the cluster map's requested horizontal offset */
+    int cluster_offset_x_actual = 0;          /* the cluster map's actual horizontal offset after clamping */
+    int cluster_crop_x = 0;                   /* the cluster's source crop X offset */
+    uint32_t source_w = 0, source_h = 0;      /* source atlas dimensions */
+    uint32_t output_w = 0, output_h = 0;      /* output/crop dimensions */
     bool hud_keep_shown = false;   /* the HUD map kept shown over the stock HMI's pop-ups */
 };
 
@@ -187,6 +191,8 @@ public:
      * Held inside the cluster scene (1088x480). */
     void set_cluster_offset(int dx);
     int cluster_offset_x() const { return cfg_.cluster_offset_x; }
+    int cluster_offset_x_actual() const { return placed_x_; }
+    int cluster_crop_x() const { return crop_x_; }
     /* The HUD map kept shown over the stock HMI's pop-ups or not
      * (FeedConfig::hud_keep_shown), at once. */
     void set_hud_keep_shown(bool keep);
@@ -307,6 +313,8 @@ private:
     std::string target_state_, holder_;
     /* the HUD map's offset as quad() last placed it; as asked until then */
     mutable int placed_x_ = 0, placed_y_ = 0;
+    /* The cluster's source crop X offset (for wider CarPlay geometry). */
+    mutable int crop_x_ = 0;
     unsigned cap_kb_ = 0, max_kb_ = 0;
     std::string budget_reason_, refused_, report_;
     bool connected_ = false, status_asked_ = false;

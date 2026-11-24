@@ -145,6 +145,10 @@ var SHIPPED = {
  * pixel. Every geometry this tool writes has this physical size, which tells
  * it from a build's stock geometry. */
 var RES_DEFAULT = { w: 1088, h: 480, mmw: 138, mmh: 61 };
+/* Wider geometry for cluster horizontal offset: 1440x636 at 183x81mm.
+ * The phone renders a wider map; the cluster crops 1088x480 from it.
+ * HUD gets an independent centered 1088x480 crop. */
+var RES_WIDE = { w: 1440, h: 636, mmw: 183, mmh: 81 };
 /* The default safe area in the 1088x480 frame (PATCH.md "Safe area"): x
  * from BMW's own IC_MID safe area (which lies inside the map area), y from
  * below the native model badge. Other --res sizes scale it. The
@@ -358,6 +362,11 @@ function describe(name, s) {
         : s.state === 'original' ? 'ORIGINAL (ShowUI asks the phone for ' + locator.ALT_URL + ')'
         : 'PATCHED (ShowUI asks the phone for ' + SHOWUI_URL + ', with the arrival-time card)';
     if (name === 'selfstart') return s.state === 'original' ? 'ORIGINAL (waits for NavController; stream never starts)' : 'SELF-START (CarPlay starts the cluster stream itself)';
+    if (name === 'res') {
+        if (s.state === 'original') return 'ORIGINAL (IC_HIGH advertises ' + s.res.w + 'x' + s.res.h + ')';
+        const isWide = s.res.res.w === 1440 && s.res.res.h === 636 && s.res.res.mmw === 183 && s.res.res.mmh === 81;
+        return 'PATCHED (IC_HIGH advertises ' + geomText(s.res) + (isWide ? ' [WIDE for cluster offset]' : '') + ')';
+    }
     return s.state === 'original' ? 'ORIGINAL (IC_HIGH advertises ' + s.res.w + 'x' + s.res.h + ')' : 'PATCHED (IC_HIGH advertises ' + geomText(s.res) + ')';
 }
 
@@ -441,15 +450,21 @@ function sinkUrlFor(capture, sink) {
  * geometry (--res stock and the mid panel; the mid builder is never
  * rewritten). The high panel advertises this tool's display size: --res WxH,
  * or the default, at the map area's physical size, with the default safe
- * area scaled to that size, --safe WxH+X+Y, or --safe full (the whole frame). */
+ * area scaled to that size, --safe WxH+X+Y, or --safe full (the whole frame).
+ * --res wide selects the wider 1440x636 @ 183x81mm geometry for cluster
+ * horizontal offset via source crop. */
 function resFor(panel, res, safe) {
     if (res !== undefined && panel !== 'high') die('--res rewrites the IC_HIGH geometry; it goes with --panel high');
     if (safe !== undefined && (panel !== 'high' || res === 'stock')) die('--safe sets the safe area of the advertised size; it goes with --panel high, not --res stock');
     if (panel !== 'high' || res === 'stock') return null;
-    var w = RES_DEFAULT.w, h = RES_DEFAULT.h;
-    if (res !== undefined) {
+    var base = RES_DEFAULT;
+    if (res === 'wide') {
+        base = RES_WIDE;
+    }
+    var w = base.w, h = base.h;
+    if (res !== undefined && res !== 'wide') {
         var m = /^([0-9]+)x([0-9]+)$/.exec(res || '');
-        if (!m) die('--res needs WxH (e.g. 1088x480) or "stock"');
+        if (!m) die('--res needs WxH (e.g. 1088x480), "wide", or "stock"');
         w = parseInt(m[1], 10); h = parseInt(m[2], 10);
         if (w < 16 || w > 1920 || h < 16 || h > 1080 || (w % 2) !== 0 || (h % 2) !== 0)
             die('--res ' + res + ' out of range: width 16..1920, height 16..1080, both even (H.264)');
@@ -458,7 +473,7 @@ function resFor(panel, res, safe) {
     var d = SAFE_DEFAULT, dw = RES_DEFAULT.w, dh = RES_DEFAULT.h;
     var x0 = Math.round(d.x * w / dw), x1 = Math.round((d.x + d.w) * w / dw);
     var y0 = Math.round(d.y * h / dh), y1 = Math.round((d.y + d.h) * h / dh);
-    var g = { w: w, h: h, mmw: RES_DEFAULT.mmw, mmh: RES_DEFAULT.mmh, safew: x1 - x0, safeh: y1 - y0, safex: x0, safey: y0 };
+    var g = { w: w, h: h, mmw: base.mmw, mmh: base.mmh, safew: x1 - x0, safeh: y1 - y0, safex: x0, safey: y0 };
     if (safe === 'full') {
         g.safew = w; g.safeh = h; g.safex = 0; g.safey = 0;
     } else if (safe !== undefined) {

@@ -49,7 +49,7 @@
  *                                   (root:systemd-journal, 0660: Save logs)
  *                                   takes this command alone, one a connection,
  *                                   and answers with the lines and health only
- *                  {"cmd":"cluster","on":0|1}
+ *                  {"cmd":"cluster","on":0|1,"cluster_x":-176..176}   (even integers only)
  *                  {"cmd":"hud","on":0|1}
  *                  {"cmd":"hud-size","hud_width_pct":0|20..100}   (over 85 saved as 85)
  *                  {"cmd":"hud-pos","hud_x":-800..800,"hud_y":-800..800}
@@ -60,8 +60,8 @@
  *                                   the centre (HUD pixels) and whether it stays
  *                                   shown over BMW's pop-ups, saved for the render's
  *                                   next start as "cluster", "hud", "hud_width_pct",
- *                                   "hud_offset_x", "hud_offset_y" and
- *                                   "hud_keep_shown" in MAP_STATE
+ *                                   "hud_offset_x", "hud_offset_y", "cluster_offset_x"
+ *                                   and "hud_keep_shown" in MAP_STATE
  *                                   (the app changes the running render itself).
  *                                   Changes are written together MAP_SAVE_MS
  *                                   after the last one; the reply (cluster-reply,
@@ -254,7 +254,7 @@ var LOCAL_CONF = process.env.WOC_LOCAL_CONF || '/var/opt/waze-on-cluster/waze-on
  * configuration. Not in LOCAL_CONF, which waze-on-cluster 0.8 refuses to
  * start with any of MAP_KEYS in. */
 var MAP_STATE = path.join(STATE_DIR, 'map.state.conf');
-var MAP_KEYS = ['cluster', 'hud', 'hud_width_pct', 'hud_offset_x', 'hud_offset_y', 'hud_keep_shown'];
+var MAP_KEYS = ['cluster', 'hud', 'hud_width_pct', 'hud_offset_x', 'hud_offset_y', 'hud_keep_shown', 'cluster_offset_x'];
 /* The opt-in settings: the render reads this file (its features_file) over
  * its configuration. Not in LOCAL_CONF, which every release up to 0.10.7
  * refuses to start with any of FEATURE_KEYS in; no release before 0.10.9
@@ -293,6 +293,7 @@ function rewriteConf(file, set, drop) {
 function mapValueOk(k, v) {
     var n = Number(v);
     return /^-?\d+$/.test(v) && (k === 'hud_width_pct' ? n === 0 || (n >= 20 && n <= 100)
+        : k === 'cluster_offset_x' ? n >= -176 && n <= 176 && n % 2 === 0
         : /^hud_offset_/.test(k) ? n >= -800 && n <= 800 : n === 0 || n === 1);
 }
 
@@ -426,7 +427,7 @@ function saveLater(settings, withProfiles) {
 var PROFILES_FILE = path.join(STATE_DIR, 'profiles.json');
 var PROFILE_ID = /^[A-Za-z0-9][A-Za-z0-9._:@+={}-]{0,127}$/;
 var MAX_OWN = 16;
-var MAP_DEFAULTS = { cluster: 1, hud: 0, hud_width_pct: 0, hud_offset_x: 0, hud_offset_y: 0, hud_keep_shown: 0 };
+var MAP_DEFAULTS = { cluster: 1, hud: 0, hud_width_pct: 0, hud_offset_x: 0, hud_offset_y: 0, hud_keep_shown: 0, cluster_offset_x: 0 };
 var profiles = null;          /* PROFILES_FILE as read at the start, and changed since */
 var currentProfile;           /* the profile the app last told (null: none; undefined: not told since the start) */
 var restored = false;         /* MAP_STATE written from PROFILES_FILE at the start, not yet told to the app */
@@ -2351,11 +2352,30 @@ function handle(line, sock) {
     }
     /* Where the map shows and the HUD map's settings: not operations on
      * carplay, so not held back by one. */
-    if (msg.cmd === 'cluster' || msg.cmd === 'hud') {
+    if (msg.cmd === 'cluster') {
         var set = {};
-        if (msg.on !== 0 && msg.on !== 1) { reply(sock, { ev: msg.cmd + '-reply', ok: false, reason: 'on must be 0 or 1' }); return; }
-        set[msg.cmd] = msg.on;
-        saveMapSettings(sock, msg.cmd + '-reply', set, 'where the map shows');
+        if (msg.on !== undefined) {
+            if (msg.on !== 0 && msg.on !== 1) { reply(sock, { ev: 'cluster-reply', ok: false, reason: 'on must be 0 or 1' }); return; }
+            set.cluster = msg.on;
+        }
+        if (msg.cluster_x !== undefined) {
+            var cx = Number(msg.cluster_x);
+            if (!Number.isInteger(cx) || cx < -176 || cx > 176 || cx % 2 !== 0) {
+                reply(sock, { ev: 'cluster-reply', ok: false, reason: 'cluster_x must be an even integer from -176 to 176' });
+                return;
+            }
+            set.cluster_offset_x = cx;
+        }
+        if (Object.keys(set).length) {
+            saveMapSettings(sock, 'cluster-reply', set, 'cluster map settings');
+        }
+        return;
+    }
+    if (msg.cmd === 'hud') {
+        var set = {};
+        if (msg.on !== 0 && msg.on !== 1) { reply(sock, { ev: 'hud-reply', ok: false, reason: 'on must be 0 or 1' }); return; }
+        set.hud = msg.on;
+        saveMapSettings(sock, 'hud-reply', set, 'where the map shows');
         return;
     }
     if (msg.cmd === 'hud-size') {

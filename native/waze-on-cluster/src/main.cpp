@@ -81,6 +81,10 @@ std::string status_line(const FeedStatus &s)
            ",\"hud_x\":" + std::to_string(s.hud_offset_x) + ",\"hud_y\":" + std::to_string(s.hud_offset_y) +
            ",\"hud_keep_shown\":" + (s.hud_keep_shown ? "1" : "0") +
            ",\"cluster_x\":" + std::to_string(s.cluster_offset_x) +
+           ",\"cluster_x_actual\":" + std::to_string(s.cluster_offset_x_actual) +
+           ",\"cluster_crop_x\":" + std::to_string(s.cluster_crop_x) +
+           ",\"source_w\":" + std::to_string(s.source_w) + ",\"source_h\":" + std::to_string(s.source_h) +
+           ",\"output_w\":" + std::to_string(s.output_w) + ",\"output_h\":" + std::to_string(s.output_h) +
            /* only while hosted: otherwise the line is as it always was */
            (s.hosted ? ",\"hosted\":1" : "") + "}";
 }
@@ -142,15 +146,15 @@ public:
             }
         } else if (cmd == "cluster" && (msg.find("cluster_x") != msg.end())) {
             /* cluster_x: the cluster map's horizontal offset in cluster scene pixels
-             * (+x right), held inside the 1088x480 scene. */
+             * (+x right), held inside the 1088x480 scene. Range -176..176, step 2. */
             const auto cx = msg.find("cluster_x");
             if (cx != msg.end()) {
                 const long x = std::strtol(cx->second.c_str(), nullptr, 10);
-                if (x >= -1088 && x <= 1088) {
+                if (x >= -176 && x <= 176 && (x % 2 == 0)) {
                     log_info("cluster: map moved %+ld horizontally", x);
                     feeds_->set_cluster_offset((int)x);
                 } else {
-                    log_warn("cluster: offset %ld out of range (-1088..1088)", x);
+                    log_warn("cluster: offset %ld out of range (-176..176, step 2)", x);
                 }
             }
         } else {
@@ -218,7 +222,7 @@ int serve(Config cfg)
         {"stall_ms", 1000, 600000},
         {"cluster", 0, 1},          {"hud", 0, 1},                   {"hud_fps", 1, 30},
         {"hud_width_pct", 0, 100},  {"hud_offset_x", -800, 800},     {"hud_offset_y", -800, 800},
-        {"cluster_offset_x", -1088, 1088},
+        {"cluster_offset_x", -176, 176},
         {"hud_scale_down", 0, 1},   {"hud_round_corners", 0, 1},     {"hud_black_background", 0, 1},
         {"hud_keep_shown", 0, 1},
         {"freeze_ms", 0, 600000},   {"freeze_min_fps", 1, 60},       {"alt_screen_port", 0, 65535},
