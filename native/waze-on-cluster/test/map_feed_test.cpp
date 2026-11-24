@@ -1789,6 +1789,94 @@ int main()
     ok("and a move then is taken as asked", none.status("decode").hud_offset_x == 40);
     }
 
+    /* ---- cluster horizontal offset (source crop from wider CarPlay geometry) ---- */
+    {
+        /* Feed with 1440x636 source (RES_WIDE), cropped to 1088x480 for cluster */
+        FeedConfig cfc;
+        cfc.socket = "/tmp/woc-feed-cluster-offset-" + std::to_string(getpid()) + ".sock";
+        cfc.target = "map";
+        cfc.video.w = 1440;
+        cfc.video.h = 636;
+        cfc.video.level_bits = 0;
+        cfc.video.stall_ms = 6000;
+        cfc.cluster_offset_x = 0;   /* start centered */
+
+        /* We test MapFeed directly with a fake renderer since the full rig
+         * uses 1088x480 target. The MapFeed logic for cluster offset is in
+         * quad() and set_cluster_offset(). We can test the logic directly
+         * by checking the FeedStatus fields. */
+        MapFeed cf(cfc);
+        FeedStatus cs = cf.status("decode");
+
+        ok("cluster feed: source dimensions 1440x636",
+           cs.source_w == 1440 && cs.source_h == 636);
+        ok("cluster feed: output dimensions 1088x480",
+           cs.output_w == 1088 && cs.output_h == 480);
+        ok("cluster offset 0: crop_x = 176 (centered)",
+           cs.cluster_offset_x == 0 && cs.cluster_offset_x_actual == 0 && cs.cluster_crop_x == 176);
+
+        cf.set_cluster_offset(10);
+        cs = cf.status("decode");
+        ok("cluster offset +10: crop_x = 166 (176 - 10)",
+           cs.cluster_offset_x == 10 && cs.cluster_offset_x_actual == 10 && cs.cluster_crop_x == 166);
+
+        cf.set_cluster_offset(-50);
+        cs = cf.status("decode");
+        ok("cluster offset -50: crop_x = 226 (176 - (-50))",
+           cs.cluster_offset_x == -50 && cs.cluster_offset_x_actual == -50 && cs.cluster_crop_x == 226);
+
+        cf.set_cluster_offset(176);
+        cs = cf.status("decode");
+        ok("cluster offset +176 (right edge): crop_x = 0",
+           cs.cluster_offset_x == 176 && cs.cluster_offset_x_actual == 176 && cs.cluster_crop_x == 0);
+
+        cf.set_cluster_offset(-176);
+        cs = cf.status("decode");
+        ok("cluster offset -176 (left edge): crop_x = 352",
+           cs.cluster_offset_x == -176 && cs.cluster_offset_x_actual == -176 && cs.cluster_crop_x == 352);
+
+        /* Clamping: beyond range is clamped */
+        cf.set_cluster_offset(200);
+        cs = cf.status("decode");
+        ok("cluster offset +200: clamped to +176, crop_x = 0",
+           cs.cluster_offset_x == 200 && cs.cluster_offset_x_actual == 176 && cs.cluster_crop_x == 0);
+
+        cf.set_cluster_offset(-200);
+        cs = cf.status("decode");
+        ok("cluster offset -200: clamped to -176, crop_x = 352",
+           cs.cluster_offset_x == -200 && cs.cluster_offset_x_actual == -176 && cs.cluster_crop_x == 352);
+
+        /* HUD feed: independent centered crop (crop_x = 176), NOT affected by cluster_offset_x */
+        FeedConfig hfc;
+        hfc.socket = "/tmp/woc-feed-hud-offset-" + std::to_string(getpid()) + ".sock";
+        hfc.target = "hud";
+        hfc.video.w = 1440;
+        hfc.video.h = 636;
+        hfc.video.level_bits = 2;
+        hfc.video.stall_ms = 6000;
+        hfc.cluster_offset_x = 100;   /* non-zero cluster offset */
+        hfc.scale_down = true;
+        hfc.scaled_level_bits = 2;
+        hfc.hud_round_corners = true;
+        hfc.hud_black_background = true;
+
+        MapFeed hf(hfc);
+        FeedStatus hs = hf.status("decode");
+        ok("HUD feed: source dimensions 1440x636",
+           hs.source_w == 1440 && hs.source_h == 636);
+        ok("HUD feed: output dimensions 1088x480",
+           hs.output_w == 1088 && hs.output_h == 480);
+        ok("HUD feed: crop_x = 176 (centered, independent of cluster_offset_x)",
+           hs.cluster_offset_x == 100 && hs.cluster_crop_x == 176);
+
+        /* Change cluster offset in feed config - HUD crop_x should remain 176 */
+        hfc.cluster_offset_x = -100;
+        MapFeed hf2(hfc);
+        FeedStatus hs2 = hf2.status("decode");
+        ok("HUD feed with cluster_offset_x = -100: crop_x still = 176 (independent)",
+           hs2.cluster_offset_x == -100 && hs2.cluster_crop_x == 176);
+    }
+
     std::printf(failures ? "%d FAILED\n" : "all ok\n", failures);
     return failures ? 1 : 0;
 }

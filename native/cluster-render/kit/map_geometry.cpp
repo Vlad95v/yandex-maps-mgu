@@ -32,7 +32,8 @@ const char *texture_size_error(uint32_t tex_w, uint32_t tex_h)
         return "texture smaller than 64x32";
     if (tex_w % 2 || tex_h % 2)
         return "texture width and height must be even";
-    if (tex_w > kMapAreaWidth || tex_h > kMapAreaHeight)
+    /* Allow 1440x636 for wide CarPlay source (cropped to 1088x480 in map_feed). */
+    if (!(tex_w == 1440 && tex_h == 636) && (tex_w > kMapAreaWidth || tex_h > kMapAreaHeight))
         return "texture larger than the 1088x480 map area";
     if (tex_w % 4)
         return "texture width must be a multiple of 4";

@@ -510,7 +510,7 @@ void define_keys(Config *cfg)
     cfg->define("udp_port", "20557");
     cfg->define("avb_stream", "media_transport.avb_streaming.15");
     cfg->define("drm_device", "/dev/dri/renderD128");
-    cfg->define("tex_size", "1088x480");
+    cfg->define("tex_size", "1440x636");
     cfg->define("src_crop", "");
     cfg->define("map_rect", "");
     cfg->define("dirty_threshold", "8");

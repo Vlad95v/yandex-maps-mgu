@@ -190,6 +190,31 @@ void MapFeed::make_layer()
         shape_.level_bits = cfg_.video.level_bits;
         log_info("render: cluster map from 1440x636, crop %ux%u at %u,0 -> %ux%u",
                  crop_w, crop_h, crop_x, dw, dh);
+    } else if (cfg_.target == "hud" && cfg_.video.w == 1440 && cfg_.video.h == 636) {
+        /* HUD feed: independent centered 1088x480 crop from 1440x636 atlas.
+         * Crop X = 176 (centered), NOT affected by cluster_offset_x. */
+        const uint32_t crop_x = 176;
+        const uint32_t crop_w = 1088, crop_h = 480;
+        const uint32_t dw = crop_w, dh = crop_h;
+        q = crk::QuadRect{0, 0, dw, dh};
+        vo.w = dw;
+        vo.h = dh;
+        scaling_ = true;
+        shape_ = ScaleShape();
+        shape_.w = cfg_.video.w;
+        shape_.h = cfg_.video.h;
+        shape_.dw = dw;
+        shape_.dh = dh;
+        shape_.crop_x = crop_x;
+        shape_.crop_y = 0;
+        shape_.crop_w = crop_w;
+        shape_.crop_h = crop_h;
+        shape_.level_bits = cfg_.scaled_level_bits;
+        shape_.radius = cfg_.hud_round_corners ? (dh / 12 > 6 ? dh / 12 : 6) : 0;
+        shape_.black = cfg_.hud_black_background;
+        crop_x_ = crop_x;
+        log_info("render: HUD map from 1440x636, crop %ux%u at %u,0 -> %ux%u",
+                 crop_w, crop_h, crop_x, dw, dh);
     } else if (cfg_.target == "hud" && cfg_.scale_down && (sw < cfg_.video.w || sh < cfg_.video.h) && sw >= 64 &&
                sh >= 32 && sw <= cfg_.video.w && sh <= cfg_.video.h) {
         q.x += (q.w - sw) / 2;

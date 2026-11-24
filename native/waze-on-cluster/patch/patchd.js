@@ -1755,6 +1755,7 @@ function revert(noRestart, dropBackup, done) { revertFile(CP, noRestart, dropBac
  * car coded otherwise too, never on trial there). */
 function planArgs(panel, mode, unproven) {
     var args = ['--panel', panel, '--coding', CODING].concat(unproven ? ['--unproven'] : []);
+    if (panel === 'high') args.push('--res', 'wide');
     if (mode === 'udp') args.push('--sink', 'udp://127.0.0.1:' + UDP_PORT + '?mime_type=video/H264');
     else if (mode !== 'avb') args.push('--capture', FIFO);
     return args;

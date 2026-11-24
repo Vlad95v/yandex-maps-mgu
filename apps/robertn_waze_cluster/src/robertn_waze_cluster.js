@@ -93,6 +93,9 @@ const HUD_SIZE_NAME = 'wocHudSize';
 const HUD_POS_NAME = 'wocHudPos';
 const HUD_MOVE_NAMES = { left: 'wocHudLeft', right: 'wocHudRight', up: 'wocHudUp', down: 'wocHudDown' };
 const HUD_CENTRE_NAME = 'wocHudCentre';
+const CLUSTER_OFFSET_NAME = 'wocClusterOffset';
+const CLUSTER_OFFSET_MOVE_NAMES = { left: 'wocClusterLeft', right: 'wocClusterRight' };
+const CLUSTER_CENTRE_NAME = 'wocClusterCentre';
 const CAPTURE_NAME = 'wocCapture';
 const CAPTURE_STATUS = 'wocCaptureStatus';
 const LOGS_NAME = 'wocLogs';
@@ -208,7 +211,8 @@ class WazeClusterApp extends OnlineApp {
             AA_ENABLE_NAME, AA_DISABLE_NAME, AA_ZOOM_NAME, AA_ZOOM_OUT_NAME, AA_ZOOM_IN_NAME, AA_CARD_NAME, RESTART_NAME, GUIDE_NAME,
             HEAD_GENERAL_NAME, HEAD_HUD_NAME, SHOW_ON_NAME, PROFILE_NAME, HUD_NAME, HUD_KEEP_NAME, HUD_SIZE_NAME, HUD_POS_NAME]
             .concat(Object.values(HUD_MOVE_NAMES), [HUD_CENTRE_NAME, CAPTURE_NAME, CAPTURE_STATUS,
-                LOGS_NAME, LOGS_SAVE, LOGS_STATUS, LOGS_QR, LOGS_URL], LOGS_ROW_NAMES);
+                LOGS_NAME, LOGS_SAVE, LOGS_STATUS, LOGS_QR, LOGS_URL], LOGS_ROW_NAMES,
+                [CLUSTER_OFFSET_NAME, CLUSTER_OFFSET_MOVE_NAMES.left, CLUSTER_OFFSET_MOVE_NAMES.right, CLUSTER_CENTRE_NAME]);
         names.forEach((name) => { this._components[name] = rhmi.getByName(name); });
         const missing = names.filter((name) => !this._components[name]);
         if (missing.length) {
@@ -264,6 +268,8 @@ class WazeClusterApp extends OnlineApp {
         });
         Object.keys(HUD_MOVE_NAMES).forEach((dir) => this._bind(HUD_MOVE_NAMES[dir], () => this._control.moveHud(dir)));
         this._bind(HUD_CENTRE_NAME, () => this._control.centreHud());
+        Object.keys(CLUSTER_OFFSET_MOVE_NAMES).forEach((dir) => this._bind(CLUSTER_OFFSET_MOVE_NAMES[dir], () => this._control.moveCluster(dir)));
+        this._bind(CLUSTER_CENTRE_NAME, () => this._control.centreCluster());
         this._bind(CAPTURE_NAME, () => this._control.capture());
         this._bind(LOGS_NAME, () => Promise.resolve(rhmi.openState(LOGS_STATE))
             .catch((err) => logger.warn(`openState ${LOGS_STATE} failed: ${err && err.message}`)));
@@ -584,6 +590,12 @@ class WazeClusterApp extends OnlineApp {
         this._write(HUD_POS_NAME, c.hudPositionText());
         Object.values(HUD_MOVE_NAMES).forEach((n) => this._setEnabled(n, adjust));
         this._setEnabled(HUD_CENTRE_NAME, c.canCentreHud());
+        /* cluster horizontal offset controls */
+        const canClusterOffset = c.canChangeClusterOffset();
+        this._write(CLUSTER_OFFSET_NAME, c.clusterOffsetText());
+        this._setEnabled(CLUSTER_OFFSET_MOVE_NAMES.left, canClusterOffset);
+        this._setEnabled(CLUSTER_OFFSET_MOVE_NAMES.right, canClusterOffset);
+        this._setEnabled(CLUSTER_CENTRE_NAME, c.canCentreCluster());
     }
 
     _renderLogs() {
