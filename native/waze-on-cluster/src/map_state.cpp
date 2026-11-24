@@ -26,8 +26,8 @@ std::string trim(const std::string &s)
 }
 
 /* A whole number in the key's range: the map on (1) or off (0), 0 or 20-100 %
- * wide, -800..800 px from the centre, -1088..1088 px cluster offset, kept
- * shown (1) or not (0). */
+ * wide, -800..800 px from the centre, -176..176 px cluster offset (step 2),
+ * kept shown (1) or not (0). */
 bool valid(const std::string &key, const std::string &value)
 {
     char *end = nullptr;
@@ -39,7 +39,7 @@ bool valid(const std::string &key, const std::string &value)
     if (key == "hud_offset_x" || key == "hud_offset_y")
         return v >= -800 && v <= 800;
     if (key == "cluster_offset_x")
-        return v >= -1088 && v <= 1088;
+        return v >= -176 && v <= 176 && v % 2 == 0;
     return v == 0 || v == 1;
 }
 

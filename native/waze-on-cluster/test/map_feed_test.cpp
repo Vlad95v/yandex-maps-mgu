@@ -1877,6 +1877,223 @@ int main()
            hs2.cluster_offset_x == -100 && hs2.cluster_crop_x == 176);
     }
 
+    /* ---- pixel-level cluster crop test with synthetic YUV atlas ---- */
+    {
+        /* Test AtlasScaler directly with crop to verify pixel correctness.
+         * Source: 1440x636 YUV 4:2:0 (Y: 1440x636, UV: 720x318 side by side)
+         * Crop: 1088x480 at varying crop_x (centered at 176) */
+        auto make_atlas = [](uint32_t w, uint32_t h, uint8_t base_y) {
+            std::vector<uint8_t> a((size_t)w * (h + h / 2));
+            /* Y plane: gradient left-to-right, constant per row */
+            for (uint32_t y = 0; y < h; y++)
+                for (uint32_t x = 0; x < w; x++)
+                    a[y * w + x] = (uint8_t)((x + y * 7 + base_y) & 0xff);
+            /* UV plane: U and V side by side at w/2 x h/2, constant per 2x2 block */
+            for (uint32_t y = 0; y < h / 2; y++) {
+                for (uint32_t x = 0; x < w / 2; x++) {
+                    a[w * h + y * w + x] = (uint8_t)((x * 2 + y * 11 + 128) & 0xff);       /* U */
+                    a[w * h + y * w + w / 2 + x] = (uint8_t)((x * 3 + y * 13 + 128) & 0xff); /* V */
+                }
+            }
+            return a;
+        };
+
+        /* Test crop at center (crop_x = 176) -> output should be 1088x480 */
+        AtlasScaler scaler;
+        ok("AtlasScaler: configure 1440x636 -> 1088x480 with crop_x=176",
+           scaler.configure(1440, 636, 1088, 480, 0, 176, 0, 1088, 480));
+        std::vector<uint8_t> src = make_atlas(1440, 636, 0);
+        std::vector<uint8_t> dst;
+        scaler.scale(src.data(), &dst);
+        ok("AtlasScaler: output size 1088*720 = 783360",
+           dst.size() == 1088u * 720u);
+
+        /* Verify center crop: output x=0 corresponds to source x=176 */
+        /* Y at dst(0,0) should match src Y at (176,0) = (176 + 0*7 + 0) & 0xff = 176 */
+        ok("AtlasScaler crop center: Y[0,0] = src[176,0] = 176",
+           dst[0] == 176);
+        /* Y at dst(1087,0) should match src Y at (1263,0) = (1263 + 0*7) & 0xff = 247 */
+        ok("AtlasScaler crop center: Y[1087,0] = src[1263,0] = 247",
+           dst[1087] == 247);
+        /* Y at dst(0,479) should match src Y at (176,479) = (176 + 479*7) & 0xff = 109 */
+        ok("AtlasScaler crop center: Y[0,479] = src[176,479] = 109",
+           dst[479 * 1088] == 109);
+
+        /* Test crop at left edge (crop_x = 0) */
+        AtlasScaler scaler_left;
+        ok("AtlasScaler: configure 1440x636 -> 1088x480 with crop_x=0",
+           scaler_left.configure(1440, 636, 1088, 480, 0, 0, 0, 1088, 480));
+        std::vector<uint8_t> dst_left;
+        scaler_left.scale(src.data(), &dst_left);
+        /* Y at dst(0,0) should match src Y at (0,0) = 0 */
+        ok("AtlasScaler crop left: Y[0,0] = src[0,0] = 0",
+           dst_left[0] == 0);
+        /* Y at dst(1087,0) should match src Y at (1087,0) = 1087 & 0xff = 63 */
+        ok("AtlasScaler crop left: Y[1087,0] = src[1087,0] = 63",
+           dst_left[1087] == 63);
+
+        /* Test crop at right edge (crop_x = 352) */
+        AtlasScaler scaler_right;
+        ok("AtlasScaler: configure 1440x636 -> 1088x480 with crop_x=352",
+           scaler_right.configure(1440, 636, 1088, 480, 0, 352, 0, 1088, 480));
+        std::vector<uint8_t> dst_right;
+        scaler_right.scale(src.data(), &dst_right);
+        /* Y at dst(0,0) should match src Y at (352,0) = 352 & 0xff = 96 */
+        ok("AtlasScaler crop right: Y[0,0] = src[352,0] = 96",
+           dst_right[0] == 96);
+        /* Y at dst(1087,0) should match src Y at (1439,0) = 1439 & 0xff = 151 */
+        ok("AtlasScaler crop right: Y[1087,0] = src[1439,0] = 151",
+           dst_right[1087] == 151);
+
+        /* UV planes: U at dst(0,0) with center crop (crop_x=176) -> src U at (88,0) */
+        ok("AtlasScaler crop center: U[0,0] = src U[88,0]",
+           dst[1440 * 636 + 0] == ((88 * 2 + 0 * 11 + 128) & 0xff));
+        /* V at dst(0,0) -> src V at (88,0) */
+        ok("AtlasScaler crop center: V[0,0] = src V[88,0]",
+           dst[1440 * 636 + 1440 / 2 + 0] == ((88 * 3 + 0 * 13 + 128) & 0xff));
+
+        /* Test with non-zero crop_y */
+        AtlasScaler scaler_y;
+        ok("AtlasScaler: configure with crop_y=78 (1440x636 -> 1088x480, crop at 176,78)",
+           scaler_y.configure(1440, 636, 1088, 480, 0, 176, 78, 1088, 480));
+        std::vector<uint8_t> dst_y;
+        scaler_y.scale(src.data(), &dst_y);
+        /* Y at dst(0,0) should match src Y at (176,78) = (176 + 78*7) & 0xff = 222 */
+        ok("AtlasScaler crop_y=78: Y[0,0] = src[176,78] = 222",
+           dst_y[0] == 222);
+
+        /* Verify downscaling with crop still works (e.g., 1440x636 -> 452x200) */
+        AtlasScaler scaler_hud;
+        ok("AtlasScaler: configure 1440x636 -> 452x200 with crop_x=176",
+           scaler_hud.configure(1440, 636, 452, 200, 2, 176, 0, 1088, 480));
+        std::vector<uint8_t> dst_hud;
+        scaler_hud.scale(src.data(), &dst_hud);
+        ok("AtlasScaler HUD: output size 452*300 = 135600",
+           dst_hud.size() == 452u * 300u);
+    }
+
+    /* ---- live-update regression test: offset change during scaling ---- */
+    {
+        /* This test reproduces the bug where a cluster offset change during
+         * active scaling would cause the worker's stale result (with old crop)
+         * to be displayed instead of the new crop. The fix ensures that when
+         * the worker finishes with a stale shape, the held atlas is resubmitted
+         * with the current crop. */
+        FeedConfig cfc;
+        cfc.socket = "/tmp/woc-feed-live-offset-" + std::to_string(getpid()) + ".sock";
+        cfc.target = "map";
+        cfc.video.w = 1440;
+        cfc.video.h = 636;
+        cfc.video.level_bits = 0;
+        cfc.video.stall_ms = 6000;
+        cfc.cluster_offset_x = 0;
+
+        /* Use a real rig with fake renderer to test the full pipeline */
+        crs::FakeGpu gpu;
+        crs::FakePort port;
+        crs::ServiceConfig sc;
+        crs::TargetSpec m;
+        m.name = "map"; m.slot = 0x100; m.scene_id = 0x010004f0; m.width = 1088; m.height = 480; m.linger_ms = 1500;
+        m.take_over_stock = true;
+        sc.targets = {m};
+        sc.socket_path = cfc.socket;
+        sc.backend = "fake";
+        crs::Service svc(&gpu, &port, sc);
+        port.m = &svc.slots();
+        std::string err;
+        if (!svc.start(&err)) {
+            std::printf("live-offset test: service start failed: %s\n", err.c_str());
+        } else {
+            MapFeed feed(cfc);
+            feed.set_stream(true, false, Picture::Shown);
+            int64_t now = 200000;
+
+            /* Create synthetic atlas with identifiable pattern */
+            auto make_atlas = [](uint32_t w, uint32_t h, uint8_t base) {
+                std::vector<uint8_t> a((size_t)w * (h + h / 2));
+                for (uint32_t y = 0; y < h; y++)
+                    for (uint32_t x = 0; x < w; x++)
+                        a[y * w + x] = (uint8_t)((x + y * 7 + base) & 0xff);
+                for (uint32_t y = 0; y < h / 2; y++) {
+                    for (uint32_t x = 0; x < w / 2; x++) {
+                        a[w * h + y * w + x] = (uint8_t)((x * 2 + y * 11 + 128) & 0xff);
+                        a[w * h + y * w + w / 2 + x] = (uint8_t)((x * 3 + y * 13 + 128) & 0xff);
+                    }
+                }
+                return a;
+            };
+
+            std::vector<uint8_t> atlas = make_atlas(1440, 636, 1);
+            std::vector<uint8_t> spare;
+
+            /* Feed first frame, let scaling start */
+            spare = atlas;
+            feed.offer(&spare, 1, now);
+            for (int i = 0; i < 100; i++) {
+                now += 5;
+                std::vector<pollfd> fds;
+                size_t first = svc.poll_fds(&fds);
+                int n = poll(fds.data(), fds.size(), 0);
+                port.tick(now);
+                svc.after_poll(fds, first, now);
+                feed.poll(now);
+            }
+
+            /* Worker should be scaling now */
+            bool was_scaling = scaling(feed, now);
+
+            /* Change cluster offset while worker is busy */
+            feed.set_cluster_offset(50);
+
+            /* Pump until worker finishes and we get the result */
+            std::vector<uint8_t> output;
+            bool got_output = false;
+            for (int i = 0; i < 500 && !got_output; i++) {
+                now += 5;
+                std::vector<pollfd> fds;
+                size_t first = svc.poll_fds(&fds);
+                int n = poll(fds.data(), fds.size(), 0);
+                port.tick(now);
+                svc.after_poll(fds, first, now);
+                feed.poll(now);
+
+                /* Check if the map layer shows the correct crop */
+                const crs::Layer *ml = nullptr;
+                for (const crs::Layer *l : svc.compositor().layers())
+                    ml = l;
+                if (ml) {
+                    crs::FakeGraph *g = gpu.graph("map");
+                    if (g && !g->drawn().empty()) {
+                        for (const auto &kv : g->shown.buffers) {
+                            if (kv.second.f == crs::TexFormat::R8) {
+                                /* Verify the output corresponds to crop_x=126 (176-50) */
+                                /* With crop_x=126, the leftmost pixel should come from src x=126 */
+                                /* Our pattern: Y[x,y] = (x + y*7 + base) & 0xff */
+                                /* So Y[0,0] = (126 + 0 + 1) & 0xff = 127 */
+                                if (kv.second.px[0] == 127) {
+                                    got_output = true;
+                                    output = kv.second.px;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            ok("live offset change: worker was scaling", was_scaling);
+            ok("live offset change: output received with new crop (crop_x=126 -> Y[0]=127)",
+               got_output && !output.empty() && output[0] == 127);
+            if (got_output && !output.empty() && output[0] != 127) {
+                std::printf("  DEBUG: output[0] = %d (expected 127 for crop_x=126, would be 177 for old crop_x=176)\n", output[0]);
+            }
+
+            /* Verify the shape in status matches new offset */
+            FeedStatus st = feed.status("decode");
+            ok("live offset change: status shows cluster_offset_x=50, crop_x=126",
+               st.cluster_offset_x == 50 && st.cluster_crop_x == 126);
+        }
+    }
+
     std::printf(failures ? "%d FAILED\n" : "all ok\n", failures);
     return failures ? 1 : 0;
 }

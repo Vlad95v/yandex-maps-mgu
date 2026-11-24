@@ -120,19 +120,19 @@ function ok(name, cond) {
     ok('the cluster off is saved next to it', r.ok && r.cluster === 0 && /hud = 0\ncluster = 0\n$/.test(state));
     r = await ask({ cmd: 'cluster', on: 2 });
     ok('a cluster on that is not 0 or 1 is refused and nothing written', !r.ok && fs.readFileSync(STATE, 'utf8') === state);
-    /* cluster_x: horizontal offset -176..176 step 2, saved for the render's next start. */
+    /* cluster_offset_x: horizontal offset -176..176 step 2, saved for the render's next start. */
     r = await ask({ cmd: 'cluster', cluster_x: 10 });
-    ok('cluster_x 10 is saved', r.ok && r.cluster_x === 10 &&
-        /cluster_x = 10\n$/.test(fs.readFileSync(STATE, 'utf8')));
+    ok('cluster_x 10 is saved as cluster_offset_x', r.ok && r.cluster_offset_x === 10 &&
+        /cluster_offset_x = 10\n$/.test(fs.readFileSync(STATE, 'utf8')));
     r = await ask({ cmd: 'cluster', cluster_x: -176 });
-    ok('cluster_x -176 (left edge) is saved', r.ok && r.cluster_x === -176 &&
-        /cluster_x = -176\n$/.test(fs.readFileSync(STATE, 'utf8')));
+    ok('cluster_x -176 (left edge) is saved as cluster_offset_x', r.ok && r.cluster_offset_x === -176 &&
+        /cluster_offset_x = -176\n$/.test(fs.readFileSync(STATE, 'utf8')));
     r = await ask({ cmd: 'cluster', cluster_x: 176 });
-    ok('cluster_x 176 (right edge) is saved', r.ok && r.cluster_x === 176 &&
-        /cluster_x = 176\n$/.test(fs.readFileSync(STATE, 'utf8')));
+    ok('cluster_x 176 (right edge) is saved as cluster_offset_x', r.ok && r.cluster_offset_x === 176 &&
+        /cluster_offset_x = 176\n$/.test(fs.readFileSync(STATE, 'utf8')));
     r = await ask({ cmd: 'cluster', cluster_x: 0 });
-    ok('cluster_x 0 (centre) is saved', r.ok && r.cluster_x === 0 &&
-        /cluster_x = 0\n$/.test(fs.readFileSync(STATE, 'utf8')));
+    ok('cluster_x 0 (centre) is saved as cluster_offset_x', r.ok && r.cluster_offset_x === 0 &&
+        /cluster_offset_x = 0\n$/.test(fs.readFileSync(STATE, 'utf8')));
     r = await ask({ cmd: 'cluster', cluster_x: 177 });
     ok('cluster_x 177 (out of range) is refused', !r.ok);
     r = await ask({ cmd: 'cluster', cluster_x: -177 });

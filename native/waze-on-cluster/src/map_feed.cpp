@@ -395,6 +395,14 @@ void MapFeed::set_cluster_offset(int dx)
     lo_.x = (int)q.x;
     client_.set(layer_, lo_);
     log_info("render: cluster map at x=%u (offset %+d)", q.x, placed_x_);
+
+    /* If we have a held atlas and the worker is idle, resubmit it with the
+     * new crop. If the worker is busy, the stale result will be discarded
+     * and the returned atlas will be marked for resubmission in send_pending. */
+    if (scaling_ && held_new_ && !elsewhere_ && !in_worker_ && worker_.idle() && sending()) {
+        log_info("render: cluster offset changed, resubmitting held atlas with new crop");
+        send_pending(cld::now_ms());
+    }
 }
 
 void MapFeed::set_hud_keep_shown(bool keep)
