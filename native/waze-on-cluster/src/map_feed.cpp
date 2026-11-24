@@ -536,6 +536,10 @@ void MapFeed::send_pending(int64_t now_ms)
         in_worker_ = false;
         if (!scaled_.empty() && layer_)
             client_.frame(layer_, &scaled_, sid);
+        else if (scaled_.empty())
+            /* stale result (shape changed): the input atlas was returned in
+             * held_; mark it for resubmission with the current shape. */
+            held_new_ = true, elsewhere_ = false;
     }
     /* a VPP-made picture goes as it is, after the worker's */
     if (held_part_.set()) {
