@@ -64,6 +64,9 @@ public:
     void set_hud_keep_shown(bool keep);
     int hud_offset_x() const { return base_.hud_offset_x; }
     int hud_offset_y() const { return base_.hud_offset_y; }
+    /* The cluster map's horizontal offset, kept for a cluster feed made later. */
+    void set_cluster_offset(int dx);
+    int cluster_offset_x() const { return base_.cluster_offset_x; }
     /* The cluster map layer's guide_hold. */
     void set_guide_hold(bool hold);
 

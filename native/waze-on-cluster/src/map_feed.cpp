@@ -260,11 +260,21 @@ void MapFeed::remake_layer()
 /* Where the map goes on a target of tw x th: the kit's fitted rect, or on
  * the HUD with a size set, that width (the picture's shape kept, at most the
  * HUD's height), centred; on the HUD then moved by the offset, held inside
- * the scene. */
+ * the scene. On the cluster, moved horizontally by cluster_offset_x, held
+ * inside the 1088x480 scene. */
 crk::QuadRect MapFeed::quad(uint32_t tw, uint32_t th) const
 {
-    if (cfg_.target != "hud" || !cfg_.video.w || !cfg_.video.h)
-        return crk::map_quad(tw, th, cfg_.video.w, cfg_.video.h);
+    if (cfg_.target != "hud" || !cfg_.video.w || !cfg_.video.h) {
+        crk::QuadRect q = crk::map_quad(tw, th, cfg_.video.w, cfg_.video.h);
+        if (cfg_.target == "map" && cfg_.cluster_offset_x != 0) {
+            const long x = (long)q.x + cfg_.cluster_offset_x;
+            const long xmax = (long)tw - (long)q.w;
+            const uint32_t cx = q.x;
+            q.x = (uint32_t)(x < 0 ? 0 : x > xmax ? xmax : x);
+            placed_x_ = (int)q.x - (int)cx;
+        }
+        return q;
+    }
     crk::QuadRect q;
     const unsigned pct = cfg_.hud_width_pct;
     if (!pct) {
@@ -303,6 +313,25 @@ void MapFeed::set_hud_offset(int dx, int dy)
     lo_.y = (int)q.y;
     client_.set(layer_, lo_);
     log_info("render: HUD map moved to %u,%u (offset %+d,%+d)", q.x, q.y, placed_x_, placed_y_);
+}
+
+/* The cluster map moved horizontally (FeedConfig::cluster_offset_x), at once:
+ * the layer only changes place, no new texture. Held inside the cluster
+ * scene (1088x480): the offset the map is at (cluster_offset_x, the status's)
+ * then is as far as it goes, and the one asked for is kept for the next. */
+void MapFeed::set_cluster_offset(int dx)
+{
+    if (dx == cfg_.cluster_offset_x)
+        return;
+    cfg_.cluster_offset_x = dx;
+    uint32_t tw, th;
+    /* hosted, the host places it: the offset waits for the cluster's own */
+    if (cfg_.target != "map" || !layer_ || hosted() || !target_size(client_.targets, "map", &tw, &th))
+        return;
+    const crk::QuadRect q = quad(tw, th);
+    lo_.x = (int)q.x;
+    client_.set(layer_, lo_);
+    log_info("render: cluster map moved to x=%u (offset %+d)", q.x, placed_x_);
 }
 
 void MapFeed::set_hud_keep_shown(bool keep)
