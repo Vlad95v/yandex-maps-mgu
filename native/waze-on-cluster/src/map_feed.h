@@ -238,6 +238,9 @@ public:
     bool disabled() const;
     /* Frames scaled for this feed. */
     uint64_t scaled_frames() const { return worker_.frames(); }
+    /* Test access to the worker for synchronization. */
+    ScaleWorker &worker() { return worker_; }
+    const ScaleWorker &worker() const { return worker_; }
 
     /* Whether CarPlay's cluster stream is live, whether it is frozen and
      * what it has to show: the layer is visible only while it is live, not
@@ -303,6 +306,7 @@ private:
      * is one, unless another feed or the worker has it. */
     std::vector<uint8_t> held_;
     bool held_new_ = false;       /* the newest picture has not gone to the layer */
+    bool has_cached_source_ = false; /* held_ holds a valid source atlas for recropping */
     bool elsewhere_ = false;      /* another feed has it (changed) */
     bool in_worker_ = false;      /* the worker has it, given back with its scaled frame */
     uint64_t id_ = 0;             /* the newest frame's */

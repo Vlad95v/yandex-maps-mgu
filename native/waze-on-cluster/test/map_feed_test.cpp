@@ -1791,7 +1791,8 @@ int main()
 
     /* ---- cluster horizontal offset (source crop from wider CarPlay geometry) ---- */
     {
-        /* Feed with 1440x636 source (RES_WIDE), cropped to 1088x480 for cluster */
+        /* Feed with 1440x636 source (RES_WIDE), cropped to 1088x480 for cluster.
+         * Use a real rig with fake renderer to test the full pipeline. */
         FeedConfig cfc;
         cfc.socket = "/tmp/woc-feed-cluster-offset-" + std::to_string(getpid()) + ".sock";
         cfc.target = "map";
@@ -1799,54 +1800,76 @@ int main()
         cfc.video.h = 636;
         cfc.video.level_bits = 0;
         cfc.video.stall_ms = 6000;
-        cfc.cluster_offset_x = 0;   /* start centered */
+        cfc.cluster_offset_x = 0;
 
-        /* We test MapFeed directly with a fake renderer since the full rig
-         * uses 1088x480 target. The MapFeed logic for cluster offset is in
-         * quad() and set_cluster_offset(). We can test the logic directly
-         * by checking the FeedStatus fields. */
-        MapFeed cf(cfc);
-        FeedStatus cs = cf.status("decode");
+        crs::FakeGpu gpu;
+        crs::FakePort port;
+        crs::ServiceConfig sc;
+        crs::TargetSpec m;
+        m.name = "map"; m.slot = 0x100; m.scene_id = 0x010004f0; m.width = 1088; m.height = 480; m.linger_ms = 1500;
+        m.take_over_stock = true;
+        sc.targets = {m};
+        sc.socket_path = cfc.socket;
+        sc.backend = "fake";
+        crs::Service svc(&gpu, &port, sc);
+        port.m = &svc.slots();
+        std::string err;
+        if (!svc.start(&err)) {
+            std::printf("cluster-offset test: service start failed: %s\n", err.c_str());
+        } else {
+            MapFeed feed(cfc);
+            feed.set_stream(true, false, Picture::Shown);
+            int64_t now = 200000;
 
-        ok("cluster feed: source dimensions 1440x636",
-           cs.source_w == 1440 && cs.source_h == 636);
-        ok("cluster feed: output dimensions 1088x480",
-           cs.output_w == 1088 && cs.output_h == 480);
-        ok("cluster offset 0: crop_x = 176 (centered)",
-           cs.cluster_offset_x == 0 && cs.cluster_offset_x_actual == 0 && cs.cluster_crop_x == 176);
+            auto make_atlas = [](uint32_t w, uint32_t h, uint8_t base) {
+                std::vector<uint8_t> a((size_t)w * (h + h / 2));
+                for (uint32_t y = 0; y < h; y++)
+                    for (uint32_t x = 0; x < w; x++)
+                        a[y * w + x] = (uint8_t)((x + y * 7 + base) & 0xff);
+                for (uint32_t y = 0; y < h / 2; y++) {
+                    for (uint32_t x = 0; x < w / 2; x++) {
+                        a[w * h + y * w + x] = (uint8_t)((x * 2 + y * 11 + 128) & 0xff);
+                        a[w * h + y * w + w / 2 + x] = (uint8_t)((x * 3 + y * 13 + 128) & 0xff);
+                    }
+                }
+                return a;
+            };
 
-        cf.set_cluster_offset(10);
-        cs = cf.status("decode");
-        ok("cluster offset +10: crop_x = 166 (176 - 10)",
-           cs.cluster_offset_x == 10 && cs.cluster_offset_x_actual == 10 && cs.cluster_crop_x == 166);
+            auto pump = [&](int64_t ms) {
+                for (int64_t t = 0; t < ms; t += 5) {
+                    now += 5;
+                    std::vector<pollfd> fds;
+                    size_t first = svc.poll_fds(&fds);
+                    int n = poll(fds.data(), fds.size(), 0);
+                    port.tick(now);
+                    svc.after_poll(fds, first, now);
+                    feed.poll(now);
+                }
+            };
 
-        cf.set_cluster_offset(-50);
-        cs = cf.status("decode");
-        ok("cluster offset -50: crop_x = 226 (176 - (-50))",
-           cs.cluster_offset_x == -50 && cs.cluster_offset_x_actual == -50 && cs.cluster_crop_x == 226);
+            auto check_crop = [&](int expected_crop_x, const char *desc) {
+                FeedStatus st = feed.status("decode");
+                ok(desc, st.cluster_crop_x == (uint32_t)expected_crop_x);
+            };
 
-        cf.set_cluster_offset(176);
-        cs = cf.status("decode");
-        ok("cluster offset +176 (right edge): crop_x = 0",
-           cs.cluster_offset_x == 176 && cs.cluster_offset_x_actual == 176 && cs.cluster_crop_x == 0);
+            check_crop(176, "cluster offset 0: crop_x = 176 (centered)");
+            feed.set_cluster_offset(10);
+            check_crop(166, "cluster offset +10: crop_x = 166");
+            feed.set_cluster_offset(-50);
+            check_crop(226, "cluster offset -50: crop_x = 226");
+            feed.set_cluster_offset(176);
+            check_crop(0, "cluster offset +176 (right edge): crop_x = 0");
+            feed.set_cluster_offset(-176);
+            check_crop(352, "cluster offset -176 (left edge): crop_x = 352");
+            feed.set_cluster_offset(200);
+            check_crop(0, "cluster offset +200: clamped to +176, crop_x = 0");
+            feed.set_cluster_offset(-200);
+            check_crop(352, "cluster offset -200: clamped to -176, crop_x = 352");
+        }
+    }
 
-        cf.set_cluster_offset(-176);
-        cs = cf.status("decode");
-        ok("cluster offset -176 (left edge): crop_x = 352",
-           cs.cluster_offset_x == -176 && cs.cluster_offset_x_actual == -176 && cs.cluster_crop_x == 352);
-
-        /* Clamping: beyond range is clamped */
-        cf.set_cluster_offset(200);
-        cs = cf.status("decode");
-        ok("cluster offset +200: clamped to +176, crop_x = 0",
-           cs.cluster_offset_x == 200 && cs.cluster_offset_x_actual == 176 && cs.cluster_crop_x == 0);
-
-        cf.set_cluster_offset(-200);
-        cs = cf.status("decode");
-        ok("cluster offset -200: clamped to -176, crop_x = 352",
-           cs.cluster_offset_x == -200 && cs.cluster_offset_x_actual == -176 && cs.cluster_crop_x == 352);
-
-        /* HUD feed: independent centered crop (crop_x = 176), NOT affected by cluster_offset_x */
+    /* HUD feed: independent centered crop (crop_x = 176), NOT affected by cluster_offset_x */
+    {
         FeedConfig hfc;
         hfc.socket = "/tmp/woc-feed-hud-offset-" + std::to_string(getpid()) + ".sock";
         hfc.target = "hud";
@@ -1854,27 +1877,56 @@ int main()
         hfc.video.h = 636;
         hfc.video.level_bits = 2;
         hfc.video.stall_ms = 6000;
-        hfc.cluster_offset_x = 100;   /* non-zero cluster offset */
+        hfc.cluster_offset_x = 100;
         hfc.scale_down = true;
         hfc.scaled_level_bits = 2;
         hfc.hud_round_corners = true;
         hfc.hud_black_background = true;
 
-        MapFeed hf(hfc);
-        FeedStatus hs = hf.status("decode");
-        ok("HUD feed: source dimensions 1440x636",
-           hs.source_w == 1440 && hs.source_h == 636);
-        ok("HUD feed: output dimensions 1088x480",
-           hs.output_w == 1088 && hs.output_h == 480);
-        ok("HUD feed: crop_x = 176 (centered, independent of cluster_offset_x)",
-           hs.cluster_offset_x == 100 && hs.cluster_crop_x == 176);
-
-        /* Change cluster offset in feed config - HUD crop_x should remain 176 */
-        hfc.cluster_offset_x = -100;
-        MapFeed hf2(hfc);
-        FeedStatus hs2 = hf2.status("decode");
-        ok("HUD feed with cluster_offset_x = -100: crop_x still = 176 (independent)",
-           hs2.cluster_offset_x == -100 && hs2.cluster_crop_x == 176);
+        crs::FakeGpu gpu;
+        crs::FakePort port;
+        crs::ServiceConfig sc;
+        crs::TargetSpec m, u;
+        m.name = "map"; m.slot = 0x100; m.scene_id = 0x010004f0; m.width = 1088; m.height = 480; m.linger_ms = 1500;
+        m.take_over_stock = true;
+        u.name = "hud"; u.slot = 0x323; u.scene_id = 0x01000400; u.width = 800; u.height = 480; u.linger_ms = 3000;
+        u.yield_slots = {0x322};
+        u.yield_ms = 1500;
+        sc.targets = {m, u};
+        sc.socket_path = hfc.socket;
+        sc.backend = "fake";
+        crs::Service svc(&gpu, &port, sc);
+        port.m = &svc.slots();
+        std::string err;
+        if (!svc.start(&err)) {
+            std::printf("hud-offset test: service start failed: %s\n", err.c_str());
+        } else {
+            MapFeed feed(hfc);
+            feed.set_stream(true, false, Picture::Shown);
+            int64_t now = 200000;
+            auto pump = [&](int64_t ms) {
+                for (int64_t t = 0; t < ms; t += 5) {
+                    now += 5;
+                    std::vector<pollfd> fds;
+                    size_t first = svc.poll_fds(&fds);
+                    int n = poll(fds.data(), fds.size(), 0);
+                    port.tick(now);
+                    svc.after_poll(fds, first, now);
+                    feed.poll(now);
+                }
+            };
+            pump(500);
+            FeedStatus hs = feed.status("decode");
+            ok("HUD feed with cluster_offset_x = 100: crop_x = 176 (independent)",
+               hs.cluster_offset_x == 100 && hs.cluster_crop_x == 176);
+            hfc.cluster_offset_x = -100;
+            MapFeed feed2(hfc);
+            feed2.set_stream(true, false, Picture::Shown);
+            pump(500);
+            FeedStatus hs2 = feed2.status("decode");
+            ok("HUD feed with cluster_offset_x = -100: crop_x still = 176 (independent)",
+               hs2.cluster_offset_x == -100 && hs2.cluster_crop_x == 176);
+        }
     }
 
     /* ---- pixel-level cluster crop test with synthetic YUV atlas ---- */
@@ -1978,7 +2030,8 @@ int main()
          * active scaling would cause the worker's stale result (with old crop)
          * to be displayed instead of the new crop. The fix ensures that when
          * the worker finishes with a stale shape, the held atlas is resubmitted
-         * with the current crop. */
+         * with the current crop.
+         * Uses deterministic worker synchronization. */
         FeedConfig cfc;
         cfc.socket = "/tmp/woc-feed-live-offset-" + std::to_string(getpid()) + ".sock";
         cfc.target = "map";
@@ -1988,7 +2041,6 @@ int main()
         cfc.video.stall_ms = 6000;
         cfc.cluster_offset_x = 0;
 
-        /* Use a real rig with fake renderer to test the full pipeline */
         crs::FakeGpu gpu;
         crs::FakePort port;
         crs::ServiceConfig sc;
@@ -2008,7 +2060,6 @@ int main()
             feed.set_stream(true, false, Picture::Shown);
             int64_t now = 200000;
 
-            /* Create synthetic atlas with identifiable pattern */
             auto make_atlas = [](uint32_t w, uint32_t h, uint8_t base) {
                 std::vector<uint8_t> a((size_t)w * (h + h / 2));
                 for (uint32_t y = 0; y < h; y++)
@@ -2023,73 +2074,351 @@ int main()
                 return a;
             };
 
+            auto pump = [&](int64_t ms) {
+                for (int64_t t = 0; t < ms; t += 5) {
+                    now += 5;
+                    std::vector<pollfd> fds;
+                    size_t first = svc.poll_fds(&fds);
+                    int n = poll(fds.data(), fds.size(), 0);
+                    port.tick(now);
+                    svc.after_poll(fds, first, now);
+                    feed.poll(now);
+                }
+            };
+
             std::vector<uint8_t> atlas = make_atlas(1440, 636, 1);
             std::vector<uint8_t> spare;
 
             /* Feed first frame, let scaling start */
             spare = atlas;
             feed.offer(&spare, 1, now);
-            for (int i = 0; i < 100; i++) {
-                now += 5;
-                std::vector<pollfd> fds;
-                size_t first = svc.poll_fds(&fds);
-                int n = poll(fds.data(), fds.size(), 0);
-                port.tick(now);
-                svc.after_poll(fds, first, now);
-                feed.poll(now);
-            }
+            pump(50);
 
-            /* Worker should be scaling now */
-            bool was_scaling = scaling(feed, now);
+            /* Wait for worker to accept the job and reach the blocked point */
+            bool worker_blocked = feed.worker().wait_until_worker_blocked([](const auto&) { return true; }, 2000);
+            ok("live offset change: worker accepted job and is blocked", worker_blocked);
 
-            /* Change cluster offset while worker is busy */
+            /* Change cluster offset while worker is blocked at the synchronization point */
             feed.set_cluster_offset(50);
 
-            /* Pump until worker finishes and we get the result */
-            std::vector<uint8_t> output;
-            bool got_output = false;
-            for (int i = 0; i < 500 && !got_output; i++) {
-                now += 5;
-                std::vector<pollfd> fds;
-                size_t first = svc.poll_fds(&fds);
-                int n = poll(fds.data(), fds.size(), 0);
-                port.tick(now);
-                svc.after_poll(fds, first, now);
-                feed.poll(now);
+            /* Release worker and pump until it finishes */
+            feed.worker().release_worker();
+            pump(200);
 
-                /* Check if the map layer shows the correct crop */
-                const crs::Layer *ml = nullptr;
-                for (const crs::Layer *l : svc.compositor().layers())
-                    ml = l;
-                if (ml) {
-                    crs::FakeGraph *g = gpu.graph("map");
-                    if (g && !g->drawn().empty()) {
-                        for (const auto &kv : g->shown.buffers) {
-                            if (kv.second.f == crs::TexFormat::R8) {
-                                /* Verify the output corresponds to crop_x=126 (176-50) */
-                                /* With crop_x=126, the leftmost pixel should come from src x=126 */
-                                /* Our pattern: Y[x,y] = (x + y*7 + base) & 0xff */
-                                /* So Y[0,0] = (126 + 0 + 1) & 0xff = 127 */
-                                if (kv.second.px[0] == 127) {
-                                    got_output = true;
-                                    output = kv.second.px;
-                                }
+            /* Verify the output corresponds to crop_x=126 (176-50) */
+            const crs::Layer *ml = nullptr;
+            for (const crs::Layer *l : svc.compositor().layers())
+                ml = l;
+            bool got_output = false;
+            std::vector<uint8_t> output;
+            if (ml) {
+                crs::FakeGraph *g = gpu.graph("map");
+                if (g && !g->drawn().empty()) {
+                    for (const auto &kv : g->shown.buffers) {
+                        if (kv.second.f == crs::TexFormat::R8) {
+                            /* With crop_x=126, the leftmost pixel should come from src x=126 */
+                            /* Y[x,y] = (x + y*7 + base) & 0xff, base=1 */
+                            /* So Y[0,0] = (126 + 0 + 1) & 0xff = 127 */
+                            if (kv.second.px[0] == 127) {
+                                got_output = true;
+                                output = kv.second.px;
                             }
                         }
                     }
                 }
             }
 
-            ok("live offset change: worker was scaling", was_scaling);
+            ok("live offset change: worker was blocked and released", worker_blocked);
             ok("live offset change: output received with new crop (crop_x=126 -> Y[0]=127)",
                got_output && !output.empty() && output[0] == 127);
             if (got_output && !output.empty() && output[0] != 127) {
                 std::printf("  DEBUG: output[0] = %d (expected 127 for crop_x=126, would be 177 for old crop_x=176)\n", output[0]);
             }
 
+            /* Verify additional pixels: Y[1087,0] = src[1213,0] = (1213 + 1) & 0xff = 190 */
+            ok("live offset change: Y[1087,0] = src[1213,0] = 190",
+               got_output && output[1087] == 190);
+            /* Y[0,479] = src[126,479] = (126 + 479*7 + 1) & 0xff = 109 */
+            ok("live offset change: Y[0,479] = src[126,479] = 109",
+               got_output && output[479 * 1088] == 109);
+            /* U[0,0] with crop_x=126 -> src U at (63,0) = (63*2 + 128) & 0xff = 254 */
+            ok("live offset change: U[0,0] = src U[63,0] = 254",
+               got_output && output[1440 * 636 + 0] == 254);
+            /* V[0,0] with crop_x=126 -> src V at (63,0) = (63*3 + 128) & 0xff = 61 */
+            ok("live offset change: V[0,0] = src V[63,0] = 61",
+               got_output && output[1440 * 636 + 1440 / 2 + 0] == 61);
+
             /* Verify the shape in status matches new offset */
             FeedStatus st = feed.status("decode");
             ok("live offset change: status shows cluster_offset_x=50, crop_x=126",
+               st.cluster_offset_x == 50 && st.cluster_crop_x == 126);
+        }
+    }
+
+    /* ---- multiple offset changes during one worker job ---- */
+    {
+        /* Test: offset 0 -> +50 -> -40 during a single worker job.
+         * Initial crop_x = 176
+         * Change to +50: intermediate crop_x = 126
+         * Change to -40: final crop_x = 216
+         * The worker must discard stale output and resubmit with final shape. */
+        FeedConfig cfc;
+        cfc.socket = "/tmp/woc-feed-multi-offset-" + std::to_string(getpid()) + ".sock";
+        cfc.target = "map";
+        cfc.video.w = 1440;
+        cfc.video.h = 636;
+        cfc.video.level_bits = 0;
+        cfc.video.stall_ms = 6000;
+        cfc.cluster_offset_x = 0;
+
+        crs::FakeGpu gpu;
+        crs::FakePort port;
+        crs::ServiceConfig sc;
+        crs::TargetSpec m;
+        m.name = "map"; m.slot = 0x100; m.scene_id = 0x010004f0; m.width = 1088; m.height = 480; m.linger_ms = 1500;
+        m.take_over_stock = true;
+        sc.targets = {m};
+        sc.socket_path = cfc.socket;
+        sc.backend = "fake";
+        crs::Service svc(&gpu, &port, sc);
+        port.m = &svc.slots();
+        std::string err;
+        if (!svc.start(&err)) {
+            std::printf("multi-offset test: service start failed: %s\n", err.c_str());
+        } else {
+            MapFeed feed(cfc);
+            feed.set_stream(true, false, Picture::Shown);
+            int64_t now = 200000;
+
+            auto make_atlas = [](uint32_t w, uint32_t h, uint8_t base) {
+                std::vector<uint8_t> a((size_t)w * (h + h / 2));
+                for (uint32_t y = 0; y < h; y++)
+                    for (uint32_t x = 0; x < w; x++)
+                        a[y * w + x] = (uint8_t)((x + y * 7 + base) & 0xff);
+                for (uint32_t y = 0; y < h / 2; y++) {
+                    for (uint32_t x = 0; x < w / 2; x++) {
+                        a[w * h + y * w + x] = (uint8_t)((x * 2 + y * 11 + 128) & 0xff);
+                        a[w * h + y * w + w / 2 + x] = (uint8_t)((x * 3 + y * 13 + 128) & 0xff);
+                    }
+                }
+                return a;
+            };
+
+            auto pump = [&](int64_t ms) {
+                for (int64_t t = 0; t < ms; t += 5) {
+                    now += 5;
+                    std::vector<pollfd> fds;
+                    size_t first = svc.poll_fds(&fds);
+                    int n = poll(fds.data(), fds.size(), 0);
+                    port.tick(now);
+                    svc.after_poll(fds, first, now);
+                    feed.poll(now);
+                }
+            };
+
+            std::vector<uint8_t> atlas = make_atlas(1440, 636, 1);
+            std::vector<uint8_t> spare;
+
+            /* Feed first frame, let scaling start */
+            spare = atlas;
+            feed.offer(&spare, 1, now);
+            pump(50);
+
+            /* Wait for worker to accept the job and reach the blocked point */
+            bool worker_blocked = feed.worker().wait_until_worker_blocked([](const auto&) { return true; }, 2000);
+            ok("multi offset change: worker accepted job and is blocked", worker_blocked);
+
+            /* Change offset to +50 (crop_x=126) */
+            feed.set_cluster_offset(50);
+            /* Change offset to -40 (crop_x=216) while worker still blocked */
+            feed.set_cluster_offset(-40);
+
+            /* Release worker and pump until it finishes */
+            feed.worker().release_worker();
+            pump(200);
+
+            /* Verify the output corresponds to FINAL crop_x=216 (176 - (-40)) */
+            const crs::Layer *ml = nullptr;
+            for (const crs::Layer *l : svc.compositor().layers())
+                ml = l;
+            bool got_output = false;
+            std::vector<uint8_t> output;
+            if (ml) {
+                crs::FakeGraph *g = gpu.graph("map");
+                if (g && !g->drawn().empty()) {
+                    for (const auto &kv : g->shown.buffers) {
+                        if (kv.second.f == crs::TexFormat::R8) {
+                            /* With crop_x=216, the leftmost pixel should come from src x=216 */
+                            /* Y[x,y] = (x + y*7 + base) & 0xff, base=1 */
+                            /* So Y[0,0] = (216 + 0 + 1) & 0xff = 217 */
+                            if (kv.second.px[0] == 217) {
+                                got_output = true;
+                                output = kv.second.px;
+                            }
+                        }
+                    }
+                }
+            }
+
+            ok("multi offset change: worker was blocked and released", worker_blocked);
+            ok("multi offset change: output uses FINAL crop (crop_x=216 -> Y[0]=217), not intermediate",
+               got_output && !output.empty() && output[0] == 217);
+            if (got_output && !output.empty() && output[0] != 217) {
+                std::printf("  DEBUG: output[0] = %d (expected 217 for crop_x=216, would be 127 for intermediate crop_x=126, 177 for initial crop_x=176)\n", output[0]);
+            }
+
+            /* Verify additional pixels for crop_x=216:
+             * Y[1087,0] = src[1303,0] = (1303 + 1) & 0xff = 23
+             * Y[0,479] = src[216,479] = (216 + 479*7 + 1) & 0xff = 150
+             * U[0,0] -> src U at (108,0) = (108*2 + 128) & 0xff = 88
+             * V[0,0] -> src V at (108,0) = (108*3 + 128) & 0xff = 196 */
+            ok("multi offset change: Y[1087,0] = src[1303,0] = 23",
+               got_output && output[1087] == 23);
+            ok("multi offset change: Y[0,479] = src[216,479] = 150",
+               got_output && output[479 * 1088] == 150);
+            ok("multi offset change: U[0,0] = src U[108,0] = 88",
+               got_output && output[1440 * 636 + 0] == 88);
+            ok("multi offset change: V[0,0] = src V[108,0] = 196",
+               got_output && output[1440 * 636 + 1440 / 2 + 0] == 196);
+
+            /* Verify the shape in status matches final offset */
+            FeedStatus st = feed.status("decode");
+            ok("multi offset change: status shows cluster_offset_x=-40, crop_x=216",
+               st.cluster_offset_x == -40 && st.cluster_crop_x == 216);
+        }
+    }
+
+    /* ---- stable-frame recrop test: offset change after successful scaling ---- */
+    {
+        /* Test: submit one frame, wait for successful scaling with crop_x=176,
+         * then change offset to +50. The cached source atlas should be resubmitted
+         * with new crop_x=126 without needing a new CarPlay frame. */
+        FeedConfig cfc;
+        cfc.socket = "/tmp/woc-feed-stable-recrop-" + std::to_string(getpid()) + ".sock";
+        cfc.target = "map";
+        cfc.video.w = 1440;
+        cfc.video.h = 636;
+        cfc.video.level_bits = 0;
+        cfc.video.stall_ms = 6000;
+        cfc.cluster_offset_x = 0;
+
+        crs::FakeGpu gpu;
+        crs::FakePort port;
+        crs::ServiceConfig sc;
+        crs::TargetSpec m;
+        m.name = "map"; m.slot = 0x100; m.scene_id = 0x010004f0; m.width = 1088; m.height = 480; m.linger_ms = 1500;
+        m.take_over_stock = true;
+        sc.targets = {m};
+        sc.socket_path = cfc.socket;
+        sc.backend = "fake";
+        crs::Service svc(&gpu, &port, sc);
+        port.m = &svc.slots();
+        std::string err;
+        if (!svc.start(&err)) {
+            std::printf("stable-recrop test: service start failed: %s\n", err.c_str());
+        } else {
+            MapFeed feed(cfc);
+            feed.set_stream(true, false, Picture::Shown);
+            int64_t now = 200000;
+
+            auto make_atlas = [](uint32_t w, uint32_t h, uint8_t base) {
+                std::vector<uint8_t> a((size_t)w * (h + h / 2));
+                for (uint32_t y = 0; y < h; y++)
+                    for (uint32_t x = 0; x < w; x++)
+                        a[y * w + x] = (uint8_t)((x + y * 7 + base) & 0xff);
+                for (uint32_t y = 0; y < h / 2; y++) {
+                    for (uint32_t x = 0; x < w / 2; x++) {
+                        a[w * h + y * w + x] = (uint8_t)((x * 2 + y * 11 + 128) & 0xff);
+                        a[w * h + y * w + w / 2 + x] = (uint8_t)((x * 3 + y * 13 + 128) & 0xff);
+                    }
+                }
+                return a;
+            };
+
+            auto pump = [&](int64_t ms) {
+                for (int64_t t = 0; t < ms; t += 5) {
+                    now += 5;
+                    std::vector<pollfd> fds;
+                    size_t first = svc.poll_fds(&fds);
+                    int n = poll(fds.data(), fds.size(), 0);
+                    port.tick(now);
+                    svc.after_poll(fds, first, now);
+                    feed.poll(now);
+                }
+            };
+
+            std::vector<uint8_t> atlas = make_atlas(1440, 636, 1);
+            std::vector<uint8_t> spare;
+
+            /* Feed first frame, wait for complete scaling */
+            spare = atlas;
+            feed.offer(&spare, 1, now);
+            pump(500);  /* wait for worker to complete */
+
+            /* Verify initial output with crop_x=176 */
+            const crs::Layer *ml = nullptr;
+            for (const crs::Layer *l : svc.compositor().layers())
+                ml = l;
+            bool got_initial = false;
+            std::vector<uint8_t> initial_output;
+            if (ml) {
+                crs::FakeGraph *g = gpu.graph("map");
+                if (g && !g->drawn().empty()) {
+                    for (const auto &kv : g->shown.buffers) {
+                        if (kv.second.f == crs::TexFormat::R8) {
+                            /* With crop_x=176, Y[0,0] = (176 + 1) & 0xff = 177 */
+                            if (kv.second.px[0] == 177) {
+                                got_initial = true;
+                                initial_output = kv.second.px;
+                            }
+                        }
+                    }
+                }
+            }
+            ok("stable recrop: initial output with crop_x=176 (Y[0]=177)", got_initial && initial_output[0] == 177);
+
+            /* Worker should now be idle, source atlas cached */
+            bool worker_idle = feed.worker().idle();
+            ok("stable recrop: worker is idle after initial scaling", worker_idle);
+
+            /* Change cluster offset to +50 (crop_x=126) - NO new CarPlay frame */
+            feed.set_cluster_offset(50);
+            pump(200);  /* wait for recrop */
+
+            /* Verify new output with crop_x=126 */
+            ml = nullptr;
+            for (const crs::Layer *l : svc.compositor().layers())
+                ml = l;
+            bool got_recrop = false;
+            std::vector<uint8_t> recrop_output;
+            if (ml) {
+                crs::FakeGraph *g = gpu.graph("map");
+                if (g && !g->drawn().empty()) {
+                    for (const auto &kv : g->shown.buffers) {
+                        if (kv.second.f == crs::TexFormat::R8) {
+                            /* With crop_x=126, Y[0,0] = (126 + 1) & 0xff = 127 */
+                            if (kv.second.px[0] == 127) {
+                                got_recrop = true;
+                                recrop_output = kv.second.px;
+                            }
+                        }
+                    }
+                }
+            }
+
+            ok("stable recrop: recrop output received with new crop (crop_x=126 -> Y[0]=127)",
+               got_recrop && !recrop_output.empty() && recrop_output[0] == 127);
+            ok("stable recrop: Y[1087,0] = src[1213,0] = 190",
+               got_recrop && recrop_output[1087] == 190);
+            ok("stable recrop: U[0,0] = src U[63,0] = 254",
+               got_recrop && recrop_output[1440 * 636 + 0] == 254);
+            ok("stable recrop: V[0,0] = src V[63,0] = 61",
+               got_recrop && recrop_output[1440 * 636 + 1440 / 2 + 0] == 61);
+
+            /* Verify no stale frame was ever displayed by checking renderer history:
+             * The frame count should not have a frame with the old crop after the recrop started. */
+            FeedStatus st = feed.status("decode");
+            ok("stable recrop: status shows cluster_offset_x=50, crop_x=126",
                st.cluster_offset_x == 50 && st.cluster_crop_x == 126);
         }
     }

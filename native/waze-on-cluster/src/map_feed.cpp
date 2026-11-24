@@ -238,6 +238,7 @@ void MapFeed::make_layer()
         held_part_ = OutputPart();
         held_.clear();
         held_new_ = false;
+        has_cached_source_ = false;
     }
     if (cfg_.always_packed) {
         /* the size first: only the renderer's answer changes on a reconnect */
@@ -396,11 +397,15 @@ void MapFeed::set_cluster_offset(int dx)
     client_.set(layer_, lo_);
     log_info("render: cluster map at x=%u (offset %+d)", q.x, placed_x_);
 
-    /* If we have a held atlas and the worker is idle, resubmit it with the
-     * new crop. If the worker is busy, the stale result will be discarded
-     * and the returned atlas will be marked for resubmission in send_pending. */
-    if (scaling_ && held_new_ && !elsewhere_ && !in_worker_ && worker_.idle() && sending()) {
-        log_info("render: cluster offset changed, resubmitting held atlas with new crop");
+    /* If we have a cached source atlas and the worker is idle, resubmit it
+     * with the new crop. The source atlas may be in held_ either because:
+     * - it was never sent to the worker (held_new_ == true), or
+     * - it was successfully scaled and returned (has_cached_source_ == true).
+     * If the worker is busy, the stale result will be discarded and the
+     * returned atlas will be marked for resubmission in send_pending. */
+    if (scaling_ && has_cached_source_ && !elsewhere_ && !in_worker_ && worker_.idle() && sending()) {
+        log_info("render: cluster offset changed, resubmitting cached source atlas with new crop");
+        held_new_ = true;
         send_pending(cld::now_ms());
     }
 }
@@ -534,12 +539,18 @@ void MapFeed::send_pending(int64_t now_ms)
     uint64_t sid = 0;
     if (worker_.take(&scaled_, &sid, shape_, in_worker_ ? &held_ : nullptr)) {
         in_worker_ = false;
-        if (!scaled_.empty() && layer_)
+        if (!scaled_.empty() && layer_) {
             client_.frame(layer_, &scaled_, sid);
-        else if (scaled_.empty())
+            /* Successful scaling: the source atlas was returned in held_.
+             * Cache it for possible recrop on offset change. */
+            has_cached_source_ = true;
+        } else if (scaled_.empty()) {
             /* stale result (shape changed): the input atlas was returned in
              * held_; mark it for resubmission with the current shape. */
-            held_new_ = true, elsewhere_ = false;
+            held_new_ = true;
+            has_cached_source_ = true;
+            elsewhere_ = false;
+        }
     }
     /* a VPP-made picture goes as it is, after the worker's */
     if (held_part_.set()) {
@@ -565,6 +576,7 @@ void MapFeed::hold(std::vector<uint8_t> *atlas, uint64_t id)
     id_ = id;
     held_.swap(*atlas);
     held_new_ = true;
+    has_cached_source_ = true;
     elsewhere_ = in_worker_ = false;
     held_part_ = OutputPart();
 }
@@ -573,6 +585,7 @@ void MapFeed::changed(uint64_t id)
 {
     id_ = id;
     held_new_ = elsewhere_ = true;
+    has_cached_source_ = true;
     in_worker_ = false;
 }
 
@@ -611,9 +624,10 @@ void MapFeed::keep_newest()
     if (held_part_.set()) {   /* the layer's last VPP-made picture, for a layer of its part */
         if (!held_new_)
             held_new_ = client_.latest(layer_, &held_);
-    } else if (scaling_)
+    } else if (scaling_) {
         held_new_ = true;
-    else if (!held_new_)
+        has_cached_source_ = true;
+    } else if (!held_new_)
         held_new_ = client_.latest(layer_, &held_);
 }
 

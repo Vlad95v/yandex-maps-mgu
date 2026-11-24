@@ -320,6 +320,9 @@ void ScaleWorker::run(std::shared_ptr<State> s)
             s->cv.wait(l, [&s] { return s->stop || s->stage.load(std::memory_order_acquire) == kQueued; });
             if (s->stop)
                 return;
+            /* Test synchronization point: worker has accepted the job and is
+             * about to configure/scale. Notify any waiter. */
+            s->cv.notify_all();
         }
         if (s->made != s->shape || !s->scaler.configured()) {
             s->made = ScaleShape();
