@@ -1149,10 +1149,19 @@ static void frame_invalidation_test()
 {
     /* Use 1440x636 source geometry to activate cluster ScaleWorker.
      * Input atlas: 1440 * (636 + 318) = 1,373,760 bytes
-     * Output atlas: 1088 * (480 + 240) = 783,360 bytes */
+     * Output atlas (YUV): 1088 * (480 + 240) = 783,360 bytes
+     * Renderer R8 texture: 1088x720 = 783,360 bytes (Y + U + V packed) */
     const uint32_t src_w = 1440, src_h = 636;
     const uint32_t dst_w = 1088, dst_h = 480;
-    const size_t src_atlas_bytes = (size_t)src_w * (src_h + src_h / 2);  // 1440 * 954 = 1,373,760
+    const size_t src_atlas_bytes = (size_t)src_w * (src_h + src_h / 2);  // 1,373,760
+    const size_t dst_atlas_bytes = (size_t)dst_w * (dst_h + dst_h / 2);  // 783,360
+    const uint32_t r8_w = 1088, r8_h = 720;  // Renderer R8 texture dimensions
+
+    /* Production crop geometry for cluster feed (cluster_offset_x = 0):
+     * Source: 1440x636, Crop: x=176, y=0, w=1088, h=480 (1:1 crop, no scaling) */
+    const uint32_t crop_x = 176, crop_y = 0, crop_w = 1088, crop_h = 480;
+    const uint32_t uv_crop_x = crop_x / 2, uv_crop_y = crop_y / 2;
+    const uint32_t uv_crop_w = crop_w / 2, uv_crop_h = crop_h / 2;
 
     auto make_atlas = [&](int seed) {
         std::vector<uint8_t> f(src_atlas_bytes);
@@ -1168,6 +1177,41 @@ static void frame_invalidation_test()
         return f;
     };
 
+    /* Compute expected R8 texture (1088x720) from source atlas by applying
+     * the production crop geometry. Since crop_w == dst_w and crop_h == dst_h,
+     * this is a 1:1 crop - just extract the crop region from each plane. */
+    auto expected_r8 = [&](const std::vector<uint8_t> &src) {
+        std::vector<uint8_t> dst(dst_atlas_bytes);
+        /* Source plane offsets */
+        const size_t src_y_off = 0;
+        const size_t src_u_off = (size_t)src_w * src_h;
+        const size_t src_v_off = src_u_off + (size_t)(src_w / 2) * (src_h / 2);
+        /* Destination R8 texture offsets (Y at top, U and V side by side below) */
+        const size_t dst_y_off = 0;
+        const size_t dst_u_off = (size_t)r8_w * dst_h;
+        const size_t dst_v_off = dst_u_off + (size_t)(r8_w / 2) * (dst_h / 2);
+
+        /* Copy Y plane: src[176:1264, 0:480] -> dst[0:1088, 0:480] */
+        for (uint32_t y = 0; y < dst_h; y++) {
+            const uint8_t *s = &src[src_y_off + (size_t)(crop_y + y) * src_w + crop_x];
+            uint8_t *d = &dst[dst_y_off + (size_t)y * r8_w];
+            std::memcpy(d, s, crop_w);
+        }
+        /* Copy U plane: src[88:632, 0:240] -> dst[0:544, 480:720] */
+        for (uint32_t y = 0; y < dst_h / 2; y++) {
+            const uint8_t *s = &src[src_u_off + (size_t)(uv_crop_y + y) * (src_w / 2) + uv_crop_x];
+            uint8_t *d = &dst[dst_u_off + (size_t)y * r8_w];
+            std::memcpy(d, s, uv_crop_w);
+        }
+        /* Copy V plane: src[88:632, 0:240] -> dst[544:1088, 480:720] */
+        for (uint32_t y = 0; y < dst_h / 2; y++) {
+            const uint8_t *s = &src[src_v_off + (size_t)(uv_crop_y + y) * (src_w / 2) + uv_crop_x];
+            uint8_t *d = &dst[dst_v_off + (size_t)y * r8_w];
+            std::memcpy(d, s, uv_crop_w);
+        }
+        return dst;
+    };
+
     /* Construct Rig with 1440x636 video geometry so MapFeed creates
      * the correct layer and ScaleWorker from the start. */
     Rig r(false, 6000, false, true, false, src_w, src_h);
@@ -1177,13 +1221,15 @@ static void frame_invalidation_test()
     const crs::Layer *layer = r.map_layer();
     ok("invalidation: map layer exists on renderer", layer != nullptr);
 
-    /* Capture R8 atlas at EVERY flush via also_flush callback */
+    /* Capture R8 atlas at EVERY flush via also_flush callback.
+     * The tag parameter is unused but required by the callback signature. */
     std::vector<std::vector<uint8_t>> flush_history;
     crs::FakeGraph *g = r.gpu.graph("map");
     if (g) {
-        g->also_flush = [&](uint64_t tag) {
+        g->also_flush = [&](uint64_t /*tag*/) {
             for (const auto &kv : g->shown.buffers) {
-                if (kv.second.f == crs::TexFormat::R8 && kv.second.w == dst_w && kv.second.h == dst_h) {
+                if (kv.second.f == crs::TexFormat::R8 &&
+                    kv.second.w == r8_w && kv.second.h == r8_h) {
                     flush_history.push_back(kv.second.px);
                     break;  // only one R8 atlas per flush for map target
                 }
@@ -1196,6 +1242,10 @@ static void frame_invalidation_test()
 
     const std::vector<uint8_t> fA = make_atlas(1);
     const std::vector<uint8_t> fB = make_atlas(2);
+
+    /* Expected R8 outputs after production crop/scale */
+    const std::vector<uint8_t> expA = expected_r8(fA);
+    const std::vector<uint8_t> expB = expected_r8(fB);
 
     /* Submit frame A directly (not via pump) */
     std::vector<uint8_t> spare = fA;
@@ -1218,19 +1268,19 @@ static void frame_invalidation_test()
     r.pump(2000);
 
     /* Verify complete flush history:
-     * 1. Frame A (stale) never appears in renderer flush history
-     * 2. Frame B (newest) does appear in renderer flush history
-     * 3. The final rendered atlas corresponds to B */
+     * 1. Frame A's expected output (stale) never appears in renderer flush history
+     * 2. Frame B's expected output (newest) does appear in renderer flush history
+     * 3. The final rendered atlas equals B's expected output */
     bool saw_A = false, saw_B = false;
     for (const auto &buf : flush_history) {
-        if (buf == fA) saw_A = true;
-        if (buf == fB) saw_B = true;
+        if (buf == expA) saw_A = true;
+        if (buf == expB) saw_B = true;
     }
     ok("invalidation: flush history captured", !flush_history.empty());
     ok("invalidation: frame A (stale) NEVER flushed to renderer", !saw_A);
     ok("invalidation: frame B (newest) WAS flushed to renderer", saw_B);
     ok("invalidation: final rendered atlas is frame B",
-       !flush_history.empty() && flush_history.back() == fB);
+       !flush_history.empty() && flush_history.back() == expB);
 }
 
 int main()
