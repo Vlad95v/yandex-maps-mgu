@@ -1138,6 +1138,63 @@ static void renderer_changed()
     }
 }
 
+/* The CarPlay source atlas: 1440x636 YUV 4:2:0, U and V side by side. */
+static std::vector<uint8_t> carplay_source(int seed)
+{
+    const uint32_t w = 1440, h = 636;
+    std::vector<uint8_t> a((size_t)w * (h + h / 2));
+    for (size_t i = 0; i < a.size(); i++)
+        a[i] = (uint8_t)((i / 3 + seed * 29) & 0xff);
+    return a;
+}
+
+/* The 1088x720 R8 atlas the cluster must render from src at crop_x: the
+ * 1088x480 crop copied independently from the Y and side-by-side U/V planes.
+ * This is the AtlasScaler's input layout, not its algorithm: at 1:1 the
+ * production scaler's output is exactly this copy. */
+static std::vector<uint8_t> carplay_crop(const std::vector<uint8_t> &src, uint32_t crop_x)
+{
+    const uint32_t sw = 1440, sh = 636, dw = 1088, dh = 480;
+    std::vector<uint8_t> dst((size_t)dw * (dh + dh / 2));
+    const size_t src_uv = (size_t)sw * sh, dst_uv = (size_t)dw * dh;
+    for (uint32_t y = 0; y < dh; y++)
+        std::memcpy(&dst[(size_t)y * dw], &src[(size_t)y * sw + crop_x], dw);
+    for (uint32_t y = 0; y < dh / 2; y++) {
+        const uint8_t *su = &src[src_uv + (size_t)y * sw + crop_x / 2];
+        const uint8_t *sv = su + sw / 2;
+        uint8_t *du = &dst[dst_uv + (size_t)y * dw];
+        std::memcpy(du, su, dw / 2);
+        std::memcpy(du + dw / 2, sv, dw / 2);
+    }
+    return dst;
+}
+
+/* The target's current R8 atlas of w x h, if the renderer holds one. */
+static bool rendered_atlas(Rig &r, const char *target, uint32_t w, uint32_t h, std::vector<uint8_t> *out)
+{
+    crs::FakeGraph *g = r.gpu.graph(target);
+    if (!g)
+        return false;
+    for (const auto &kv : g->shown.buffers)
+        if (kv.second.f == crs::TexFormat::R8 && kv.second.w == w && kv.second.h == h) {
+            *out = kv.second.px;
+            return true;
+        }
+    return false;
+}
+
+/* Pump until the target's rendered atlas is want; false if it never is. */
+static bool wait_for_atlas(Rig &r, const char *target, uint32_t w, uint32_t h, const std::vector<uint8_t> &want)
+{
+    for (int i = 0; i < 600; i++) {
+        r.pump(5);
+        std::vector<uint8_t> got;
+        if (rendered_atlas(r, target, w, h, &got) && got == want)
+            return true;
+    }
+    return false;
+}
+
 /* Regression test for MapFeed frame invalidation with 1440x636 geometry:
  * - Establish renderer connection and verify map layer exists
  * - Enable one-shot worker pause
@@ -1150,58 +1207,8 @@ static void renderer_changed()
  * - Verify: A never in flush history, B appears, final is B */
 static void frame_invalidation_test()
 {
-    /* Use 1440x636 source geometry to activate cluster ScaleWorker.
-     * Input atlas: 1440 * (636 + 318) = 1,373,760 bytes
-     * Output atlas (YUV): 1088 * (480 + 240) = 783,360 bytes
-     * Renderer R8 texture: 1088x720 = 783,360 bytes (Y + U + V packed) */
     const uint32_t src_w = 1440, src_h = 636;
-    const uint32_t dst_w = 1088, dst_h = 480;
-    const size_t src_atlas_bytes = (size_t)src_w * (src_h + src_h / 2);  // 1,373,760
-    const size_t dst_atlas_bytes = (size_t)dst_w * (dst_h + dst_h / 2);  // 783,360
     const uint32_t r8_w = 1088, r8_h = 720;  // Renderer R8 texture dimensions
-
-    /* Production crop geometry for cluster feed (cluster_offset_x = 0):
-     * Source: 1440x636, Crop: x=176, y=0, w=1088, h=480 (1:1 crop, no scaling) */
-    const uint32_t crop_x = 176, crop_y = 0, crop_w = 1088, crop_h = 480;
-    const uint32_t uv_crop_x = crop_x / 2, uv_crop_y = crop_y / 2;
-    const uint32_t uv_crop_w = crop_w / 2;
-
-    auto make_atlas = [&](int seed) {
-        std::vector<uint8_t> f(src_atlas_bytes);
-        /* Distinct Y, U and V bytes: a wrong plane or row offset cannot make
-         * the expected and the rendered atlas agree by accident. */
-        for (size_t i = 0; i < f.size(); i++)
-            f[i] = (uint8_t)((i / 3 + seed * 29) & 0xff);
-        return f;
-    };
-
-    /* The expected R8 atlas (1088x720) from the source atlas, by copying the
-     * crop's rows directly: Y rows 0..479 at x=176; then the chroma rows, U
-     * in columns 0..719 and V in columns 720..1439 of the source (yuv_atlas.h),
-     * U copied to columns 0..543 and V to 544..1087 of each destination
-     * chroma row. This is the AtlasScaler's input layout, not its algorithm:
-     * with crop_w == dw and crop_h == dh its output is this exact copy. */
-    auto expected_r8 = [&](const std::vector<uint8_t> &src) {
-        std::vector<uint8_t> dst(dst_atlas_bytes);
-        const size_t src_uv = (size_t)src_w * src_h;
-        const size_t dst_uv = (size_t)r8_w * dst_h;
-        /* Y plane */
-        for (uint32_t y = 0; y < crop_h; y++) {
-            const uint8_t *s = &src[(size_t)(crop_y + y) * src_w + crop_x];
-            uint8_t *d = &dst[(size_t)y * r8_w];
-            std::memcpy(d, s, crop_w);
-        }
-        /* U and V, side by side under Y in both the source and the R8 atlas */
-        for (uint32_t y = 0; y < crop_h / 2; y++) {
-            const uint8_t *su = &src[src_uv + (size_t)(uv_crop_y + y) * src_w + uv_crop_x];
-            const uint8_t *sv = su + src_w / 2;
-            uint8_t *du = &dst[dst_uv + (size_t)y * r8_w];
-            uint8_t *dv = du + r8_w / 2;
-            std::memcpy(du, su, uv_crop_w);
-            std::memcpy(dv, sv, uv_crop_w);
-        }
-        return dst;
-    };
 
     /* Construct Rig with 1440x636 video geometry so MapFeed creates
      * the correct layer and ScaleWorker from the start. */
@@ -1210,7 +1217,7 @@ static void frame_invalidation_test()
     /* Establish renderer connection and the map target's scene with a warm-up
      * frame: the scene's FakeGraph must exist before its flush history is
      * captured, and a later target re-acquisition would replace it. */
-    const std::vector<uint8_t> fW = make_atlas(0);
+    const std::vector<uint8_t> fW = carplay_source(0);
     r.pump(2000, &fW);
     r.pump(200);   /* the warm-up worker's last frame done */
     const crs::Layer *layer = r.map_layer();
@@ -1235,12 +1242,12 @@ static void frame_invalidation_test()
     /* Enable one-shot test pause for the next submitted job */
     r.feed->worker().enable_test_pause();
 
-    const std::vector<uint8_t> fA = make_atlas(1);
-    const std::vector<uint8_t> fB = make_atlas(2);
+    const std::vector<uint8_t> fA = carplay_source(1);
+    const std::vector<uint8_t> fB = carplay_source(2);
 
     /* Expected R8 outputs after production crop/scale */
-    const std::vector<uint8_t> expA = expected_r8(fA);
-    const std::vector<uint8_t> expB = expected_r8(fB);
+    const std::vector<uint8_t> expA = carplay_crop(fA, 176);
+    const std::vector<uint8_t> expB = carplay_crop(fB, 176);
 
     /* Submit frame A directly (not via pump) */
     std::vector<uint8_t> spare = fA;
@@ -1331,6 +1338,117 @@ static void cluster_and_hud_crop()
     }
 }
 
+/* A source frame already scaled and cached must be rescaled from the new
+ * crop when the cluster offset changes, with no new source frame and no
+ * renderer or decoder restart. */
+static void cached_frame_recrop()
+{
+    Rig r(false, 6000, false, true, false, 1440, 636);
+    const std::vector<uint8_t> f = carplay_source(4);
+    const std::vector<uint8_t> e176 = carplay_crop(f, 176);
+    const std::vector<uint8_t> e126 = carplay_crop(f, 126);
+    const std::vector<uint8_t> e226 = carplay_crop(f, 226);
+
+    r.pump(1500, &f);
+    r.pump(200);
+    const crs::Layer *layer = r.map_layer();
+    ok("cached recrop: initial rendered atlas is crop_x=176",
+       wait_for_atlas(r, "map", 1088, 720, e176));
+    const uint64_t scaled0 = r.feed->scaled_frames();
+    r.feed->set_cluster_offset(50);
+    ok("cached recrop: cached source rendered at crop_x=126",
+       wait_for_atlas(r, "map", 1088, 720, e126));
+    ok("cached recrop: the cached source was rescaled", r.feed->scaled_frames() > scaled0);
+    ok("cached recrop: the renderer layer stayed", r.map_layer() == layer &&
+                                                     r.feed->status("decode").state == "showing");
+
+    const uint64_t scaled1 = r.feed->scaled_frames();
+    r.feed->set_cluster_offset(-50);
+    ok("cached recrop: cached source rendered at crop_x=226",
+       wait_for_atlas(r, "map", 1088, 720, e226));
+    ok("cached recrop: the cached source was rescaled again", r.feed->scaled_frames() > scaled1);
+    ok("cached recrop: the renderer layer stayed after -50", r.map_layer() == layer &&
+                                                                 r.feed->status("decode").state == "showing");
+}
+
+/* An offset change while the worker scales the centred crop: the centred
+ * result must be discarded, and the resubmitted source rendered at 126. */
+static void recrop_while_worker_in_flight()
+{
+    Rig r(false, 6000, false, true, false, 1440, 636);
+    const std::vector<uint8_t> warm = carplay_source(0);
+    r.pump(1000, &warm);
+    r.pump(200);
+    const crs::Layer *layer = r.map_layer();
+
+    std::vector<std::vector<uint8_t>> history;
+    crs::FakeGraph *g = r.gpu.graph("map");
+    if (g)
+        g->also_flush = [&](uint64_t /*tag*/) {
+            for (const auto &kv : g->shown.buffers)
+                if (kv.second.f == crs::TexFormat::R8 && kv.second.w == 1088 && kv.second.h == 720) {
+                    history.push_back(kv.second.px);
+                    break;
+                }
+        };
+
+    r.feed->worker().enable_test_pause();
+    const std::vector<uint8_t> f = carplay_source(6);
+    const std::vector<uint8_t> e176 = carplay_crop(f, 176);
+    const std::vector<uint8_t> e126 = carplay_crop(f, 126);
+    std::vector<uint8_t> spare = f;
+    r.feed->offer(&spare, 1, r.now);
+    const bool paused = r.feed->worker().wait_until_worker_paused([](auto &s) { return s.id != 0; }, 5000);
+    ok("in-flight recrop: worker paused on the centred frame", paused);
+    if (!paused)
+        return;
+
+    r.feed->set_cluster_offset(50);
+    r.feed->worker().release_worker();
+    ok("in-flight recrop: final rendered atlas is crop_x=126",
+       wait_for_atlas(r, "map", 1088, 720, e126));
+
+    bool saw_centred = false, saw_recrop = false;
+    for (const auto &buf : history) {
+        saw_centred = saw_centred || buf == e176;
+        saw_recrop = saw_recrop || buf == e126;
+    }
+    ok("in-flight recrop: the stale crop_x=176 result was never flushed", !saw_centred);
+    ok("in-flight recrop: the crop_x=126 result was flushed", saw_recrop);
+    ok("in-flight recrop: the final atlas is crop_x=126",
+       wait_for_atlas(r, "map", 1088, 720, e126));
+    ok("in-flight recrop: the renderer layer stayed", r.map_layer() == layer &&
+                                                       r.feed->status("decode").state == "showing");
+}
+
+/* The HUD's actual rendered pixels must not change with cluster_offset_x. */
+static void hud_crop_pixels()
+{
+    Rig r(false, 6000, false, true, true, 1440, 636);
+    const std::vector<uint8_t> f = carplay_source(8);
+    FeedConfig hfc;
+    hfc.socket = r.path;
+    hfc.target = "hud";
+    hfc.video.w = 1440;
+    hfc.video.h = 636;
+    hfc.video.level_bits = 2;
+    hfc.video.stall_ms = 6000;
+    hfc.scaled_level_bits = 2;
+    const auto capture = [&](int offset, std::vector<uint8_t> *out) {
+        hfc.cluster_offset_x = offset;
+        r.feed.reset(new MapFeed(hfc));
+        r.feed->set_stream(true, false, Picture::Shown);
+        r.pump(1000, &f);
+        r.pump(100);
+        return rendered_atlas(r, "hud", 452, 300, out);
+    };
+    std::vector<uint8_t> a, b, c;
+    ok("HUD pixels: offset 0 rendered", capture(0, &a));
+    ok("HUD pixels: offset +50 rendered", capture(50, &b));
+    ok("HUD pixels: offset -50 rendered", capture(-50, &c));
+    ok("HUD pixels: independent of cluster offset", !a.empty() && a == b && b == c);
+}
+
 int main()
 {
     signal(SIGPIPE, SIG_IGN);
@@ -1344,6 +1462,9 @@ int main()
     renderer_changed();
     frame_invalidation_test();
     cluster_and_hud_crop();
+    cached_frame_recrop();
+    recrop_while_worker_in_flight();
+    hud_crop_pixels();
     Rig r;
     r.pump(100);
     const crs::Layer *l = r.map_layer();
