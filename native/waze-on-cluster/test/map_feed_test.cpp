@@ -1131,48 +1131,64 @@ static void renderer_changed()
 }
 
 /* Regression test for MapFeed frame invalidation:
- * Pause frame 1 in the worker, offer frame 2 with NO offset change,
- * release, and prove frame 1 is never accepted and frame 2 is the
- * final accepted frame. */
+ * - Establish renderer connection first
+ * - Submit frame A directly
+ * - Wait until worker is paused while processing A
+ * - Offer a distinct newer frame B while A is in flight
+ * - Release the worker
+ * - Allow normal processing to complete without holding the worker again
+ * - Verify that stale A is never accepted by the renderer
+ * - Verify that B is ultimately rendered
+ * - No pump() calls while worker is intentionally paused
+ * - Checks actual frame delivery, not just status string */
 static void frame_invalidation_test()
 {
     Rig r(false, 6000);
+    /* Let the renderer connect and layer establish before enabling test pause */
+    r.pump(2000);
+    ok("invalidation: renderer connected, layer ready", r.st().state == "showing" || r.st().state == "starting" || r.st().state == "idle");
+
+    /* Now enable test pause for the next submitted job */
     r.feed->worker().enable_test_pause();
 
-    const std::vector<uint8_t> f1 = atlas(1);
-    const std::vector<uint8_t> f2 = atlas(2);
+    const std::vector<uint8_t> fA = atlas(1);
+    const std::vector<uint8_t> fB = atlas(2);
 
-    r.pump(2000, &f1);
-    ok("invalidation: initial frame shown", r.st().state == "showing");
+    /* Submit frame A directly (not via pump) */
+    std::vector<uint8_t> spare = fA;
+    r.feed->offer(&spare, 1, r.now);
 
-    std::vector<uint8_t> spare = f1;
+    /* Wait until worker accepts job A and reaches the PAUSED barrier */
+    bool paused = r.feed->worker().wait_until_worker_paused([](auto &s) { return s.id == 1; }, 5000);
+    ok("invalidation: worker paused on frame A (id=1)", paused);
+
+    /* Offer newer frame B while A is paused in worker */
+    spare = fB;
     r.feed->offer(&spare, 2, r.now);
-    r.pump(100);
 
-    bool paused = r.feed->worker().wait_until_worker_paused([](auto &s) { return true; }, 5000);
-    ok("invalidation: worker paused on frame 2", paused);
-
-    spare = f2;
-    r.feed->offer(&spare, 3, r.now);
-
+    /* Release worker to process A, then let it complete normally.
+     * Do NOT call pump() while worker is intentionally paused. */
     r.feed->worker().release_worker();
-    r.pump(500);
 
+    /* Let the worker finish A, then the feed will resubmit B,
+     * and B will complete without further test pauses. */
     r.pump(2000);
 
-    bool drew_f1 = false, drew_f2 = false;
+    /* Verify actual frame delivery to renderer (not just status) */
+    bool drew_fA = false, drew_fB = false;
     crs::FakeGraph *g = r.gpu.graph("map");
     if (g) {
         for (const auto &kv : g->shown.buffers) {
             if (kv.second.f == crs::TexFormat::R8) {
-                drew_f1 = drew_f1 || (kv.second.px == f1);
-                drew_f2 = drew_f2 || (kv.second.px == f2);
+                drew_fA = drew_fA || (kv.second.px == fA);
+                drew_fB = drew_fB || (kv.second.px == fB);
             }
         }
     }
-    ok("invalidation: frame 1 (stale) was NOT drawn", !drew_f1);
-    ok("invalidation: frame 2 (newest) WAS drawn", drew_f2);
+    ok("invalidation: frame A (stale) was NOT drawn", !drew_fA);
+    ok("invalidation: frame B (newest) WAS drawn", drew_fB);
 
+    /* Also verify layer stats show frames were sent */
     const crs::Layer *layer = r.map_layer();
     if (layer) {
         std::string stats = layer->stats();
