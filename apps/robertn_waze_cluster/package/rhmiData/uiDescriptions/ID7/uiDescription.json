@@ -435,7 +435,7 @@
             }
           ]
         },
-        "100": {
+        "104": {
           "type": "label",
           "name": "wocClusterOffset",
           "properties": {
@@ -457,7 +457,7 @@
             }
           ]
         },
-        "101": {
+        "105": {
           "type": "button",
           "name": "wocClusterLeft",
           "properties": {
@@ -479,7 +479,7 @@
             }
           ]
         },
-        "102": {
+        "106": {
           "type": "button",
           "name": "wocClusterRight",
           "properties": {
@@ -501,7 +501,7 @@
             }
           ]
         },
-        "103": {
+        "107": {
           "type": "button",
           "name": "wocClusterCentre",
           "properties": {

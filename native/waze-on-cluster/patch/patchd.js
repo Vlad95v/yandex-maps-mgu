@@ -448,7 +448,8 @@ function profileSettings(o) {
     var s = {};
     for (var i = 0; i < MAP_KEYS.length; i++) {
         var k = MAP_KEYS[i];
-        var v = typeof o[k] === 'number' ? String(o[k]) : k === 'hud_keep_shown' && !(k in o) ? String(MAP_DEFAULTS[k]) : null;
+        var v = typeof o[k] === 'number' ? String(o[k])
+            : (k === 'hud_keep_shown' || k === 'cluster_offset_x') && !(k in o) ? String(MAP_DEFAULTS[k]) : null;
         if (v === null || !mapValueOk(k, v)) return null;
         s[k] = Number(v);
     }
@@ -742,7 +743,7 @@ function editState(text, known) {
     var sinkOriginal = /sink:\s+ORIGINAL/.test(text);
     var selfstart = /selfstart:\s+SELF-START/.test(text);
     var resMatch = /res:\s+PATCHED \(IC_HIGH advertises (\d+x\d+)/.exec(text);
-    var safeMatch = /res:\s+PATCHED \(IC_HIGH advertises [^,\n]*, safe (\d+x\d+) at (\d+),(\d+)\)/.exec(text);
+    var safeMatch = /res:\s+PATCHED \(IC_HIGH advertises [^,\n]*, safe (\d+x\d+) at (\d+),(\d+)(?: \[[^\]]*\])?\)/.exec(text);
     var resOriginal = /res:\s+ORIGINAL/.test(text);
     /* The URL edits (map URL, ShowUI URL): 'eta' (the ShowUI URL with
      * the arrival-time card), 'map' (the map URL alone, on a build
@@ -1761,6 +1762,16 @@ function planArgs(panel, mode, unproven) {
     return args;
 }
 
+/* An enabled plan's recorded arguments, brought to this version's wide
+ * high-panel geometry unless the record names a --res of its own (a custom
+ * size, or stock). Older releases recorded no --res: theirs was 1088x480. */
+function withCurrentRes(args) {
+    if (args.indexOf('--res') >= 0) return args;
+    var p = args.indexOf('--panel');
+    if (p < 0 || args[p + 1] !== 'high') return args;
+    return args.concat(['--res', 'wide']);
+}
+
 /* Android Auto's: aapd.conf, the coding and the owner's density and
  * turn-card setting. */
 function aaPlanArgs() {
@@ -2006,7 +2017,7 @@ function inmemHook(which, cb) {
          * whose sites the patcher finds and verifies is planned, on trial
          * until it ran healthy on this car. */
         var keep = rec && rec.enabled === true && Array.isArray(rec.args) && rec.args.length ? rec.args : null;
-        inmemApply(CP, keep || planArgs('high', 'avb', !!st.backup), true, function (err, roErr, activation, conflict2, why) {
+        inmemApply(CP, keep ? withCurrentRes(keep) : planArgs('high', 'avb', !!st.backup), true, function (err, roErr, activation, conflict2, why) {
             if (roErr) log('WARNING: ' + roErr.message + ' — the next head-unit start mounts / read-only again');
             if (conflict2) { out(0, 'carplay left as it is: ' + conflict2, conflict2); return; }
             if (err) { out(1, 'applying the map patch failed: ' + err.message); return; }

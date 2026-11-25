@@ -85,6 +85,7 @@
 #include <unistd.h>
 
 #include <algorithm>
+#include <cstring>
 #include <fstream>
 #include <cstdio>
 #include <memory>
@@ -1161,53 +1162,41 @@ static void frame_invalidation_test()
      * Source: 1440x636, Crop: x=176, y=0, w=1088, h=480 (1:1 crop, no scaling) */
     const uint32_t crop_x = 176, crop_y = 0, crop_w = 1088, crop_h = 480;
     const uint32_t uv_crop_x = crop_x / 2, uv_crop_y = crop_y / 2;
-    const uint32_t uv_crop_w = crop_w / 2, uv_crop_h = crop_h / 2;
+    const uint32_t uv_crop_w = crop_w / 2;
 
     auto make_atlas = [&](int seed) {
         std::vector<uint8_t> f(src_atlas_bytes);
-        for (size_t i = 0; i < f.size(); i++) {
-            if (i < (size_t)src_w * src_h) {
-                /* Y plane: deterministic pattern based on position + seed */
-                f[i] = (uint8_t)((i / 7 + seed * 13) & 0xff);
-            } else {
-                /* UV planes: neutral chroma with seed variation */
-                f[i] = (uint8_t)(128 + ((seed * 11) & 0x7f));
-            }
-        }
+        /* Distinct Y, U and V bytes: a wrong plane or row offset cannot make
+         * the expected and the rendered atlas agree by accident. */
+        for (size_t i = 0; i < f.size(); i++)
+            f[i] = (uint8_t)((i / 3 + seed * 29) & 0xff);
         return f;
     };
 
-    /* Compute expected R8 texture (1088x720) from source atlas by applying
-     * the production crop geometry. Since crop_w == dst_w and crop_h == dst_h,
-     * this is a 1:1 crop - just extract the crop region from each plane. */
+    /* The expected R8 atlas (1088x720) from the source atlas, by copying the
+     * crop's rows directly: Y rows 0..479 at x=176; then the chroma rows, U
+     * in columns 0..719 and V in columns 720..1439 of the source (yuv_atlas.h),
+     * U copied to columns 0..543 and V to 544..1087 of each destination
+     * chroma row. This is the AtlasScaler's input layout, not its algorithm:
+     * with crop_w == dw and crop_h == dh its output is this exact copy. */
     auto expected_r8 = [&](const std::vector<uint8_t> &src) {
         std::vector<uint8_t> dst(dst_atlas_bytes);
-        /* Source plane offsets */
-        const size_t src_y_off = 0;
-        const size_t src_u_off = (size_t)src_w * src_h;
-        const size_t src_v_off = src_u_off + (size_t)(src_w / 2) * (src_h / 2);
-        /* Destination R8 texture offsets (Y at top, U and V side by side below) */
-        const size_t dst_y_off = 0;
-        const size_t dst_u_off = (size_t)r8_w * dst_h;
-        const size_t dst_v_off = dst_u_off + (size_t)(r8_w / 2) * (dst_h / 2);
-
-        /* Copy Y plane: src[176:1264, 0:480] -> dst[0:1088, 0:480] */
-        for (uint32_t y = 0; y < dst_h; y++) {
-            const uint8_t *s = &src[src_y_off + (size_t)(crop_y + y) * src_w + crop_x];
-            uint8_t *d = &dst[dst_y_off + (size_t)y * r8_w];
+        const size_t src_uv = (size_t)src_w * src_h;
+        const size_t dst_uv = (size_t)r8_w * dst_h;
+        /* Y plane */
+        for (uint32_t y = 0; y < crop_h; y++) {
+            const uint8_t *s = &src[(size_t)(crop_y + y) * src_w + crop_x];
+            uint8_t *d = &dst[(size_t)y * r8_w];
             std::memcpy(d, s, crop_w);
         }
-        /* Copy U plane: src[88:632, 0:240] -> dst[0:544, 480:720] */
-        for (uint32_t y = 0; y < dst_h / 2; y++) {
-            const uint8_t *s = &src[src_u_off + (size_t)(uv_crop_y + y) * (src_w / 2) + uv_crop_x];
-            uint8_t *d = &dst[dst_u_off + (size_t)y * r8_w];
-            std::memcpy(d, s, uv_crop_w);
-        }
-        /* Copy V plane: src[88:632, 0:240] -> dst[544:1088, 480:720] */
-        for (uint32_t y = 0; y < dst_h / 2; y++) {
-            const uint8_t *s = &src[src_v_off + (size_t)(uv_crop_y + y) * (src_w / 2) + uv_crop_x];
-            uint8_t *d = &dst[dst_v_off + (size_t)y * r8_w];
-            std::memcpy(d, s, uv_crop_w);
+        /* U and V, side by side under Y in both the source and the R8 atlas */
+        for (uint32_t y = 0; y < crop_h / 2; y++) {
+            const uint8_t *su = &src[src_uv + (size_t)(uv_crop_y + y) * src_w + uv_crop_x];
+            const uint8_t *sv = su + src_w / 2;
+            uint8_t *du = &dst[dst_uv + (size_t)y * r8_w];
+            uint8_t *dv = du + r8_w / 2;
+            std::memcpy(du, su, uv_crop_w);
+            std::memcpy(dv, sv, uv_crop_w);
         }
         return dst;
     };
@@ -1252,8 +1241,10 @@ static void frame_invalidation_test()
     r.feed->offer(&spare, 1, r.now);
 
     /* Wait until worker accepts job A and reaches the PAUSED barrier */
-    bool paused = r.feed->worker().wait_until_worker_paused([](auto &s) { return s.id == 1; }, 5000);
+    const bool paused = r.feed->worker().wait_until_worker_paused([](auto &s) { return s.id == 1; }, 5000);
     ok("invalidation: worker paused on frame A (id=1)", paused);
+    if (!paused)
+        return;   /* no paused worker: releasing it would be meaningless */
 
     /* Offer newer frame B while A is paused in worker */
     spare = fB;
@@ -1281,6 +1272,19 @@ static void frame_invalidation_test()
     ok("invalidation: frame B (newest) WAS flushed to renderer", saw_B);
     ok("invalidation: final rendered atlas is frame B",
        !flush_history.empty() && flush_history.back() == expB);
+    /* Both frames went through the production ScaleWorker (A was scaled and
+     * discarded as stale, B scaled and sent). */
+    ok("invalidation: the production ScaleWorker scaled both frames", r.feed->scaled_frames() >= 2);
+
+    /* The cluster crop formula: crop_x = 176 - cluster_offset_x, clamped to
+     * the 0..352 wide source. */
+    const struct { int offset, crop; } offsets[] = {{0, 176}, {50, 126}, {-50, 226}, {176, 0}, {-176, 352}};
+    bool formula = true;
+    for (const auto &o : offsets) {
+        r.feed->set_cluster_offset(o.offset);
+        formula = formula && r.feed->cluster_crop_x() == o.crop && r.feed->cluster_offset_x() == o.offset;
+    }
+    ok("offset: crop_x = 176 - offset (0/50/-50/176/-176 -> 176/126/226/0/352)", formula);
 }
 
 int main()

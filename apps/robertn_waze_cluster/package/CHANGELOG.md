@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+Move the CarPlay map on the cluster left and right in 2-pixel steps, up to
+176 pixels each way, with a button to put it back in the centre. The setting
+is kept per driver profile and across head-unit restarts. Requires the next
+waze-on-cluster.
+
 ## 0.6.15
 
 When boot recovery removes the Android Auto patch because Android Auto
