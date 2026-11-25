@@ -185,8 +185,8 @@ struct Rig {
         if (video_w && video_h) {
             fc.video.w = video_w;
             fc.video.h = video_h;
-            fc.video.level_bits = 0;
         }
+        fc.video.level_bits = 0;
         fc.video.stall_ms = stall_ms;
         fc.guide_hold = guide_hold;
         feed.reset(new MapFeed(fc));
