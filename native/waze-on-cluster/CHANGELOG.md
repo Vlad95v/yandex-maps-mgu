@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.14.13
+
 CarPlay's cluster map can be moved left and right, up to 176 pixels each way
 in 2-pixel steps: the phone renders a wider 1440x636 map (183x81 mm) and the
 cluster crops its 1088x480 view from it. The HUD keeps its own centred crop,

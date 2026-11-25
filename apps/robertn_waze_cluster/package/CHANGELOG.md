@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.6.16
+
 Move the CarPlay map on the cluster left and right in 2-pixel steps, up to
 176 pixels each way, with a button to put it back in the centre. The setting
 is kept per driver profile and across head-unit restarts. Requires the next
