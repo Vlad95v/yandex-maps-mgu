@@ -155,8 +155,11 @@ struct Rig {
 
     /* w: watched (above); hold: with the guide hold of the turn box's slot
      * following the map, as cluster-render.conf ships it; guide_hold: the
-     * feed's setting; hud: the HUD target too. */
-    explicit Rig(bool w = false, unsigned stall_ms = 6000, bool hold = false, bool guide_hold = true, bool hud = false)
+     * feed's setting; hud: the HUD target too.
+     * video_w/video_h: optional source video dimensions (e.g., 1440x636 for
+     * cluster source-crop). Default 0 means no scaling configured. */
+    explicit Rig(bool w = false, unsigned stall_ms = 6000, bool hold = false, bool guide_hold = true, bool hud = false,
+                 uint32_t video_w = 0, uint32_t video_h = 0)
         : watched(w)
     {
         crs::TargetSpec m, p, g, u;
@@ -178,6 +181,8 @@ struct Rig {
         start();
         FeedConfig fc;
         fc.socket = path;
+        fc.video.w = video_w;
+        fc.video.h = video_h;
         fc.video.level_bits = 0;
         fc.video.stall_ms = stall_ms;
         fc.guide_hold = guide_hold;
@@ -1130,29 +1135,67 @@ static void renderer_changed()
     }
 }
 
-/* Regression test for MapFeed frame invalidation:
- * - Establish renderer connection first
- * - Submit frame A directly
- * - Wait until worker is paused while processing A
- * - Offer a distinct newer frame B while A is in flight
- * - Release the worker
- * - Allow normal processing to complete without holding the worker again
- * - Verify that stale A is never accepted by the renderer
- * - Verify that B is ultimately rendered
- * - No pump() calls while worker is intentionally paused
- * - Checks actual frame delivery, not just status string */
+/* Regression test for MapFeed frame invalidation with 1440x636 geometry:
+ * - Establish renderer connection and verify map layer exists
+ * - Enable one-shot worker pause
+ * - Submit frame A directly (1440x636 source)
+ * - Wait until worker is paused on A
+ * - Offer distinct newer frame B while A is in flight
+ * - Release worker (no pump while paused)
+ * - Let A finish and B process normally
+ * - Capture EVERY flush via also_flush callback
+ * - Verify: A never in flush history, B appears, final is B */
 static void frame_invalidation_test()
 {
-    Rig r(false, 6000);
-    /* Let the renderer connect and layer establish before enabling test pause */
-    r.pump(2000);
-    ok("invalidation: renderer connected, layer ready", r.st().state == "showing" || r.st().state == "starting" || r.st().state == "idle");
+    /* Use 1440x636 source geometry to activate cluster ScaleWorker.
+     * Input atlas: 1440 * (636 + 318) = 1,373,760 bytes
+     * Output atlas: 1088 * (480 + 240) = 783,360 bytes */
+    const uint32_t src_w = 1440, src_h = 636;
+    const uint32_t dst_w = 1088, dst_h = 480;
+    const size_t src_atlas_bytes = (size_t)src_w * (src_h + src_h / 2);  // 1440 * 954 = 1,373,760
 
-    /* Now enable test pause for the next submitted job */
+    auto make_atlas = [&](int seed) {
+        std::vector<uint8_t> f(src_atlas_bytes);
+        for (size_t i = 0; i < f.size(); i++) {
+            if (i < (size_t)src_w * src_h) {
+                /* Y plane: deterministic pattern based on position + seed */
+                f[i] = (uint8_t)((i / 7 + seed * 13) & 0xff);
+            } else {
+                /* UV planes: neutral chroma with seed variation */
+                f[i] = (uint8_t)(128 + ((seed * 11) & 0x7f));
+            }
+        }
+        return f;
+    };
+
+    /* Construct Rig with 1440x636 video geometry so MapFeed creates
+     * the correct layer and ScaleWorker from the start. */
+    Rig r(false, 6000, false, true, false, src_w, src_h);
+
+    /* Establish renderer connection and verify map layer exists */
+    r.pump(2000);
+    const crs::Layer *layer = r.map_layer();
+    ok("invalidation: map layer exists on renderer", layer != nullptr);
+
+    /* Capture R8 atlas at EVERY flush via also_flush callback */
+    std::vector<std::vector<uint8_t>> flush_history;
+    crs::FakeGraph *g = r.gpu.graph("map");
+    if (g) {
+        g->also_flush = [&](uint64_t tag) {
+            for (const auto &kv : g->shown.buffers) {
+                if (kv.second.f == crs::TexFormat::R8 && kv.second.w == dst_w && kv.second.h == dst_h) {
+                    flush_history.push_back(kv.second.px);
+                    break;  // only one R8 atlas per flush for map target
+                }
+            }
+        };
+    }
+
+    /* Enable one-shot test pause for the next submitted job */
     r.feed->worker().enable_test_pause();
 
-    const std::vector<uint8_t> fA = atlas(1);
-    const std::vector<uint8_t> fB = atlas(2);
+    const std::vector<uint8_t> fA = make_atlas(1);
+    const std::vector<uint8_t> fB = make_atlas(2);
 
     /* Submit frame A directly (not via pump) */
     std::vector<uint8_t> spare = fA;
@@ -1174,26 +1217,20 @@ static void frame_invalidation_test()
      * and B will complete without further test pauses. */
     r.pump(2000);
 
-    /* Verify actual frame delivery to renderer (not just status) */
-    bool drew_fA = false, drew_fB = false;
-    crs::FakeGraph *g = r.gpu.graph("map");
-    if (g) {
-        for (const auto &kv : g->shown.buffers) {
-            if (kv.second.f == crs::TexFormat::R8) {
-                drew_fA = drew_fA || (kv.second.px == fA);
-                drew_fB = drew_fB || (kv.second.px == fB);
-            }
-        }
+    /* Verify complete flush history:
+     * 1. Frame A (stale) never appears in renderer flush history
+     * 2. Frame B (newest) does appear in renderer flush history
+     * 3. The final rendered atlas corresponds to B */
+    bool saw_A = false, saw_B = false;
+    for (const auto &buf : flush_history) {
+        if (buf == fA) saw_A = true;
+        if (buf == fB) saw_B = true;
     }
-    ok("invalidation: frame A (stale) was NOT drawn", !drew_fA);
-    ok("invalidation: frame B (newest) WAS drawn", drew_fB);
-
-    /* Also verify layer stats show frames were sent */
-    const crs::Layer *layer = r.map_layer();
-    if (layer) {
-        std::string stats = layer->stats();
-        ok("invalidation: layer stats show frames sent", stats.find("sent") != std::string::npos);
-    }
+    ok("invalidation: flush history captured", !flush_history.empty());
+    ok("invalidation: frame A (stale) NEVER flushed to renderer", !saw_A);
+    ok("invalidation: frame B (newest) WAS flushed to renderer", saw_B);
+    ok("invalidation: final rendered atlas is frame B",
+       !flush_history.empty() && flush_history.back() == fB);
 }
 
 int main()
