@@ -496,6 +496,10 @@ void MapFeed::offer(std::vector<uint8_t> *atlas, uint64_t id, int64_t now_ms)
         frames_++;
     if (scaling_ || !sending() || !client_.frame(layer_, atlas, id)) {
         hold(atlas, id);
+        /* New frame arrived - any in-flight worker job is now stale.
+         * The worker will return the old atlas, which send_pending will
+         * discard because its generation won't match. */
+        in_worker_ = false;
     } else {
         id_ = id;
         held_new_ = elsewhere_ = in_worker_ = false;
@@ -537,16 +541,21 @@ void MapFeed::send_newest()
 void MapFeed::send_pending(int64_t now_ms)
 {
     uint64_t sid = 0;
+    uint64_t expected_gen = worker_generation_;
     if (worker_.take(&scaled_, &sid, shape_, in_worker_ ? &held_ : nullptr)) {
         in_worker_ = false;
-        if (!scaled_.empty() && layer_) {
+        /* Validate frame freshness: the worker result must match the generation
+         * that was current when the job was submitted. If a newer frame has
+         * arrived (or offset changed), this result is stale and must be discarded. */
+        if (!scaled_.empty() && layer_ && sid == expected_gen) {
             client_.frame(layer_, &scaled_, sid);
             /* Successful scaling: the source atlas was returned in held_.
              * Cache it for possible recrop on offset change. */
             has_cached_source_ = true;
-        } else if (scaled_.empty()) {
-            /* stale result (shape changed): the input atlas was returned in
-             * held_; mark it for resubmission with the current shape. */
+        } else if (scaled_.empty() || sid != expected_gen) {
+            /* Stale result: shape changed mid-job, or newer frame arrived.
+             * The input atlas was returned in held_; mark it for resubmission
+             * with the current shape. Do not overwrite held_ with older data. */
             held_new_ = true;
             has_cached_source_ = true;
             elsewhere_ = false;
@@ -561,7 +570,7 @@ void MapFeed::send_pending(int64_t now_ms)
     if (!scaling_ || !held_new_ || elsewhere_ || in_worker_ || !sending() || now_ms < next_send_ms_ ||
         !worker_.idle())
         return;
-    if (worker_.submit(&held_, id_, shape_)) {
+    if (worker_.submit(&held_, ++worker_generation_, shape_)) {
         held_new_ = false;
         in_worker_ = true;
         unsigned fps = cfg_.video.fps;

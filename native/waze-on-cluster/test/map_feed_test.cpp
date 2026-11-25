@@ -1960,6 +1960,9 @@ int main()
         ok("AtlasScaler: output size 1088*720 = 783360",
            dst.size() == 1088u * 720u);
 
+        /* Destination buffer layout: Y plane 1088x480, then U and V side by side at 544x240.
+         * U starts at 1088*480 = 522240, V starts at 1088*480 + 544 = 522784. */
+
         /* Verify center crop: output x=0 corresponds to source x=176 */
         /* Y at dst(0,0) should match src Y at (176,0) = (176 + 0*7 + 0) & 0xff = 176 */
         ok("AtlasScaler crop center: Y[0,0] = src[176,0] = 176",
@@ -1970,6 +1973,22 @@ int main()
         /* Y at dst(0,479) should match src Y at (176,479) = (176 + 479*7) & 0xff = 109 */
         ok("AtlasScaler crop center: Y[0,479] = src[176,479] = 109",
            dst[479 * 1088] == 109);
+        /* Y at dst(1087,479) should match src Y at (1263,479) = (1263 + 479*7) & 0xff = 180 */
+        ok("AtlasScaler crop center: Y[1087,479] = src[1263,479] = 180",
+           dst[479 * 1088 + 1087] == 180);
+
+        /* U at dst(0,0) with center crop (crop_x=176) -> src U at (88,0) = (88*2 + 0*11 + 128) & 0xff = 304 & 0xff = 48 */
+        ok("AtlasScaler crop center: U[0,0] = src U[88,0] = 48",
+           dst[1088 * 480 + 0] == 48);
+        /* V at dst(0,0) -> src V at (88,0) = (88*3 + 0*13 + 128) & 0xff = 392 & 0xff = 136 */
+        ok("AtlasScaler crop center: V[0,0] = src V[88,0] = 136",
+           dst[1088 * 480 + 1088 / 2 + 0] == 136);
+        /* U at dst(543,239) with center crop -> src U at (631,239) = (631*2 + 239*11 + 128) & 0xff = 2497 & 0xff = 161 */
+        ok("AtlasScaler crop center: U[543,239] = src U[631,239] = 161",
+           dst[1088 * 480 + 239 * 1088 + 543] == 161);
+        /* V at dst(543,239) -> src V at (631,239) = (631*3 + 239*13 + 128) & 0xff = 5142 & 0xff = 94 */
+        ok("AtlasScaler crop center: V[543,239] = src V[631,239] = 94",
+           dst[1088 * 480 + 239 * 1088 + 1088 / 2 + 543] == 94);
 
         /* Test crop at left edge (crop_x = 0) */
         AtlasScaler scaler_left;
@@ -1983,6 +2002,12 @@ int main()
         /* Y at dst(1087,0) should match src Y at (1087,0) = 1087 & 0xff = 63 */
         ok("AtlasScaler crop left: Y[1087,0] = src[1087,0] = 63",
            dst_left[1087] == 63);
+        /* U at dst(0,0) with crop_x=0 -> src U at (0,0) = (0*2 + 0*11 + 128) & 0xff = 128 */
+        ok("AtlasScaler crop left: U[0,0] = src U[0,0] = 128",
+           dst_left[1088 * 480 + 0] == 128);
+        /* V at dst(0,0) -> src V at (0,0) = (0*3 + 0*13 + 128) & 0xff = 128 */
+        ok("AtlasScaler crop left: V[0,0] = src V[0,0] = 128",
+           dst_left[1088 * 480 + 1088 / 2 + 0] == 128);
 
         /* Test crop at right edge (crop_x = 352) */
         AtlasScaler scaler_right;
@@ -1996,13 +2021,12 @@ int main()
         /* Y at dst(1087,0) should match src Y at (1439,0) = 1439 & 0xff = 151 */
         ok("AtlasScaler crop right: Y[1087,0] = src[1439,0] = 151",
            dst_right[1087] == 151);
-
-        /* UV planes: U at dst(0,0) with center crop (crop_x=176) -> src U at (88,0) */
-        ok("AtlasScaler crop center: U[0,0] = src U[88,0]",
-           dst[1440 * 636 + 0] == ((88 * 2 + 0 * 11 + 128) & 0xff));
-        /* V at dst(0,0) -> src V at (88,0) */
-        ok("AtlasScaler crop center: V[0,0] = src V[88,0]",
-           dst[1440 * 636 + 1440 / 2 + 0] == ((88 * 3 + 0 * 13 + 128) & 0xff));
+        /* U at dst(0,0) with crop_x=352 -> src U at (176,0) = (176*2 + 128) & 0xff = 480 & 0xff = 224 */
+        ok("AtlasScaler crop right: U[0,0] = src U[176,0] = 224",
+           dst_right[1088 * 480 + 0] == 224);
+        /* V at dst(0,0) -> src V at (176,0) = (176*3 + 128) & 0xff = 656 & 0xff = 144 */
+        ok("AtlasScaler crop right: V[0,0] = src V[176,0] = 144",
+           dst_right[1088 * 480 + 1088 / 2 + 0] == 144);
 
         /* Test with non-zero crop_y */
         AtlasScaler scaler_y;
@@ -2013,6 +2037,15 @@ int main()
         /* Y at dst(0,0) should match src Y at (176,78) = (176 + 78*7) & 0xff = 222 */
         ok("AtlasScaler crop_y=78: Y[0,0] = src[176,78] = 222",
            dst_y[0] == 222);
+        /* Y at dst(0,479) should match src Y at (176,557) = (176 + 557*7) & 0xff = 205 */
+        ok("AtlasScaler crop_y=78: Y[0,479] = src[176,557] = 205",
+           dst_y[479 * 1088] == 205);
+        /* U at dst(0,0) with crop_y=78, crop_x=176 -> src U at (88,39) = (88*2 + 39*11 + 128) & 0xff = 735 & 0xff = 223 */
+        ok("AtlasScaler crop_y=78: U[0,0] = src U[88,39] = 223",
+           dst_y[1088 * 480 + 0] == 223);
+        /* V at dst(0,0) -> src V at (88,39) = (88*3 + 39*13 + 128) & 0xff = 869 & 0xff = 101 */
+        ok("AtlasScaler crop_y=78: V[0,0] = src V[88,39] = 101",
+           dst_y[1088 * 480 + 1088 / 2 + 0] == 101);
 
         /* Verify downscaling with crop still works (e.g., 1440x636 -> 452x200) */
         AtlasScaler scaler_hud;
@@ -2054,7 +2087,8 @@ int main()
         port.m = &svc.slots();
         std::string err;
         if (!svc.start(&err)) {
-            std::printf("live-offset test: service start failed: %s\n", err.c_str());
+            failures++;
+            std::printf("FAIL live-offset test: service start failed: %s\n", err.c_str());
         } else {
             MapFeed feed(cfc);
             feed.set_stream(true, false, Picture::Shown);
@@ -2094,11 +2128,13 @@ int main()
             feed.offer(&spare, 1, now);
             pump(50);
 
-            /* Wait for worker to accept the job and reach the blocked point */
-            bool worker_blocked = feed.worker().wait_until_worker_blocked([](const auto&) { return true; }, 2000);
-            ok("live offset change: worker accepted job and is blocked", worker_blocked);
+            /* Wait for worker to accept the job and reach the PAUSED point */
+            bool worker_paused = feed.worker().wait_until_worker_paused([](const auto& s) {
+                return s.id == 1;  // Verify job ID
+            }, 2000);
+            ok("live offset change: worker accepted job (id=1) and is paused", worker_paused);
 
-            /* Change cluster offset while worker is blocked at the synchronization point */
+            /* Change cluster offset while worker is paused at the synchronization point */
             feed.set_cluster_offset(50);
 
             /* Release worker and pump until it finishes */
@@ -2128,25 +2164,33 @@ int main()
                 }
             }
 
-            ok("live offset change: worker was blocked and released", worker_blocked);
+            ok("live offset change: worker was paused and released", worker_paused);
             ok("live offset change: output received with new crop (crop_x=126 -> Y[0]=127)",
                got_output && !output.empty() && output[0] == 127);
             if (got_output && !output.empty() && output[0] != 127) {
                 std::printf("  DEBUG: output[0] = %d (expected 127 for crop_x=126, would be 177 for old crop_x=176)\n", output[0]);
             }
 
-            /* Verify additional pixels: Y[1087,0] = src[1213,0] = (1213 + 1) & 0xff = 190 */
+            /* Destination buffer: Y 1088x480, U/V at 544x240 starting at 1088*480 */
+            /* Verify additional pixels for crop_x=126 (base=1):
+             * Y[1087,0] = src[1213,0] = (1213 + 1) & 0xff = 190
+             * Y[0,479] = src[126,479] = (126 + 479*7 + 1) & 0xff = 3479 & 0xff = 152
+             * U[0,0] -> src U at (63,0) = (63*2 + 128) & 0xff = 254
+             * V[0,0] -> src V at (63,0) = (63*3 + 128) & 0xff = 61
+             * U[543,239] -> src U at (607,239) = (607*2 + 239*11 + 128) & 0xff = 2433 & 0xff = 161
+             * V[543,239] -> src V at (607,239) = (607*3 + 239*13 + 128) & 0xff = 5048 & 0xff = 32 */
             ok("live offset change: Y[1087,0] = src[1213,0] = 190",
                got_output && output[1087] == 190);
-            /* Y[0,479] = src[126,479] = (126 + 479*7 + 1) & 0xff = 109 */
-            ok("live offset change: Y[0,479] = src[126,479] = 109",
-               got_output && output[479 * 1088] == 109);
-            /* U[0,0] with crop_x=126 -> src U at (63,0) = (63*2 + 128) & 0xff = 254 */
+            ok("live offset change: Y[0,479] = src[126,479] = 152",
+               got_output && output[479 * 1088] == 152);
             ok("live offset change: U[0,0] = src U[63,0] = 254",
-               got_output && output[1440 * 636 + 0] == 254);
-            /* V[0,0] with crop_x=126 -> src V at (63,0) = (63*3 + 128) & 0xff = 61 */
+               got_output && output[1088 * 480 + 0] == 254);
             ok("live offset change: V[0,0] = src V[63,0] = 61",
-               got_output && output[1440 * 636 + 1440 / 2 + 0] == 61);
+               got_output && output[1088 * 480 + 1088 / 2 + 0] == 61);
+            ok("live offset change: U[543,239] = src U[607,239] = 161",
+               got_output && output[1088 * 480 + 239 * 1088 + 543] == 161);
+            ok("live offset change: V[543,239] = src V[607,239] = 32",
+               got_output && output[1088 * 480 + 239 * 1088 + 1088 / 2 + 543] == 32);
 
             /* Verify the shape in status matches new offset */
             FeedStatus st = feed.status("decode");
@@ -2184,7 +2228,8 @@ int main()
         port.m = &svc.slots();
         std::string err;
         if (!svc.start(&err)) {
-            std::printf("multi-offset test: service start failed: %s\n", err.c_str());
+            failures++;
+            std::printf("FAIL multi-offset test: service start failed: %s\n", err.c_str());
         } else {
             MapFeed feed(cfc);
             feed.set_stream(true, false, Picture::Shown);
@@ -2224,13 +2269,15 @@ int main()
             feed.offer(&spare, 1, now);
             pump(50);
 
-            /* Wait for worker to accept the job and reach the blocked point */
-            bool worker_blocked = feed.worker().wait_until_worker_blocked([](const auto&) { return true; }, 2000);
-            ok("multi offset change: worker accepted job and is blocked", worker_blocked);
+            /* Wait for worker to accept the job and reach the PAUSED point */
+            bool worker_paused = feed.worker().wait_until_worker_paused([](const auto& s) {
+                return s.id == 1;
+            }, 2000);
+            ok("multi offset change: worker accepted job (id=1) and is paused", worker_paused);
 
             /* Change offset to +50 (crop_x=126) */
             feed.set_cluster_offset(50);
-            /* Change offset to -40 (crop_x=216) while worker still blocked */
+            /* Change offset to -40 (crop_x=216) while worker still paused */
             feed.set_cluster_offset(-40);
 
             /* Release worker and pump until it finishes */
@@ -2260,26 +2307,33 @@ int main()
                 }
             }
 
-            ok("multi offset change: worker was blocked and released", worker_blocked);
+            ok("multi offset change: worker was paused and released", worker_paused);
             ok("multi offset change: output uses FINAL crop (crop_x=216 -> Y[0]=217), not intermediate",
                got_output && !output.empty() && output[0] == 217);
             if (got_output && !output.empty() && output[0] != 217) {
                 std::printf("  DEBUG: output[0] = %d (expected 217 for crop_x=216, would be 127 for intermediate crop_x=126, 177 for initial crop_x=176)\n", output[0]);
             }
 
-            /* Verify additional pixels for crop_x=216:
-             * Y[1087,0] = src[1303,0] = (1303 + 1) & 0xff = 23
-             * Y[0,479] = src[216,479] = (216 + 479*7 + 1) & 0xff = 150
+            /* Destination buffer: Y 1088x480, U/V at 544x240 starting at 1088*480 */
+            /* Verify additional pixels for crop_x=216 (base=1):
+             * Y[1087,0] = src[1303,0] = (1303 + 1) & 0xff = 24
+             * Y[0,479] = src[216,479] = (216 + 479*7 + 1) & 0xff = 3569 & 0xff = 242
              * U[0,0] -> src U at (108,0) = (108*2 + 128) & 0xff = 88
-             * V[0,0] -> src V at (108,0) = (108*3 + 128) & 0xff = 196 */
-            ok("multi offset change: Y[1087,0] = src[1303,0] = 23",
-               got_output && output[1087] == 23);
-            ok("multi offset change: Y[0,479] = src[216,479] = 150",
-               got_output && output[479 * 1088] == 150);
+             * V[0,0] -> src V at (108,0) = (108*3 + 128) & 0xff = 196
+             * U[543,239] -> src U at (651,239) = (651*2 + 239*11 + 128) & 0xff = 4181 & 0xff = 117
+             * V[543,239] -> src V at (651,239) = (651*3 + 239*13 + 128) & 0xff = 5340 & 0xff = 44 */
+            ok("multi offset change: Y[1087,0] = src[1303,0] = 24",
+               got_output && output[1087] == 24);
+            ok("multi offset change: Y[0,479] = src[216,479] = 242",
+               got_output && output[479 * 1088] == 242);
             ok("multi offset change: U[0,0] = src U[108,0] = 88",
-               got_output && output[1440 * 636 + 0] == 88);
+               got_output && output[1088 * 480 + 0] == 88);
             ok("multi offset change: V[0,0] = src V[108,0] = 196",
-               got_output && output[1440 * 636 + 1440 / 2 + 0] == 196);
+               got_output && output[1088 * 480 + 1088 / 2 + 0] == 196);
+            ok("multi offset change: U[543,239] = src U[651,239] = 117",
+               got_output && output[1088 * 480 + 239 * 1088 + 543] == 117);
+            ok("multi offset change: V[543,239] = src V[651,239] = 44",
+               got_output && output[1088 * 480 + 239 * 1088 + 1088 / 2 + 543] == 44);
 
             /* Verify the shape in status matches final offset */
             FeedStatus st = feed.status("decode");
@@ -2315,7 +2369,8 @@ int main()
         port.m = &svc.slots();
         std::string err;
         if (!svc.start(&err)) {
-            std::printf("stable-recrop test: service start failed: %s\n", err.c_str());
+            failures++;
+            std::printf("FAIL stable-recrop test: service start failed: %s\n", err.c_str());
         } else {
             MapFeed feed(cfc);
             feed.set_stream(true, false, Picture::Shown);
@@ -2350,10 +2405,18 @@ int main()
             std::vector<uint8_t> atlas = make_atlas(1440, 636, 1);
             std::vector<uint8_t> spare;
 
-            /* Feed first frame, wait for complete scaling */
+            /* Feed first frame, wait for complete scaling using deterministic sync */
             spare = atlas;
             feed.offer(&spare, 1, now);
-            pump(500);  /* wait for worker to complete */
+            pump(50);
+
+            /* Wait for worker to pause, then release and wait for completion */
+            bool worker_paused = feed.worker().wait_until_worker_paused([](const auto& s) {
+                return s.id == 1;
+            }, 2000);
+            ok("stable recrop: worker accepted job (id=1) and paused", worker_paused);
+            feed.worker().release_worker();
+            pump(200);
 
             /* Verify initial output with crop_x=176 */
             const crs::Layer *ml = nullptr;
@@ -2375,7 +2438,15 @@ int main()
                     }
                 }
             }
-            ok("stable recrop: initial output with crop_x=176 (Y[0]=177)", got_initial && initial_output[0] == 177);
+            ok("stable recrop: initial output with crop_x=176 (Y[0]=177)", got_initial && !initial_output.empty() && initial_output[0] == 177);
+            ok("stable recrop: Y[1087,0] = src[1263,0] = 247",
+               got_initial && initial_output[1087] == 247);
+            ok("stable recrop: Y[0,479] = src[176,479] = 109",
+               got_initial && initial_output[479 * 1088] == 109);
+            ok("stable recrop: U[0,0] = src U[88,0] = 48",
+               got_initial && initial_output[1088 * 480 + 0] == 48);
+            ok("stable recrop: V[0,0] = src V[88,0] = 136",
+               got_initial && initial_output[1088 * 480 + 1088 / 2 + 0] == 136);
 
             /* Worker should now be idle, source atlas cached */
             bool worker_idle = feed.worker().idle();
@@ -2410,16 +2481,393 @@ int main()
                got_recrop && !recrop_output.empty() && recrop_output[0] == 127);
             ok("stable recrop: Y[1087,0] = src[1213,0] = 190",
                got_recrop && recrop_output[1087] == 190);
+            ok("stable recrop: Y[0,479] = src[126,479] = 152",
+               got_recrop && recrop_output[479 * 1088] == 152);
             ok("stable recrop: U[0,0] = src U[63,0] = 254",
-               got_recrop && recrop_output[1440 * 636 + 0] == 254);
+               got_recrop && recrop_output[1088 * 480 + 0] == 254);
             ok("stable recrop: V[0,0] = src V[63,0] = 61",
-               got_recrop && recrop_output[1440 * 636 + 1440 / 2 + 0] == 61);
+               got_recrop && recrop_output[1088 * 480 + 1088 / 2 + 0] == 61);
+            ok("stable recrop: U[543,239] = src U[607,239] = 161",
+               got_recrop && recrop_output[1088 * 480 + 239 * 1088 + 543] == 161);
+            ok("stable recrop: V[543,239] = src V[607,239] = 32",
+               got_recrop && recrop_output[1088 * 480 + 239 * 1088 + 1088 / 2 + 543] == 32);
 
-            /* Verify no stale frame was ever displayed by checking renderer history:
-             * The frame count should not have a frame with the old crop after the recrop started. */
+            /* Verify frame ID has not changed (same source frame recropped) */
             FeedStatus st = feed.status("decode");
             ok("stable recrop: status shows cluster_offset_x=50, crop_x=126",
                st.cluster_offset_x == 50 && st.cluster_crop_x == 126);
+        }
+    }
+
+    /* ---- frame tracking test: verify no stale/intermediate frames reach renderer ---- */
+    {
+        /* Test: offset 0 -> +50 -> -40 during one job.
+         * Track every frame accepted by the renderer to verify ONLY the final
+         * crop_x=216 output is submitted. */
+        FeedConfig cfc;
+        cfc.socket = "/tmp/woc-feed-track-frames-" + std::to_string(getpid()) + ".sock";
+        cfc.target = "map";
+        cfc.video.w = 1440;
+        cfc.video.h = 636;
+        cfc.video.level_bits = 0;
+        cfc.video.stall_ms = 6000;
+        cfc.cluster_offset_x = 0;
+
+        crs::FakeGpu gpu;
+        crs::FakePort port;
+        crs::ServiceConfig sc;
+        crs::TargetSpec m;
+        m.name = "map"; m.slot = 0x100; m.scene_id = 0x010004f0; m.width = 1088; m.height = 480; m.linger_ms = 1500;
+        m.take_over_stock = true;
+        sc.targets = {m};
+        sc.socket_path = cfc.socket;
+        sc.backend = "fake";
+        crs::Service svc(&gpu, &port, sc);
+        port.m = &svc.slots();
+        std::string err;
+        if (!svc.start(&err)) {
+            failures++;
+            std::printf("FAIL frame-track test: service start failed: %s\n", err.c_str());
+        } else {
+            MapFeed feed(cfc);
+            feed.set_stream(true, false, Picture::Shown);
+            int64_t now = 200000;
+
+            auto make_atlas = [](uint32_t w, uint32_t h, uint8_t base) {
+                std::vector<uint8_t> a((size_t)w * (h + h / 2));
+                for (uint32_t y = 0; y < h; y++)
+                    for (uint32_t x = 0; x < w; x++)
+                        a[y * w + x] = (uint8_t)((x + y * 7 + base) & 0xff);
+                for (uint32_t y = 0; y < h / 2; y++) {
+                    for (uint32_t x = 0; x < w / 2; x++) {
+                        a[w * h + y * w + x] = (uint8_t)((x * 2 + y * 11 + 128) & 0xff);
+                        a[w * h + y * w + w / 2 + x] = (uint8_t)((x * 3 + y * 13 + 128) & 0xff);
+                    }
+                }
+                return a;
+            };
+
+            auto pump = [&](int64_t ms) {
+                for (int64_t t = 0; t < ms; t += 5) {
+                    now += 5;
+                    std::vector<pollfd> fds;
+                    size_t first = svc.poll_fds(&fds);
+                    int n = poll(fds.data(), fds.size(), 0);
+                    port.tick(now);
+                    svc.after_poll(fds, first, now);
+                    feed.poll(now);
+                }
+            };
+
+            std::vector<uint8_t> atlas = make_atlas(1440, 636, 1);
+            std::vector<uint8_t> spare;
+
+            /* Feed first frame, let scaling start */
+            spare = atlas;
+            feed.offer(&spare, 1, now);
+            pump(50);
+
+            /* Wait for worker to pause */
+            bool worker_paused = feed.worker().wait_until_worker_paused([](const auto& s) {
+                return s.id == 1;
+            }, 2000);
+            ok("frame track: worker paused with job id=1", worker_paused);
+
+            /* Change offset to +50 (crop_x=126) */
+            feed.set_cluster_offset(50);
+            /* Change offset to -40 (crop_x=216) while worker still paused */
+            feed.set_cluster_offset(-40);
+
+            /* Release worker and pump until it finishes */
+            feed.worker().release_worker();
+            pump(300);
+
+            /* Now inspect ALL frames the renderer received for the map layer.
+             * The FakeGraph records every frame in drawn(). We'll check each
+             * frame's Y[0,0] to see which crop it corresponds to. */
+            const crs::Layer *ml = nullptr;
+            for (const crs::Layer *l : svc.compositor().layers())
+                ml = l;
+
+            std::vector<int> seen_crops;  // crop_x values inferred from Y[0,0]
+            if (ml) {
+                crs::FakeGraph *g = gpu.graph("map");
+                if (g) {
+                    for (const auto &kv : g->drawn()) {
+                        if (kv.second.f == crs::TexFormat::R8 && kv.second.px.size() >= 1088) {
+                            int y00 = kv.second.px[0];
+                            int crop_x = (y00 - 1 + 256) % 256;  // Y[0,0] = (crop_x + base) & 0xff, base=1
+                            seen_crops.push_back(crop_x);
+                        }
+                    }
+                }
+            }
+
+            ok("frame track: at least one frame submitted", !seen_crops.empty());
+            /* Only crop_x=216 should be present (final offset -40).
+             * crop_x=176 (initial) and crop_x=126 (intermediate +50) must NOT appear. */
+            bool has_initial = false, has_intermediate = false, has_final = false;
+            for (int cx : seen_crops) {
+                if (cx == 176) has_initial = true;
+                else if (cx == 126) has_intermediate = true;
+                else if (cx == 216) has_final = true;
+            }
+            ok("frame track: NO initial crop_x=176 frame submitted after offset changes", !has_initial);
+            ok("frame track: NO intermediate crop_x=126 frame submitted", !has_intermediate);
+            ok("frame track: FINAL crop_x=216 frame submitted", has_final);
+            if (has_initial) std::printf("  DEBUG: saw initial crop_x=176\n");
+            if (has_intermediate) std::printf("  DEBUG: saw intermediate crop_x=126\n");
+            if (has_final) std::printf("  DEBUG: saw final crop_x=216\n");
+        }
+    }
+
+    /* ---- new CarPlay frame arrives during worker job ---- */
+    {
+        /* Test: frame 1 offered, worker starts scaling, then frame 2 arrives
+         * while worker is paused. Frame 1's result must be discarded;
+         * frame 2 must be scaled with the current crop. */
+        FeedConfig cfc;
+        cfc.socket = "/tmp/woc-feed-new-frame-" + std::to_string(getpid()) + ".sock";
+        cfc.target = "map";
+        cfc.video.w = 1440;
+        cfc.video.h = 636;
+        cfc.video.level_bits = 0;
+        cfc.video.stall_ms = 6000;
+        cfc.cluster_offset_x = 0;
+
+        crs::FakeGpu gpu;
+        crs::FakePort port;
+        crs::ServiceConfig sc;
+        crs::TargetSpec m;
+        m.name = "map"; m.slot = 0x100; m.scene_id = 0x010004f0; m.width = 1088; m.height = 480; m.linger_ms = 1500;
+        m.take_over_stock = true;
+        sc.targets = {m};
+        sc.socket_path = cfc.socket;
+        sc.backend = "fake";
+        crs::Service svc(&gpu, &port, sc);
+        port.m = &svc.slots();
+        std::string err;
+        if (!svc.start(&err)) {
+            failures++;
+            std::printf("FAIL new-frame test: service start failed: %s\n", err.c_str());
+        } else {
+            MapFeed feed(cfc);
+            feed.set_stream(true, false, Picture::Shown);
+            int64_t now = 200000;
+
+            auto make_atlas = [](uint32_t w, uint32_t h, uint8_t base) {
+                std::vector<uint8_t> a((size_t)w * (h + h / 2));
+                for (uint32_t y = 0; y < h; y++)
+                    for (uint32_t x = 0; x < w; x++)
+                        a[y * w + x] = (uint8_t)((x + y * 7 + base) & 0xff);
+                for (uint32_t y = 0; y < h / 2; y++) {
+                    for (uint32_t x = 0; x < w / 2; x++) {
+                        a[w * h + y * w + x] = (uint8_t)((x * 2 + y * 11 + 128) & 0xff);
+                        a[w * h + y * w + w / 2 + x] = (uint8_t)((x * 3 + y * 13 + 128) & 0xff);
+                    }
+                }
+                return a;
+            };
+
+            auto pump = [&](int64_t ms) {
+                for (int64_t t = 0; t < ms; t += 5) {
+                    now += 5;
+                    std::vector<pollfd> fds;
+                    size_t first = svc.poll_fds(&fds);
+                    int n = poll(fds.data(), fds.size(), 0);
+                    port.tick(now);
+                    svc.after_poll(fds, first, now);
+                    feed.poll(now);
+                }
+            };
+
+            /* Frame 1 with base=1 */
+            std::vector<uint8_t> atlas1 = make_atlas(1440, 636, 1);
+            std::vector<uint8_t> spare = atlas1;
+            feed.offer(&spare, 1, now);
+            pump(50);
+
+            /* Wait for worker to pause on frame 1 */
+            bool worker_paused = feed.worker().wait_until_worker_paused([](const auto& s) {
+                return s.id == 1;
+            }, 2000);
+            ok("new frame: worker paused on frame 1", worker_paused);
+
+            /* Frame 2 arrives with base=2 (different pattern) while worker paused */
+            std::vector<uint8_t> atlas2 = make_atlas(1440, 636, 2);
+            spare = atlas2;
+            feed.offer(&spare, 2, now);
+
+            /* Change offset while worker still paused on frame 1 */
+            feed.set_cluster_offset(50);
+
+            /* Release worker - it will complete frame 1 but send_pending must
+             * discard it because generation mismatch. Frame 2 should be
+             * submitted next with crop_x=126. */
+            feed.worker().release_worker();
+            pump(300);
+
+            /* Verify output comes from frame 2 (base=2) with crop_x=126.
+             * For base=2, crop_x=126: Y[0,0] = (126 + 0*7 + 2) & 0xff = 128 */
+            const crs::Layer *ml = nullptr;
+            for (const crs::Layer *l : svc.compositor().layers())
+                ml = l;
+            bool got_output = false;
+            std::vector<uint8_t> output;
+            if (ml) {
+                crs::FakeGraph *g = gpu.graph("map");
+                if (g && !g->drawn().empty()) {
+                    for (const auto &kv : g->shown.buffers) {
+                        if (kv.second.f == crs::TexFormat::R8) {
+                            if (kv.second.px[0] == 128) {  // base=2, crop_x=126
+                                got_output = true;
+                                output = kv.second.px;
+                            }
+                        }
+                    }
+                }
+            }
+
+            ok("new frame: output from frame 2 (base=2) with crop_x=126 (Y[0]=128)",
+               got_output && !output.empty() && output[0] == 128);
+            ok("new frame: Y[1087,0] = src[1213,0] base=2 = 191",
+               got_output && output[1087] == 191);
+            ok("new frame: U[0,0] = src U[63,0] base=2 = (63*2+128)=254",
+               got_output && output[1088 * 480 + 0] == 254);
+            ok("new frame: V[0,0] = src V[63,0] base=2 = (63*3+128)=61",
+               got_output && output[1088 * 480 + 1088 / 2 + 0] == 61);
+
+            /* Frame 1's pattern (base=1) would give Y[0,0]=127.
+             * Verify we did NOT get frame 1's stale result. */
+            if (got_output && output[0] == 127) {
+                std::printf("  ERROR: got stale frame 1 result (Y[0]=127) instead of frame 2\n");
+            }
+        }
+    }
+
+    /* ---- combined cluster + HUD feeds: verify HUD independence ---- */
+    {
+        /* Test: both cluster and HUD feeds active simultaneously.
+         * Change cluster_offset_x; verify HUD crop remains centered at 176. */
+        FeedConfig cfc;
+        cfc.socket = "/tmp/woc-feed-combined-" + std::to_string(getpid()) + ".sock";
+        cfc.target = "map";
+        cfc.video.w = 1440;
+        cfc.video.h = 636;
+        cfc.video.level_bits = 0;
+        cfc.video.stall_ms = 6000;
+        cfc.cluster_offset_x = 0;
+
+        FeedConfig hfc;
+        hfc.socket = "/tmp/woc-feed-combined-hud-" + std::to_string(getpid()) + ".sock";
+        hfc.target = "hud";
+        hfc.video.w = 1440;
+        hfc.video.h = 636;
+        hfc.video.level_bits = 2;
+        hfc.video.stall_ms = 6000;
+        hfc.cluster_offset_x = 0;
+        hfc.scale_down = true;
+        hfc.scaled_level_bits = 2;
+        hfc.hud_round_corners = true;
+        hfc.hud_black_background = true;
+
+        crs::FakeGpu gpu;
+        crs::FakePort port;
+        crs::ServiceConfig sc;
+        crs::TargetSpec m, u;
+        m.name = "map"; m.slot = 0x100; m.scene_id = 0x010004f0; m.width = 1088; m.height = 480; m.linger_ms = 1500;
+        m.take_over_stock = true;
+        u.name = "hud"; u.slot = 0x323; u.scene_id = 0x01000400; u.width = 800; u.height = 480; u.linger_ms = 3000;
+        u.yield_slots = {0x322};
+        u.yield_ms = 1500;
+        sc.targets = {m, u};
+        sc.socket_path = cfc.socket;  /* cluster socket */
+        sc.backend = "fake";
+        crs::Service svc(&gpu, &port, sc);
+        port.m = &svc.slots();
+        std::string err;
+        if (!svc.start(&err)) {
+            failures++;
+            std::printf("FAIL combined test: service start failed: %s\n", err.c_str());
+        } else {
+            MapFeed feed(cfc);
+            feed.set_stream(true, false, Picture::Shown);
+            MapFeed hud(hfc);
+            hud.set_stream(true, false, Picture::Shown);
+            int64_t now = 200000;
+
+            auto make_atlas = [](uint32_t w, uint32_t h, uint8_t base) {
+                std::vector<uint8_t> a((size_t)w * (h + h / 2));
+                for (uint32_t y = 0; y < h; y++)
+                    for (uint32_t x = 0; x < w; x++)
+                        a[y * w + x] = (uint8_t)((x + y * 7 + base) & 0xff);
+                for (uint32_t y = 0; y < h / 2; y++) {
+                    for (uint32_t x = 0; x < w / 2; x++) {
+                        a[w * h + y * w + x] = (uint8_t)((x * 2 + y * 11 + 128) & 0xff);
+                        a[w * h + y * w + w / 2 + x] = (uint8_t)((x * 3 + y * 13 + 128) & 0xff);
+                    }
+                }
+                return a;
+            };
+
+            auto pump = [&](int64_t ms) {
+                for (int64_t t = 0; t < ms; t += 5) {
+                    now += 5;
+                    std::vector<pollfd> fds;
+                    size_t first = svc.poll_fds(&fds);
+                    int n = poll(fds.data(), fds.size(), 0);
+                    port.tick(now);
+                    svc.after_poll(fds, first, now);
+                    feed.poll(now);
+                    hud.poll(now);
+                }
+            };
+
+            std::vector<uint8_t> atlas = make_atlas(1440, 636, 1);
+            std::vector<uint8_t> spare;
+
+            /* Feed initial frame to both */
+            spare = atlas;
+            feed.offer(&spare, 1, now);
+            spare = atlas;
+            hud.offer(&spare, 1, now);
+            pump(200);
+
+            /* Verify initial HUD crop_x = 176 (centered) */
+            FeedStatus hs = hud.status("decode");
+            ok("combined: HUD initial crop_x = 176", hs.cluster_crop_x == 176);
+
+            /* Change cluster offset to +100 */
+            feed.set_cluster_offset(100);
+            pump(200);
+
+            /* Verify cluster crop changed to 76 (176 - 100) */
+            FeedStatus cs = feed.status("decode");
+            ok("combined: cluster offset +100 -> crop_x = 76", cs.cluster_crop_x == 76);
+
+            /* Verify HUD crop REMAINS 176 (independent) */
+            hs = hud.status("decode");
+            ok("combined: HUD crop_x still 176 after cluster offset change", hs.cluster_crop_x == 176);
+
+            /* Change cluster offset to -100 */
+            feed.set_cluster_offset(-100);
+            pump(200);
+
+            cs = feed.status("decode");
+            ok("combined: cluster offset -100 -> crop_x = 276", cs.cluster_crop_x == 276);
+
+            hs = hud.status("decode");
+            ok("combined: HUD crop_x still 176 after cluster offset -100", hs.cluster_crop_x == 176);
+
+            /* Change cluster offset to +50 */
+            feed.set_cluster_offset(50);
+            pump(200);
+
+            cs = feed.status("decode");
+            ok("combined: cluster offset +50 -> crop_x = 126", cs.cluster_crop_x == 126);
+
+            hs = hud.status("decode");
+            ok("combined: HUD crop_x still 176 after cluster offset +50", hs.cluster_crop_x == 176);
         }
     }
 

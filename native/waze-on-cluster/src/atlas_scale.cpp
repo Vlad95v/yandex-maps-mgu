@@ -320,9 +320,18 @@ void ScaleWorker::run(std::shared_ptr<State> s)
             s->cv.wait(l, [&s] { return s->stop || s->stage.load(std::memory_order_acquire) == kQueued; });
             if (s->stop)
                 return;
-            /* Test synchronization point: worker has accepted the job and is
-             * about to configure/scale. Notify any waiter. */
-            s->cv.notify_all();
+        }
+        /* Test synchronization point: worker has accepted the job and is
+         * about to configure/scale. Transition to kPaused and wait for
+         * explicit release. This allows tests to verify the exact job ID
+         * and make changes before scaling begins. */
+        {
+            std::unique_lock<std::mutex> l(s->mu);
+            s->stage.store(kPaused, std::memory_order_release);
+            s->cv.notify_all();   // Notify test that job is paused
+            s->cv.wait(l, [&s] { return s->stop || s->stage.load(std::memory_order_acquire) != kPaused; });
+            if (s->stop)
+                return;
         }
         if (s->made != s->shape || !s->scaler.configured()) {
             s->made = ScaleShape();

@@ -136,25 +136,30 @@ public:
      * job and reached the blocking point before scaling. Returns true when
      * the worker is blocked waiting to scale, false on timeout or if no job
      * was accepted. The predicate runs under the worker's mutex while the
-     * worker is in kQueued state, before configuring the scaler. */
+     * worker is in kPaused state, before configuring the scaler. */
     template <class Predicate>
-    bool wait_until_worker_blocked(Predicate &&pred, int timeout_ms = 5000) {
+    bool wait_until_worker_paused(Predicate &&pred, int timeout_ms = 5000) {
         std::unique_lock<std::mutex> lk(s_->mu);
         auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(timeout_ms);
-        while (s_->stage.load(std::memory_order_acquire) != kQueued) {
+        while (s_->stage.load(std::memory_order_acquire) != kPaused) {
             if (std::cv_status::timeout == s_->cv.wait_until(lk, deadline))
                 return false;
         }
         return pred(*s_);
     }
-    /* Signal the worker to continue from its blocked state. */
+    /* Signal the paused worker to continue scaling. */
     void release_worker() {
         std::lock_guard<std::mutex> lk(s_->mu);
         s_->cv.notify_one();
     }
+    /* Get the ID of the currently paused job (kPaused state only). */
+    uint64_t paused_job_id() const {
+        std::lock_guard<std::mutex> lk(s_->mu);
+        return (s_->stage.load(std::memory_order_acquire) == kPaused) ? s_->id : 0;
+    }
 
 private:
-    enum Stage { kIdle, kQueued, kDone };
+    enum Stage { kIdle, kQueued, kPaused, kDone };
     /* Shared with the thread, which may outlive the worker by one frame. */
     struct State {
         std::atomic<int> stage{kIdle};

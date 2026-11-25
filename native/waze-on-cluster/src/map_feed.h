@@ -310,6 +310,7 @@ private:
     bool elsewhere_ = false;      /* another feed has it (changed) */
     bool in_worker_ = false;      /* the worker has it, given back with its scaled frame */
     uint64_t id_ = 0;             /* the newest frame's */
+    uint64_t worker_generation_ = 0;  /* increments on each worker submit */
     bool live_ = false, frozen_ = false;
     Picture picture_ = Picture::None;
     const char *stream_line_ = nullptr;   /* the stream's state as last logged */
