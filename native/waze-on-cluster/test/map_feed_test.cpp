@@ -1212,6 +1212,7 @@ static void frame_invalidation_test()
      * captured, and a later target re-acquisition would replace it. */
     const std::vector<uint8_t> fW = make_atlas(0);
     r.pump(2000, &fW);
+    r.pump(200);   /* the warm-up worker's last frame done */
     const crs::Layer *layer = r.map_layer();
     ok("invalidation: map layer exists on renderer", layer != nullptr);
 
@@ -1245,9 +1246,11 @@ static void frame_invalidation_test()
     std::vector<uint8_t> spare = fA;
     r.feed->offer(&spare, 1, r.now);
 
-    /* Wait until worker accepts job A and reaches the PAUSED barrier */
-    const bool paused = r.feed->worker().wait_until_worker_paused([](auto &s) { return s.id == 1; }, 5000);
-    ok("invalidation: worker paused on frame A (id=1)", paused);
+    /* Wait until worker accepts job A and reaches the PAUSED barrier. The job
+     * id is the feed's submission count, which the warm-up frames advanced, so
+     * accept the paused job whatever its id: pause was enabled just for A. */
+    const bool paused = r.feed->worker().wait_until_worker_paused([](auto &s) { return s.id != 0; }, 5000);
+    ok("invalidation: worker paused on frame A", paused);
     if (!paused)
         return;   /* no paused worker: releasing it would be meaningless */
 
