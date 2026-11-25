@@ -80,6 +80,11 @@ std::string status_line(const FeedStatus &s)
            ",\"hud_width_pct\":" + std::to_string(s.hud_width_pct) +
            ",\"hud_x\":" + std::to_string(s.hud_offset_x) + ",\"hud_y\":" + std::to_string(s.hud_offset_y) +
            ",\"hud_keep_shown\":" + (s.hud_keep_shown ? "1" : "0") +
+           ",\"cluster_x\":" + std::to_string(s.cluster_offset_x) +
+           ",\"cluster_x_actual\":" + std::to_string(s.cluster_offset_x_actual) +
+           ",\"cluster_crop_x\":" + std::to_string(s.cluster_crop_x) +
+           ",\"source_w\":" + std::to_string(s.source_w) + ",\"source_h\":" + std::to_string(s.source_h) +
+           ",\"output_w\":" + std::to_string(s.output_w) + ",\"output_h\":" + std::to_string(s.output_h) +
            /* only while hosted: otherwise the line is as it always was */
            (s.hosted ? ",\"hosted\":1" : "") + "}";
 }
@@ -138,6 +143,19 @@ public:
                     feeds_->set_hud_keep_shown(keep->second == "1");
                 else
                     log_warn("hud: hud_keep_shown must be 0 or 1, not %s", keep->second.c_str());
+            }
+        } else if (cmd == "cluster" && (msg.find("cluster_x") != msg.end())) {
+            /* cluster_x: the cluster map's horizontal offset in cluster scene pixels
+             * (+x right), held inside the 1088x480 scene. Range -176..176, step 2. */
+            const auto cx = msg.find("cluster_x");
+            if (cx != msg.end()) {
+                const long x = std::strtol(cx->second.c_str(), nullptr, 10);
+                if (x >= -176 && x <= 176 && (x % 2 == 0)) {
+                    log_info("cluster: map moved %+ld horizontally", x);
+                    feeds_->set_cluster_offset((int)x);
+                } else {
+                    log_warn("cluster: offset %ld out of range (-176..176, step 2)", x);
+                }
             }
         } else {
             log_warn("control: unknown or malformed command %s", cmd.c_str());
@@ -204,6 +222,7 @@ int serve(Config cfg)
         {"stall_ms", 1000, 600000},
         {"cluster", 0, 1},          {"hud", 0, 1},                   {"hud_fps", 1, 30},
         {"hud_width_pct", 0, 100},  {"hud_offset_x", -800, 800},     {"hud_offset_y", -800, 800},
+        {"cluster_offset_x", -176, 176},
         {"hud_scale_down", 0, 1},   {"hud_round_corners", 0, 1},     {"hud_black_background", 0, 1},
         {"hud_keep_shown", 0, 1},
         {"freeze_ms", 0, 600000},   {"freeze_min_fps", 1, 60},       {"alt_screen_port", 0, 65535},
@@ -255,6 +274,7 @@ int serve(Config cfg)
     }
     fc.hud_offset_x = (int)cfg.num("hud_offset_x");
     fc.hud_offset_y = (int)cfg.num("hud_offset_y");
+    fc.cluster_offset_x = (int)cfg.num("cluster_offset_x");
     fc.hud_keep_shown = cfg.num("hud_keep_shown") != 0;
     fc.scale_down = cfg.num("hud_scale_down") != 0;
     fc.hud_round_corners = cfg.num("hud_round_corners") != 0;
@@ -490,7 +510,7 @@ void define_keys(Config *cfg)
     cfg->define("udp_port", "20557");
     cfg->define("avb_stream", "media_transport.avb_streaming.15");
     cfg->define("drm_device", "/dev/dri/renderD128");
-    cfg->define("tex_size", "1088x480");
+    cfg->define("tex_size", "1440x636");
     cfg->define("src_crop", "");
     cfg->define("map_rect", "");
     cfg->define("dirty_threshold", "8");
@@ -519,6 +539,7 @@ void define_keys(Config *cfg)
     cfg->define("hud_width_pct", "0");
     cfg->define("hud_offset_x", "0");
     cfg->define("hud_offset_y", "0");
+    cfg->define("cluster_offset_x", "0");
     cfg->define("hud_keep_shown", "0");
     cfg->define("hud_scale_down", "1");
     cfg->define("hud_round_corners", "1");

@@ -49,7 +49,7 @@
  *                                   (root:systemd-journal, 0660: Save logs)
  *                                   takes this command alone, one a connection,
  *                                   and answers with the lines and health only
- *                  {"cmd":"cluster","on":0|1}
+ *                  {"cmd":"cluster","on":0|1,"cluster_x":-176..176}   (even integers only)
  *                  {"cmd":"hud","on":0|1}
  *                  {"cmd":"hud-size","hud_width_pct":0|20..100}   (over 85 saved as 85)
  *                  {"cmd":"hud-pos","hud_x":-800..800,"hud_y":-800..800}
@@ -60,8 +60,8 @@
  *                                   the centre (HUD pixels) and whether it stays
  *                                   shown over BMW's pop-ups, saved for the render's
  *                                   next start as "cluster", "hud", "hud_width_pct",
- *                                   "hud_offset_x", "hud_offset_y" and
- *                                   "hud_keep_shown" in MAP_STATE
+ *                                   "hud_offset_x", "hud_offset_y", "cluster_offset_x"
+ *                                   and "hud_keep_shown" in MAP_STATE
  *                                   (the app changes the running render itself).
  *                                   Changes are written together MAP_SAVE_MS
  *                                   after the last one; the reply (cluster-reply,
@@ -254,7 +254,7 @@ var LOCAL_CONF = process.env.WOC_LOCAL_CONF || '/var/opt/waze-on-cluster/waze-on
  * configuration. Not in LOCAL_CONF, which waze-on-cluster 0.8 refuses to
  * start with any of MAP_KEYS in. */
 var MAP_STATE = path.join(STATE_DIR, 'map.state.conf');
-var MAP_KEYS = ['cluster', 'hud', 'hud_width_pct', 'hud_offset_x', 'hud_offset_y', 'hud_keep_shown'];
+var MAP_KEYS = ['cluster', 'hud', 'hud_width_pct', 'hud_offset_x', 'hud_offset_y', 'hud_keep_shown', 'cluster_offset_x'];
 /* The opt-in settings: the render reads this file (its features_file) over
  * its configuration. Not in LOCAL_CONF, which every release up to 0.10.7
  * refuses to start with any of FEATURE_KEYS in; no release before 0.10.9
@@ -293,6 +293,7 @@ function rewriteConf(file, set, drop) {
 function mapValueOk(k, v) {
     var n = Number(v);
     return /^-?\d+$/.test(v) && (k === 'hud_width_pct' ? n === 0 || (n >= 20 && n <= 100)
+        : k === 'cluster_offset_x' ? n >= -176 && n <= 176 && n % 2 === 0
         : /^hud_offset_/.test(k) ? n >= -800 && n <= 800 : n === 0 || n === 1);
 }
 
@@ -426,7 +427,7 @@ function saveLater(settings, withProfiles) {
 var PROFILES_FILE = path.join(STATE_DIR, 'profiles.json');
 var PROFILE_ID = /^[A-Za-z0-9][A-Za-z0-9._:@+={}-]{0,127}$/;
 var MAX_OWN = 16;
-var MAP_DEFAULTS = { cluster: 1, hud: 0, hud_width_pct: 0, hud_offset_x: 0, hud_offset_y: 0, hud_keep_shown: 0 };
+var MAP_DEFAULTS = { cluster: 1, hud: 0, hud_width_pct: 0, hud_offset_x: 0, hud_offset_y: 0, hud_keep_shown: 0, cluster_offset_x: 0 };
 var profiles = null;          /* PROFILES_FILE as read at the start, and changed since */
 var currentProfile;           /* the profile the app last told (null: none; undefined: not told since the start) */
 var restored = false;         /* MAP_STATE written from PROFILES_FILE at the start, not yet told to the app */
@@ -447,7 +448,8 @@ function profileSettings(o) {
     var s = {};
     for (var i = 0; i < MAP_KEYS.length; i++) {
         var k = MAP_KEYS[i];
-        var v = typeof o[k] === 'number' ? String(o[k]) : k === 'hud_keep_shown' && !(k in o) ? String(MAP_DEFAULTS[k]) : null;
+        var v = typeof o[k] === 'number' ? String(o[k])
+            : (k === 'hud_keep_shown' || k === 'cluster_offset_x') && !(k in o) ? String(MAP_DEFAULTS[k]) : null;
         if (v === null || !mapValueOk(k, v)) return null;
         s[k] = Number(v);
     }
@@ -741,7 +743,7 @@ function editState(text, known) {
     var sinkOriginal = /sink:\s+ORIGINAL/.test(text);
     var selfstart = /selfstart:\s+SELF-START/.test(text);
     var resMatch = /res:\s+PATCHED \(IC_HIGH advertises (\d+x\d+)/.exec(text);
-    var safeMatch = /res:\s+PATCHED \(IC_HIGH advertises [^,\n]*, safe (\d+x\d+) at (\d+),(\d+)\)/.exec(text);
+    var safeMatch = /res:\s+PATCHED \(IC_HIGH advertises [^,\n]*, safe (\d+x\d+) at (\d+),(\d+)(?: \[[^\]]*\])?\)/.exec(text);
     var resOriginal = /res:\s+ORIGINAL/.test(text);
     /* The URL edits (map URL, ShowUI URL): 'eta' (the ShowUI URL with
      * the arrival-time card), 'map' (the map URL alone, on a build
@@ -1754,9 +1756,20 @@ function revert(noRestart, dropBackup, done) { revertFile(CP, noRestart, dropBac
  * car coded otherwise too, never on trial there). */
 function planArgs(panel, mode, unproven) {
     var args = ['--panel', panel, '--coding', CODING].concat(unproven ? ['--unproven'] : []);
+    if (panel === 'high') args.push('--res', 'wide');
     if (mode === 'udp') args.push('--sink', 'udp://127.0.0.1:' + UDP_PORT + '?mime_type=video/H264');
     else if (mode !== 'avb') args.push('--capture', FIFO);
     return args;
+}
+
+/* An enabled plan's recorded arguments, brought to this version's wide
+ * high-panel geometry unless the record names a --res of its own (a custom
+ * size, or stock). Older releases recorded no --res: theirs was 1088x480. */
+function withCurrentRes(args) {
+    if (args.indexOf('--res') >= 0) return args;
+    var p = args.indexOf('--panel');
+    if (p < 0 || args[p + 1] !== 'high') return args;
+    return args.concat(['--res', 'wide']);
 }
 
 /* Android Auto's: aapd.conf, the coding and the owner's density and
@@ -2004,7 +2017,7 @@ function inmemHook(which, cb) {
          * whose sites the patcher finds and verifies is planned, on trial
          * until it ran healthy on this car. */
         var keep = rec && rec.enabled === true && Array.isArray(rec.args) && rec.args.length ? rec.args : null;
-        inmemApply(CP, keep || planArgs('high', 'avb', !!st.backup), true, function (err, roErr, activation, conflict2, why) {
+        inmemApply(CP, keep ? withCurrentRes(keep) : planArgs('high', 'avb', !!st.backup), true, function (err, roErr, activation, conflict2, why) {
             if (roErr) log('WARNING: ' + roErr.message + ' — the next head-unit start mounts / read-only again');
             if (conflict2) { out(0, 'carplay left as it is: ' + conflict2, conflict2); return; }
             if (err) { out(1, 'applying the map patch failed: ' + err.message); return; }
@@ -2351,11 +2364,30 @@ function handle(line, sock) {
     }
     /* Where the map shows and the HUD map's settings: not operations on
      * carplay, so not held back by one. */
-    if (msg.cmd === 'cluster' || msg.cmd === 'hud') {
+    if (msg.cmd === 'cluster') {
         var set = {};
-        if (msg.on !== 0 && msg.on !== 1) { reply(sock, { ev: msg.cmd + '-reply', ok: false, reason: 'on must be 0 or 1' }); return; }
-        set[msg.cmd] = msg.on;
-        saveMapSettings(sock, msg.cmd + '-reply', set, 'where the map shows');
+        if (msg.on !== undefined) {
+            if (msg.on !== 0 && msg.on !== 1) { reply(sock, { ev: 'cluster-reply', ok: false, reason: 'on must be 0 or 1' }); return; }
+            set.cluster = msg.on;
+        }
+        if (msg.cluster_x !== undefined) {
+            var cx = Number(msg.cluster_x);
+            if (!Number.isInteger(cx) || cx < -176 || cx > 176 || cx % 2 !== 0) {
+                reply(sock, { ev: 'cluster-reply', ok: false, reason: 'cluster_x must be an even integer from -176 to 176' });
+                return;
+            }
+            set.cluster_offset_x = cx;
+        }
+        if (Object.keys(set).length) {
+            saveMapSettings(sock, 'cluster-reply', set, 'cluster map settings');
+        }
+        return;
+    }
+    if (msg.cmd === 'hud') {
+        var set = {};
+        if (msg.on !== 0 && msg.on !== 1) { reply(sock, { ev: 'hud-reply', ok: false, reason: 'on must be 0 or 1' }); return; }
+        set.hud = msg.on;
+        saveMapSettings(sock, 'hud-reply', set, 'where the map shows');
         return;
     }
     if (msg.cmd === 'hud-size') {

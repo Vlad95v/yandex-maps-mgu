@@ -82,7 +82,7 @@
  *
  *   carplay_patch.js status  [--target <file>] [--coding <shm>]
  *   carplay_patch.js probe   [<file>]
- *   carplay_patch.js plan    --panel high|mid [--sink <url> | --capture <fifo>] [--res WxH|stock] [--safe WxH+X+Y|full] --out <file> [--target <file>] [--coding <shm>] [--unproven]
+ *   carplay_patch.js plan    --panel high|mid [--sink <url> | --capture <fifo>] [--res WxH|wide|stock] [--safe WxH+X+Y|full] --out <file> [--target <file>] [--coding <shm>] [--unproven]
  *   carplay_patch.js overlay --plan <file> [--target <file>]
  *   carplay_patch.js revert  [--target <file>] [--yes] [--drop-backup]
  *   carplay_patch.js verify  [--target <file>]
@@ -142,9 +142,13 @@ var SHIPPED = {
 
 /* The geometry `--panel high` advertises: the cluster's 1088x480 central map
  * area (138x61 mm of glass), which the render's texture covers pixel for
- * pixel. Every geometry this tool writes has this physical size, which tells
- * it from a build's stock geometry. */
+ * pixel. Default and wide geometry are both this tool's, which tells them
+ * from a build's stock geometry. */
 var RES_DEFAULT = { w: 1088, h: 480, mmw: 138, mmh: 61 };
+/* Wider geometry for cluster horizontal offset: 1440x636 at 183x81mm.
+ * The phone renders a wider map; the cluster crops 1088x480 from it.
+ * HUD gets an independent centered 1088x480 crop. */
+var RES_WIDE = { w: 1440, h: 636, mmw: 183, mmh: 81 };
 /* The default safe area in the 1088x480 frame (PATCH.md "Safe area"): x
  * from BMW's own IC_MID safe area (which lies inside the map area), y from
  * below the native model badge. Other --res sizes scale it. The
@@ -263,7 +267,10 @@ function resState(buf, r) {
     if (!r.ok) return { state: 'unknown', reason: r.reason };
     var g = readRes(buf, r);
     var inside = g.w > 0 && g.h > 0 && g.safew > 0 && g.safeh > 0 && g.safex + g.safew <= g.w && g.safey + g.safeh <= g.h;
-    var ours = g.mmw === RES_DEFAULT.mmw && g.mmh === RES_DEFAULT.mmh;
+    /* Both geometries this tool writes count as ours: the 1088x480 cluster
+     * map and the wider 1440x636 source the cluster crops its offset from. */
+    var ours = (g.mmw === RES_DEFAULT.mmw && g.mmh === RES_DEFAULT.mmh) ||
+               (g.mmw === RES_WIDE.mmw && g.mmh === RES_WIDE.mmh);
     if (inside && !ours && g.mmw > 0 && g.mmh > 0) return { state: 'original', res: g };
     if (inside && ours && g.viewx === 0 && g.viewy === 0) return { state: 'patched', res: g };
     return { state: 'unknown', reason: 'resolution: geometry not recognised', res: g };
@@ -358,6 +365,11 @@ function describe(name, s) {
         : s.state === 'original' ? 'ORIGINAL (ShowUI asks the phone for ' + locator.ALT_URL + ')'
         : 'PATCHED (ShowUI asks the phone for ' + SHOWUI_URL + ', with the arrival-time card)';
     if (name === 'selfstart') return s.state === 'original' ? 'ORIGINAL (waits for NavController; stream never starts)' : 'SELF-START (CarPlay starts the cluster stream itself)';
+    if (name === 'res') {
+        if (s.state === 'original') return 'ORIGINAL (IC_HIGH advertises ' + s.res.w + 'x' + s.res.h + ')';
+        const isWide = s.res.w === 1440 && s.res.h === 636 && s.res.mmw === 183 && s.res.mmh === 81;
+        return 'PATCHED (IC_HIGH advertises ' + geomText(s.res) + (isWide ? ' [WIDE for cluster offset]' : '') + ')';
+    }
     return s.state === 'original' ? 'ORIGINAL (IC_HIGH advertises ' + s.res.w + 'x' + s.res.h + ')' : 'PATCHED (IC_HIGH advertises ' + geomText(s.res) + ')';
 }
 
@@ -441,15 +453,21 @@ function sinkUrlFor(capture, sink) {
  * geometry (--res stock and the mid panel; the mid builder is never
  * rewritten). The high panel advertises this tool's display size: --res WxH,
  * or the default, at the map area's physical size, with the default safe
- * area scaled to that size, --safe WxH+X+Y, or --safe full (the whole frame). */
+ * area scaled to that size, --safe WxH+X+Y, or --safe full (the whole frame).
+ * --res wide selects the wider 1440x636 @ 183x81mm geometry for cluster
+ * horizontal offset via source crop. */
 function resFor(panel, res, safe) {
     if (res !== undefined && panel !== 'high') die('--res rewrites the IC_HIGH geometry; it goes with --panel high');
     if (safe !== undefined && (panel !== 'high' || res === 'stock')) die('--safe sets the safe area of the advertised size; it goes with --panel high, not --res stock');
     if (panel !== 'high' || res === 'stock') return null;
-    var w = RES_DEFAULT.w, h = RES_DEFAULT.h;
-    if (res !== undefined) {
+    var base = RES_DEFAULT;
+    if (res === 'wide') {
+        base = RES_WIDE;
+    }
+    var w = base.w, h = base.h;
+    if (res !== undefined && res !== 'wide') {
         var m = /^([0-9]+)x([0-9]+)$/.exec(res || '');
-        if (!m) die('--res needs WxH (e.g. 1088x480) or "stock"');
+        if (!m) die('--res needs WxH (e.g. 1088x480), "wide", or "stock"');
         w = parseInt(m[1], 10); h = parseInt(m[2], 10);
         if (w < 16 || w > 1920 || h < 16 || h > 1080 || (w % 2) !== 0 || (h % 2) !== 0)
             die('--res ' + res + ' out of range: width 16..1920, height 16..1080, both even (H.264)');
@@ -458,7 +476,7 @@ function resFor(panel, res, safe) {
     var d = SAFE_DEFAULT, dw = RES_DEFAULT.w, dh = RES_DEFAULT.h;
     var x0 = Math.round(d.x * w / dw), x1 = Math.round((d.x + d.w) * w / dw);
     var y0 = Math.round(d.y * h / dh), y1 = Math.round((d.y + d.h) * h / dh);
-    var g = { w: w, h: h, mmw: RES_DEFAULT.mmw, mmh: RES_DEFAULT.mmh, safew: x1 - x0, safeh: y1 - y0, safex: x0, safey: y0 };
+    var g = { w: w, h: h, mmw: base.mmw, mmh: base.mmh, safew: x1 - x0, safeh: y1 - y0, safex: x0, safey: y0 };
     if (safe === 'full') {
         g.safew = w; g.safeh = h; g.safex = 0; g.safey = 0;
     } else if (safe !== undefined) {
@@ -919,7 +937,7 @@ function main() {
     else if (cmd === 'verify') cmdVerify(target);
     else if (cmd === 'plan') cmdPlan(target, a.panel, a.capture, a.sink, a.res, a.safe, a.unproven, coding, a.out);
     else if (cmd === 'overlay') { cmdOverlay(target, a.plan); line('end', 'complete'); }
-    else { process.stderr.write('usage: carplay_patch.js status|probe|revert|verify|plan|overlay [--target <file>] [--coding <shm>] [--panel high|mid] [--capture <fifo> | --sink <url>] [--res WxH|stock] [--safe WxH+X+Y|full] [--unproven] [--yes] [--force] [--drop-backup]\n'); process.exit(2); }
+    else { process.stderr.write('usage: carplay_patch.js status|probe|revert|verify|plan|overlay [--target <file>] [--coding <shm>] [--panel high|mid] [--capture <fifo> | --sink <url>] [--res WxH|wide|stock] [--safe WxH+X+Y|full] [--unproven] [--yes] [--force] [--drop-backup]\n'); process.exit(2); }
 }
 
 /* Whether target holds a change besides our edits, against its original

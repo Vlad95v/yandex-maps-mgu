@@ -90,6 +90,10 @@ struct FeedConfig {
     /* On the HUD: the map moved from its centred place, in the HUD scene's
      * pixels (+x right, +y down), held inside the HUD's scene. */
     int hud_offset_x = 0, hud_offset_y = 0;
+    /* On the cluster: the map moved horizontally from its centred place, in the
+     * cluster scene's pixels (+x right), held inside the cluster's scene (1088x480).
+     * Note: the cluster map fills the 1088x480 slot; shifting creates empty edges. */
+    int cluster_offset_x = 0;
     /* On the HUD: kept shown over the stock HMI's pop-ups (the layer's
      * yield 0); else it gives way to them (cluster-render's hud_yield_slots). */
     bool hud_keep_shown = false;
@@ -133,6 +137,11 @@ struct FeedStatus {
     std::string hud_state = "off";   /* off, disabled, or the HUD feed's state */
     unsigned hud_width_pct = 0;   /* the HUD map's size setting (0: the default) */
     int hud_offset_x = 0, hud_offset_y = 0;   /* and where it is moved to from the centre */
+    int cluster_offset_x = 0;                 /* the cluster map's requested horizontal offset */
+    int cluster_offset_x_actual = 0;          /* the cluster map's actual horizontal offset after clamping */
+    int cluster_crop_x = 0;                   /* the cluster's source crop X offset */
+    uint32_t source_w = 0, source_h = 0;      /* source atlas dimensions */
+    uint32_t output_w = 0, output_h = 0;      /* output/crop dimensions */
     bool hud_keep_shown = false;   /* the HUD map kept shown over the stock HMI's pop-ups */
 };
 
@@ -178,6 +187,12 @@ public:
     void set_hud_offset(int dx, int dy);
     int hud_offset_x() const { return placed_x_; }
     int hud_offset_y() const { return placed_y_; }
+    /* The cluster map moved horizontally (FeedConfig::cluster_offset_x), at once.
+     * Held inside the cluster scene (1088x480). */
+    void set_cluster_offset(int dx);
+    int cluster_offset_x() const { return cfg_.cluster_offset_x; }
+    int cluster_offset_x_actual() const { return placed_x_; }
+    int cluster_crop_x() const { return crop_x_; }
     /* The HUD map kept shown over the stock HMI's pop-ups or not
      * (FeedConfig::hud_keep_shown), at once. */
     void set_hud_keep_shown(bool keep);
@@ -223,6 +238,9 @@ public:
     bool disabled() const;
     /* Frames scaled for this feed. */
     uint64_t scaled_frames() const { return worker_.frames(); }
+    /* Test access to the worker for synchronization. */
+    ScaleWorker &worker() { return worker_; }
+    const ScaleWorker &worker() const { return worker_; }
 
     /* Whether CarPlay's cluster stream is live, whether it is frozen and
      * what it has to show: the layer is visible only while it is live, not
@@ -288,9 +306,13 @@ private:
      * is one, unless another feed or the worker has it. */
     std::vector<uint8_t> held_;
     bool held_new_ = false;       /* the newest picture has not gone to the layer */
+    bool has_cached_source_ = false; /* held_ holds a valid source atlas for recropping */
     bool elsewhere_ = false;      /* another feed has it (changed) */
     bool in_worker_ = false;      /* the worker has it, given back with its scaled frame */
-    uint64_t id_ = 0;             /* the newest frame's */
+    uint64_t id_ = 0;                 /* the newest frame's */
+    uint64_t worker_generation_ = 0;  /* increments on each worker submit */
+    uint64_t source_generation_ = 0;  /* increments on each new source frame arrival */
+    uint64_t worker_source_gen_ = 0;  /* source generation the worker is working on */
     bool live_ = false, frozen_ = false;
     Picture picture_ = Picture::None;
     const char *stream_line_ = nullptr;   /* the stream's state as last logged */
@@ -298,6 +320,8 @@ private:
     std::string target_state_, holder_;
     /* the HUD map's offset as quad() last placed it; as asked until then */
     mutable int placed_x_ = 0, placed_y_ = 0;
+    /* The cluster's source crop X offset (for wider CarPlay geometry). */
+    mutable int crop_x_ = 0;
     unsigned cap_kb_ = 0, max_kb_ = 0;
     std::string budget_reason_, refused_, report_;
     bool connected_ = false, status_asked_ = false;

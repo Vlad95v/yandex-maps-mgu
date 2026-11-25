@@ -132,13 +132,46 @@ public:
     /* Frames scaled since start. */
     uint64_t frames() const { return s_->frames.load(); }
 
+    /* Test synchronization: wait until the worker has accepted the current
+     * job and reached the blocking point before scaling. Returns true when
+     * the worker is blocked waiting to scale, false on timeout or if no job
+     * was accepted. The predicate runs under the worker's mutex while the
+     * worker is in kPaused state, before configuring the scaler. */
+    template <class Predicate>
+    bool wait_until_worker_paused(Predicate &&pred, int timeout_ms = 5000) {
+        std::unique_lock<std::mutex> lk(s_->mu);
+        auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(timeout_ms);
+        while (s_->stage.load(std::memory_order_acquire) != kPaused) {
+            if (std::cv_status::timeout == s_->cv.wait_until(lk, deadline))
+                return false;
+        }
+        return pred(*s_);
+    }
+    /* Signal the paused worker to continue scaling. */
+    void release_worker() {
+        std::lock_guard<std::mutex> lk(s_->mu);
+        s_->stage.store(kQueued, std::memory_order_release);
+        s_->cv.notify_one();
+    }
+    /* Test-only: enable the kPaused synchronization barrier. Must be called
+     * before submitting the first frame to take effect. */
+    void enable_test_pause() {
+        s_->pause_for_test.store(true, std::memory_order_release);
+    }
+    /* Get the ID of the currently paused job (kPaused state only). */
+    uint64_t paused_job_id() const {
+        std::lock_guard<std::mutex> lk(s_->mu);
+        return (s_->stage.load(std::memory_order_acquire) == kPaused) ? s_->id : 0;
+    }
+
 private:
-    enum Stage { kIdle, kQueued, kDone };
+    enum Stage { kIdle, kQueued, kPaused, kDone };
     /* Shared with the thread, which may outlive the worker by one frame. */
     struct State {
         std::atomic<int> stage{kIdle};
         std::atomic<bool> stop{false};
         std::atomic<uint64_t> frames{0};
+        std::atomic<bool> pause_for_test{false};   /* test-only: enable kPaused barrier */
         std::mutex mu;
         std::condition_variable cv;
         /* The offering thread's while idle; the worker's while queued. */

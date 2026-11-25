@@ -46,9 +46,10 @@ function until(what, check, ms) {
         poll();
     });
 }
-/* keep left out: a patchd before hud_keep_shown */
-const settings = (cluster, hud, pct, x, y, keep) => Object.assign({ cluster, hud, hud_width_pct: pct, hud_offset_x: x, hud_offset_y: y },
-    keep === undefined ? {} : { hud_keep_shown: keep });
+/* keep left out: a patchd before hud_keep_shown; offset left out: one before cluster_offset_x */
+const settings = (cluster, hud, pct, x, y, keep, offset) => Object.assign({ cluster, hud, hud_width_pct: pct, hud_offset_x: x, hud_offset_y: y },
+    keep === undefined ? {} : { hud_keep_shown: keep },
+    offset === undefined ? {} : { cluster_offset_x: offset });
 
 let passed = 0;
 async function check(name, fn) {
@@ -306,6 +307,12 @@ async function main() {
         sync2._toRender(settings(1, 0, 0, 0, 0));
         await until('render moved', () => render.received.length === 3);
         assert.deepStrictEqual(render.received[2], { cmd: 'hud', hud_width_pct: '0', hud_x: '0', hud_y: '0' });
+    });
+    await check('a profile\'s cluster offset: the render moved to it', async () => {
+        render.received.length = 0;
+        sync2._toRender(settings(1, 0, 0, 0, 0, 0, 42));
+        await until('render moved', () => render.received.length === 4);
+        assert.deepStrictEqual(render.received[3], { cmd: 'cluster', cluster_x: '42' });
     });
     sync2.stop();
     c.close();

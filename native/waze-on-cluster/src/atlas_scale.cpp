@@ -321,6 +321,19 @@ void ScaleWorker::run(std::shared_ptr<State> s)
             if (s->stop)
                 return;
         }
+        /* Test synchronization point: worker has accepted the job and is
+         * about to configure/scale. Only pauses when pause_for_test is
+         * enabled (tests only). Production runs normally without pausing.
+         * The barrier is one-shot: consume the flag so subsequent jobs run
+         * normally without pausing. */
+        if (s->pause_for_test.exchange(false, std::memory_order_acq_rel)) {
+            std::unique_lock<std::mutex> l(s->mu);
+            s->stage.store(kPaused, std::memory_order_release);
+            s->cv.notify_all();   // Notify test that job is paused
+            s->cv.wait(l, [&s] { return s->stop || s->stage.load(std::memory_order_acquire) != kPaused; });
+            if (s->stop)
+                return;
+        }
         if (s->made != s->shape || !s->scaler.configured()) {
             s->made = ScaleShape();
             if (s->scaler.configure(s->shape.w, s->shape.h, s->shape.dw, s->shape.dh, s->shape.level_bits,

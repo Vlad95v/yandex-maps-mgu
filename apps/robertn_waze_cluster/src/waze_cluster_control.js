@@ -114,6 +114,9 @@ const SHOWN_ON = ['cluster', 'hud', 'both', 'off'];
  * HUD and reports the offset as far as it went. An asked size or place shows until the render's status has it,
  * HUD_ASKED_MS has passed, the render reconnects or patchd fails to save the size; then the render's own. */
 const HUD_MOVE_PX = 10, HUD_MOVE_MAX = 400, HUD_ASKED_MS = 300;
+/* Cluster horizontal offset: CLUSTER_MOVE_PX a press, within +-CLUSTER_MOVE_MAX; the render crops from wider
+ * 1440x636 source at crop_x = 176 - cluster_offset_x. */
+const CLUSTER_MOVE_PX = 2, CLUSTER_MOVE_MAX = 176, CLUSTER_ASKED_MS = 300;
 const MOVES = { left: [-1, 0], right: [1, 0], up: [0, -1], down: [0, 1] };
 
 /* One newline-delimited-JSON stream socket, reconnecting while open.
@@ -587,6 +590,69 @@ class WazeClusterControl extends EventEmitter {
         const h = x > 0 ? t('{0} px right', x) : x < 0 ? t('{0} px left', -x) : '';
         const v = y > 0 ? t('{0} px down', y) : y < 0 ? t('{0} px up', -y) : '';
         return t('Position: {0}', h && v ? t('{0}, {1}', h, v) : h || v);
+    }
+
+    /* ---- cluster horizontal offset (source crop from wider CarPlay geometry) ---- */
+    /* Current cluster offset: asked value while waiting for render, else render's actual.
+     * Null while render has not said. */
+    clusterOffset() {
+        if (this._askedClusterOffset !== undefined) {
+            return this._askedClusterOffset;
+        }
+        const rs = this.renderStatus;
+        return rs && typeof rs.cluster_offset_x_actual === 'number' ? rs.cluster_offset_x_actual : null;
+    }
+
+    /* Text for the cluster offset display. */
+    clusterOffsetText() {
+        const off = this.clusterOffset();
+        if (off === null) {
+            return t('Cluster offset: {0}', '—');
+        }
+        if (off === 0) {
+            return t('Cluster offset: {0}', t('Centre'));
+        }
+        return t('Cluster offset: {0}', off > 0 ? t('{0} px right', off) : t('{0} px left', -off));
+    }
+
+    /* The offset can change while the cluster map is on (carplay or aa patch in effect). */
+    canChangeClusterOffset() {
+        return this.render.connected() && this.connectedPatch() && this.clusterOn() === true;
+    }
+
+    /* Move cluster offset left/right by one step (2 px). */
+    moveCluster(dir) {
+        const d = MOVES[dir];
+        const off = this.clusterOffset();
+        if (!d || off === null || !this.canChangeClusterOffset()) {
+            return;
+        }
+        const clamp = (v) => Math.max(-CLUSTER_MOVE_MAX, Math.min(CLUSTER_MOVE_MAX, v));
+        this._setClusterOffset(clamp(off + d[0] * CLUSTER_MOVE_PX));
+    }
+
+    /* Centre the cluster map (offset 0). */
+    canCentreCluster() {
+        const off = this.clusterOffset();
+        return this.canChangeClusterOffset() && off !== null && off !== 0;
+    }
+
+    centreCluster() {
+        if (this.canCentreCluster()) {
+            this._setClusterOffset(0);
+        }
+    }
+
+    _setClusterOffset(offset) {
+        this._askedClusterOffset = offset;
+        clearTimeout(this._askedClusterOffsetTimer);
+        this._askedClusterOffsetTimer = setTimeout(() => {
+            this._askedClusterOffset = undefined;
+            this.emit('change');
+        }, CLUSTER_ASKED_MS);
+        this.render.send({ cmd: 'cluster', cluster_x: String(offset) });
+        this.patch.send({ cmd: 'cluster', cluster_x: offset });
+        this.emit('change');
     }
 
     /* CarPlay's Patch button is offered for an original (never patched, or reverted), an

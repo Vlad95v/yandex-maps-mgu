@@ -280,7 +280,7 @@ async function main() {
     ok('fresh: nothing started, stopped, killed or rebooted', changes().length === 0, changes().join('; '));
     st = await daemonStatus();
     ok('fresh: patchd reports the pending apply', st.state === 'unknown' && st.pending === 'apply' &&
-        st.carplay === 'deferred' && !st.conflict && st.res === '1088x480' && st.mapurl === 'eta', JSON.stringify(st));
+        st.carplay === 'deferred' && !st.conflict && st.res === '1440x636' && st.mapurl === 'eta', JSON.stringify(st));
 
     /* The install run again (a reinstall or a rollback's activate): nothing changes. */
     before = disk();
