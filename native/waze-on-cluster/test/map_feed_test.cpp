@@ -1130,6 +1130,56 @@ static void renderer_changed()
     }
 }
 
+/* Regression test for MapFeed frame invalidation:
+ * Pause frame 1 in the worker, offer frame 2 with NO offset change,
+ * release, and prove frame 1 is never accepted and frame 2 is the
+ * final accepted frame. */
+static void frame_invalidation_test()
+{
+    Rig r(false, 6000);
+    r.feed->worker().enable_test_pause();
+
+    const std::vector<uint8_t> f1 = atlas(1);
+    const std::vector<uint8_t> f2 = atlas(2);
+
+    r.pump(2000, &f1);
+    ok("invalidation: initial frame shown", r.st().state == "showing");
+
+    std::vector<uint8_t> spare = f1;
+    r.feed->offer(&spare, 2, r.now);
+    r.pump(100);
+
+    bool paused = r.feed->worker().wait_until_worker_paused([](auto &s) { return true; }, 5000);
+    ok("invalidation: worker paused on frame 2", paused);
+
+    spare = f2;
+    r.feed->offer(&spare, 3, r.now);
+
+    r.feed->worker().release_worker();
+    r.pump(500);
+
+    r.pump(2000);
+
+    bool drew_f1 = false, drew_f2 = false;
+    crs::FakeGraph *g = r.gpu.graph("map");
+    if (g) {
+        for (const auto &kv : g->shown.buffers) {
+            if (kv.second.f == crs::TexFormat::R8) {
+                drew_f1 = drew_f1 || (kv.second.px == f1);
+                drew_f2 = drew_f2 || (kv.second.px == f2);
+            }
+        }
+    }
+    ok("invalidation: frame 1 (stale) was NOT drawn", !drew_f1);
+    ok("invalidation: frame 2 (newest) WAS drawn", drew_f2);
+
+    const crs::Layer *layer = r.map_layer();
+    if (layer) {
+        std::string stats = layer->stats();
+        ok("invalidation: layer stats show frames sent", stats.find("sent") != std::string::npos);
+    }
+}
+
 int main()
 {
     signal(SIGPIPE, SIG_IGN);
@@ -1141,6 +1191,7 @@ int main()
     always_packed_map();
     old_renderer();
     renderer_changed();
+    frame_invalidation_test();
     Rig r;
     r.pump(100);
     const crs::Layer *l = r.map_layer();
@@ -1933,18 +1984,21 @@ int main()
     {
         /* Test AtlasScaler directly with crop to verify pixel correctness.
          * Source: 1440x636 YUV 4:2:0 (Y: 1440x636, UV: 720x318 side by side)
-         * Crop: 1088x480 at varying crop_x (centered at 176) */
+         * Crop: 1088x480 at varying crop_x (centered at 176)
+         * Formulas (base_y = 0 for standalone test):
+         *   Y = (x + y*7) & 0xff
+         *   U = (x*2 + y*11 + 128) & 0xff
+         *   V = (x*3 + y*13 + 128) & 0xff
+         * Chroma source X = crop_x/2 + output_chroma_x */
         auto make_atlas = [](uint32_t w, uint32_t h, uint8_t base_y) {
             std::vector<uint8_t> a((size_t)w * (h + h / 2));
-            /* Y plane: gradient left-to-right, constant per row */
             for (uint32_t y = 0; y < h; y++)
                 for (uint32_t x = 0; x < w; x++)
                     a[y * w + x] = (uint8_t)((x + y * 7 + base_y) & 0xff);
-            /* UV plane: U and V side by side at w/2 x h/2, constant per 2x2 block */
             for (uint32_t y = 0; y < h / 2; y++) {
                 for (uint32_t x = 0; x < w / 2; x++) {
-                    a[w * h + y * w + x] = (uint8_t)((x * 2 + y * 11 + 128) & 0xff);       /* U */
-                    a[w * h + y * w + w / 2 + x] = (uint8_t)((x * 3 + y * 13 + 128) & 0xff); /* V */
+                    a[w * h + y * w + x] = (uint8_t)((x * 2 + y * 11 + 128) & 0xff);
+                    a[w * h + y * w + w / 2 + x] = (uint8_t)((x * 3 + y * 13 + 128) & 0xff);
                 }
             }
             return a;
@@ -1967,28 +2021,28 @@ int main()
         /* Y at dst(0,0) should match src Y at (176,0) = (176 + 0*7 + 0) & 0xff = 176 */
         ok("AtlasScaler crop center: Y[0,0] = src[176,0] = 176",
            dst[0] == 176);
-        /* Y at dst(1087,0) should match src Y at (1263,0) = (1263 + 0*7) & 0xff = 247 */
-        ok("AtlasScaler crop center: Y[1087,0] = src[1263,0] = 247",
-           dst[1087] == 247);
-        /* Y at dst(0,479) should match src Y at (176,479) = (176 + 479*7) & 0xff = 109 */
-        ok("AtlasScaler crop center: Y[0,479] = src[176,479] = 109",
-           dst[479 * 1088] == 109);
-        /* Y at dst(1087,479) should match src Y at (1263,479) = (1263 + 479*7) & 0xff = 180 */
-        ok("AtlasScaler crop center: Y[1087,479] = src[1263,479] = 180",
-           dst[479 * 1088 + 1087] == 180);
+        /* Y at dst(1087,0) should match src Y at (1263,0) = (1263 + 0*7) & 0xff = 239 */
+        ok("AtlasScaler crop center: Y[1087,0] = src[1263,0] = 239",
+           dst[1087] == 239);
+        /* Y at dst(0,479) should match src Y at (176,479) = (176 + 479*7) & 0xff = 201 */
+        ok("AtlasScaler crop center: Y[0,479] = src[176,479] = 201",
+           dst[479 * 1088] == 201);
+        /* Y at dst(1087,479) should match src Y at (1263,479) = (1263 + 479*7) & 0xff = 8 */
+        ok("AtlasScaler crop center: Y[1087,479] = src[1263,479] = 8",
+           dst[479 * 1088 + 1087] == 8);
 
-        /* U at dst(0,0) with center crop (crop_x=176) -> src U at (88,0) = (88*2 + 0*11 + 128) & 0xff = 304 & 0xff = 48 */
+        /* U at dst(0,0) with center crop (crop_x=176) -> src U at (88,0) = (88*2 + 0*11 + 128) & 0xff = 48 */
         ok("AtlasScaler crop center: U[0,0] = src U[88,0] = 48",
            dst[1088 * 480 + 0] == 48);
-        /* V at dst(0,0) -> src V at (88,0) = (88*3 + 0*13 + 128) & 0xff = 392 & 0xff = 136 */
+        /* V at dst(0,0) -> src V at (88,0) = (88*3 + 0*13 + 128) & 0xff = 136 */
         ok("AtlasScaler crop center: V[0,0] = src V[88,0] = 136",
            dst[1088 * 480 + 1088 / 2 + 0] == 136);
-        /* U at dst(543,239) with center crop -> src U at (631,239) = (631*2 + 239*11 + 128) & 0xff = 2497 & 0xff = 161 */
-        ok("AtlasScaler crop center: U[543,239] = src U[631,239] = 161",
-           dst[1088 * 480 + 239 * 1088 + 543] == 161);
-        /* V at dst(543,239) -> src V at (631,239) = (631*3 + 239*13 + 128) & 0xff = 5142 & 0xff = 94 */
-        ok("AtlasScaler crop center: V[543,239] = src V[631,239] = 94",
-           dst[1088 * 480 + 239 * 1088 + 1088 / 2 + 543] == 94);
+        /* U at dst(543,239) with center crop -> src U at (631,239) = (631*2 + 239*11 + 128) & 0xff = 179 */
+        ok("AtlasScaler crop center: U[543,239] = src U[631,239] = 179",
+           dst[1088 * 480 + 239 * 1088 + 543] == 179);
+        /* V at dst(543,239) -> src V at (631,239) = (631*3 + 239*13 + 128) & 0xff = 8 */
+        ok("AtlasScaler crop center: V[543,239] = src V[631,239] = 8",
+           dst[1088 * 480 + 239 * 1088 + 1088 / 2 + 543] == 8);
 
         /* Test crop at left edge (crop_x = 0) */
         AtlasScaler scaler_left;
@@ -2018,13 +2072,13 @@ int main()
         /* Y at dst(0,0) should match src Y at (352,0) = 352 & 0xff = 96 */
         ok("AtlasScaler crop right: Y[0,0] = src[352,0] = 96",
            dst_right[0] == 96);
-        /* Y at dst(1087,0) should match src Y at (1439,0) = 1439 & 0xff = 151 */
-        ok("AtlasScaler crop right: Y[1087,0] = src[1439,0] = 151",
-           dst_right[1087] == 151);
-        /* U at dst(0,0) with crop_x=352 -> src U at (176,0) = (176*2 + 128) & 0xff = 480 & 0xff = 224 */
+        /* Y at dst(1087,0) should match src Y at (1439,0) = 1439 & 0xff = 159 */
+        ok("AtlasScaler crop right: Y[1087,0] = src[1439,0] = 159",
+           dst_right[1087] == 159);
+        /* U at dst(0,0) with crop_x=352 -> src U at (176,0) = (176*2 + 128) & 0xff = 224 */
         ok("AtlasScaler crop right: U[0,0] = src U[176,0] = 224",
            dst_right[1088 * 480 + 0] == 224);
-        /* V at dst(0,0) -> src V at (176,0) = (176*3 + 128) & 0xff = 656 & 0xff = 144 */
+        /* V at dst(0,0) -> src V at (176,0) = (176*3 + 128) & 0xff = 144 */
         ok("AtlasScaler crop right: V[0,0] = src V[176,0] = 144",
            dst_right[1088 * 480 + 1088 / 2 + 0] == 144);
 
@@ -2034,18 +2088,18 @@ int main()
            scaler_y.configure(1440, 636, 1088, 480, 0, 176, 78, 1088, 480));
         std::vector<uint8_t> dst_y;
         scaler_y.scale(src.data(), &dst_y);
-        /* Y at dst(0,0) should match src Y at (176,78) = (176 + 78*7) & 0xff = 222 */
-        ok("AtlasScaler crop_y=78: Y[0,0] = src[176,78] = 222",
-           dst_y[0] == 222);
-        /* Y at dst(0,479) should match src Y at (176,557) = (176 + 557*7) & 0xff = 205 */
-        ok("AtlasScaler crop_y=78: Y[0,479] = src[176,557] = 205",
-           dst_y[479 * 1088] == 205);
-        /* U at dst(0,0) with crop_y=78, crop_x=176 -> src U at (88,39) = (88*2 + 39*11 + 128) & 0xff = 735 & 0xff = 223 */
-        ok("AtlasScaler crop_y=78: U[0,0] = src U[88,39] = 223",
-           dst_y[1088 * 480 + 0] == 223);
-        /* V at dst(0,0) -> src V at (88,39) = (88*3 + 39*13 + 128) & 0xff = 869 & 0xff = 101 */
-        ok("AtlasScaler crop_y=78: V[0,0] = src V[88,39] = 101",
-           dst_y[1088 * 480 + 1088 / 2 + 0] == 101);
+        /* Y at dst(0,0) should match src Y at (176,78) = (176 + 78*7) & 0xff = 210 */
+        ok("AtlasScaler crop_y=78: Y[0,0] = src[176,78] = 210",
+           dst_y[0] == 210);
+        /* Y at dst(0,479) should match src Y at (176,557) = (176 + 557*7) & 0xff = 235 */
+        ok("AtlasScaler crop_y=78: Y[0,479] = src[176,557] = 235",
+           dst_y[479 * 1088] == 235);
+        /* U at dst(0,0) with crop_y=78, crop_x=176 -> src U at (88,39) = (88*2 + 39*11 + 128) & 0xff = 221 */
+        ok("AtlasScaler crop_y=78: U[0,0] = src U[88,39] = 221",
+           dst_y[1088 * 480 + 0] == 221);
+        /* V at dst(0,0) -> src V at (88,39) = (88*3 + 39*13 + 128) & 0xff = 131 */
+        ok("AtlasScaler crop_y=78: V[0,0] = src V[88,39] = 131",
+           dst_y[1088 * 480 + 1088 / 2 + 0] == 131);
 
         /* Verify downscaling with crop still works (e.g., 1440x636 -> 452x200) */
         AtlasScaler scaler_hud;
@@ -2123,6 +2177,9 @@ int main()
             std::vector<uint8_t> atlas = make_atlas(1440, 636, 1);
             std::vector<uint8_t> spare;
 
+            /* Enable test pause for deterministic synchronization */
+            feed.worker().enable_test_pause();
+
             /* Feed first frame, let scaling start */
             spare = atlas;
             feed.offer(&spare, 1, now);
@@ -2174,11 +2231,11 @@ int main()
             /* Destination buffer: Y 1088x480, U/V at 544x240 starting at 1088*480 */
             /* Verify additional pixels for crop_x=126 (base=1):
              * Y[1087,0] = src[1213,0] = (1213 + 1) & 0xff = 190
-             * Y[0,479] = src[126,479] = (126 + 479*7 + 1) & 0xff = 3479 & 0xff = 152
+             * Y[0,479] = src[126,479] = (126 + 479*7 + 1) & 0xff = 3480 & 0xff = 152
              * U[0,0] -> src U at (63,0) = (63*2 + 128) & 0xff = 254
              * V[0,0] -> src V at (63,0) = (63*3 + 128) & 0xff = 61
-             * U[543,239] -> src U at (607,239) = (607*2 + 239*11 + 128) & 0xff = 2433 & 0xff = 161
-             * V[543,239] -> src V at (607,239) = (607*3 + 239*13 + 128) & 0xff = 5048 & 0xff = 32 */
+             * U[543,239] -> src U at (606,239) = (606*2 + 239*11 + 128) & 0xff = 3969 & 0xff = 129
+             * V[543,239] -> src V at (606,239) = (606*3 + 239*13 + 128) & 0xff = 5053 & 0xff = 189 */
             ok("live offset change: Y[1087,0] = src[1213,0] = 190",
                got_output && output[1087] == 190);
             ok("live offset change: Y[0,479] = src[126,479] = 152",
@@ -2187,10 +2244,10 @@ int main()
                got_output && output[1088 * 480 + 0] == 254);
             ok("live offset change: V[0,0] = src V[63,0] = 61",
                got_output && output[1088 * 480 + 1088 / 2 + 0] == 61);
-            ok("live offset change: U[543,239] = src U[607,239] = 161",
-               got_output && output[1088 * 480 + 239 * 1088 + 543] == 161);
-            ok("live offset change: V[543,239] = src V[607,239] = 32",
-               got_output && output[1088 * 480 + 239 * 1088 + 1088 / 2 + 543] == 32);
+            ok("live offset change: U[543,239] = src U[606,239] = 129",
+               got_output && output[1088 * 480 + 239 * 1088 + 543] == 129);
+            ok("live offset change: V[543,239] = src V[606,239] = 189",
+               got_output && output[1088 * 480 + 239 * 1088 + 1088 / 2 + 543] == 189);
 
             /* Verify the shape in status matches new offset */
             FeedStatus st = feed.status("decode");
@@ -2264,6 +2321,9 @@ int main()
             std::vector<uint8_t> atlas = make_atlas(1440, 636, 1);
             std::vector<uint8_t> spare;
 
+            /* Enable test pause for deterministic synchronization */
+            feed.worker().enable_test_pause();
+
             /* Feed first frame, let scaling start */
             spare = atlas;
             feed.offer(&spare, 1, now);
@@ -2317,11 +2377,11 @@ int main()
             /* Destination buffer: Y 1088x480, U/V at 544x240 starting at 1088*480 */
             /* Verify additional pixels for crop_x=216 (base=1):
              * Y[1087,0] = src[1303,0] = (1303 + 1) & 0xff = 24
-             * Y[0,479] = src[216,479] = (216 + 479*7 + 1) & 0xff = 3569 & 0xff = 242
+             * Y[0,479] = src[216,479] = (216 + 479*7 + 1) & 0xff = 3570 & 0xff = 242
              * U[0,0] -> src U at (108,0) = (108*2 + 128) & 0xff = 88
              * V[0,0] -> src V at (108,0) = (108*3 + 128) & 0xff = 196
-             * U[543,239] -> src U at (651,239) = (651*2 + 239*11 + 128) & 0xff = 4181 & 0xff = 117
-             * V[543,239] -> src V at (651,239) = (651*3 + 239*13 + 128) & 0xff = 5340 & 0xff = 44 */
+             * U[543,239] -> src U at (651,239) = (651*2 + 239*11 + 128) & 0xff = 4181 & 0xff = 219
+             * V[543,239] -> src V at (651,239) = (651*3 + 239*13 + 128) & 0xff = 5340 & 0xff = 68 */
             ok("multi offset change: Y[1087,0] = src[1303,0] = 24",
                got_output && output[1087] == 24);
             ok("multi offset change: Y[0,479] = src[216,479] = 242",
@@ -2330,10 +2390,10 @@ int main()
                got_output && output[1088 * 480 + 0] == 88);
             ok("multi offset change: V[0,0] = src V[108,0] = 196",
                got_output && output[1088 * 480 + 1088 / 2 + 0] == 196);
-            ok("multi offset change: U[543,239] = src U[651,239] = 117",
-               got_output && output[1088 * 480 + 239 * 1088 + 543] == 117);
-            ok("multi offset change: V[543,239] = src V[651,239] = 44",
-               got_output && output[1088 * 480 + 239 * 1088 + 1088 / 2 + 543] == 44);
+            ok("multi offset change: U[543,239] = src U[651,239] = 219",
+               got_output && output[1088 * 480 + 239 * 1088 + 543] == 219);
+            ok("multi offset change: V[543,239] = src V[651,239] = 68",
+               got_output && output[1088 * 480 + 239 * 1088 + 1088 / 2 + 543] == 68);
 
             /* Verify the shape in status matches final offset */
             FeedStatus st = feed.status("decode");
@@ -2405,6 +2465,9 @@ int main()
             std::vector<uint8_t> atlas = make_atlas(1440, 636, 1);
             std::vector<uint8_t> spare;
 
+            /* Enable test pause for deterministic synchronization */
+            feed.worker().enable_test_pause();
+
             /* Feed first frame, wait for complete scaling using deterministic sync */
             spare = atlas;
             feed.offer(&spare, 1, now);
@@ -2439,10 +2502,10 @@ int main()
                 }
             }
             ok("stable recrop: initial output with crop_x=176 (Y[0]=177)", got_initial && !initial_output.empty() && initial_output[0] == 177);
-            ok("stable recrop: Y[1087,0] = src[1263,0] = 247",
-               got_initial && initial_output[1087] == 247);
-            ok("stable recrop: Y[0,479] = src[176,479] = 109",
-               got_initial && initial_output[479 * 1088] == 109);
+            ok("stable recrop: Y[1087,0] = src[1263,0] = 240",
+               got_initial && initial_output[1087] == 240);
+            ok("stable recrop: Y[0,479] = src[176,479] = 202",
+               got_initial && initial_output[479 * 1088] == 202);
             ok("stable recrop: U[0,0] = src U[88,0] = 48",
                got_initial && initial_output[1088 * 480 + 0] == 48);
             ok("stable recrop: V[0,0] = src V[88,0] = 136",
@@ -2487,10 +2550,10 @@ int main()
                got_recrop && recrop_output[1088 * 480 + 0] == 254);
             ok("stable recrop: V[0,0] = src V[63,0] = 61",
                got_recrop && recrop_output[1088 * 480 + 1088 / 2 + 0] == 61);
-            ok("stable recrop: U[543,239] = src U[607,239] = 161",
-               got_recrop && recrop_output[1088 * 480 + 239 * 1088 + 543] == 161);
-            ok("stable recrop: V[543,239] = src V[607,239] = 32",
-               got_recrop && recrop_output[1088 * 480 + 239 * 1088 + 1088 / 2 + 543] == 32);
+            ok("stable recrop: U[543,239] = src U[606,239] = 129",
+               got_recrop && recrop_output[1088 * 480 + 239 * 1088 + 543] == 129);
+            ok("stable recrop: V[543,239] = src V[606,239] = 189",
+               got_recrop && recrop_output[1088 * 480 + 239 * 1088 + 1088 / 2 + 543] == 189);
 
             /* Verify frame ID has not changed (same source frame recropped) */
             FeedStatus st = feed.status("decode");
@@ -2561,6 +2624,9 @@ int main()
 
             std::vector<uint8_t> atlas = make_atlas(1440, 636, 1);
             std::vector<uint8_t> spare;
+
+            /* Enable test pause for deterministic synchronization */
+            feed.worker().enable_test_pause();
 
             /* Feed first frame, let scaling start */
             spare = atlas;
@@ -2684,6 +2750,10 @@ int main()
             /* Frame 1 with base=1 */
             std::vector<uint8_t> atlas1 = make_atlas(1440, 636, 1);
             std::vector<uint8_t> spare = atlas1;
+
+            /* Enable test pause for deterministic synchronization */
+            feed.worker().enable_test_pause();
+
             feed.offer(&spare, 1, now);
             pump(50);
 
@@ -2748,7 +2818,8 @@ int main()
     /* ---- combined cluster + HUD feeds: verify HUD independence ---- */
     {
         /* Test: both cluster and HUD feeds active simultaneously.
-         * Change cluster_offset_x; verify HUD crop remains centered at 176. */
+         * Change cluster_offset_x; verify HUD crop remains centered at 176.
+         * HUD uses its own independent crop centered at 176. */
         FeedConfig cfc;
         cfc.socket = "/tmp/woc-feed-combined-" + std::to_string(getpid()) + ".sock";
         cfc.target = "map";

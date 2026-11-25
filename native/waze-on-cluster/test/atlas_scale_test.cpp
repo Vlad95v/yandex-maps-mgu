@@ -177,6 +177,131 @@ int main()
         /* a crop (a host's part of the map): 1:1 it is exactly that part,
          * Y and both chroma planes; scaled, it is the scale of that part
          * cut out first */
+        auto make_atlas = [](uint32_t w, uint32_t h, uint8_t base_y) {
+            std::vector<uint8_t> a((size_t)w * (h + h / 2));
+            /* Y plane: Y = (x + y*7 + base_y) & 0xff */
+            for (uint32_t y = 0; y < h; y++)
+                for (uint32_t x = 0; x < w; x++)
+                    a[y * w + x] = (uint8_t)((x + y * 7 + base_y) & 0xff);
+            /* UV plane: U and V side by side at w/2 x h/2
+             * U = (x*2 + y*11 + 128) & 0xff
+             * V = (x*3 + y*13 + 128) & 0xff */
+            for (uint32_t y = 0; y < h / 2; y++) {
+                for (uint32_t x = 0; x < w / 2; x++) {
+                    a[w * h + y * w + x] = (uint8_t)((x * 2 + y * 11 + 128) & 0xff);       /* U */
+                    a[w * h + y * w + w / 2 + x] = (uint8_t)((x * 3 + y * 13 + 128) & 0xff); /* V */
+                }
+            }
+            return a;
+        };
+
+        /* Test crop at center (crop_x = 176) -> output should be 1088x480 */
+        AtlasScaler scaler;
+        ok("AtlasScaler: configure 1440x636 -> 1088x480 with crop_x=176",
+           scaler.configure(1440, 636, 1088, 480, 0, 176, 0, 1088, 480));
+        std::vector<uint8_t> src = make_atlas(1440, 636, 0);
+        std::vector<uint8_t> dst;
+        scaler.scale(src.data(), &dst);
+        ok("AtlasScaler: output size 1088*720 = 783360",
+           dst.size() == 1088u * 720u);
+
+        /* Destination buffer layout: Y plane 1088x480, then U and V side by side at 544x240.
+         * U starts at 1088*480 = 522240, V starts at 1088*480 + 544 = 522784. */
+
+        /* Verify center crop: output x=0 corresponds to source x=176 */
+        /* Y at dst(0,0) should match src Y at (176,0) = (176 + 0*7 + 0) & 0xff = 176 */
+        ok("AtlasScaler crop center: Y[0,0] = src[176,0] = 176",
+           dst[0] == 176);
+        /* Y at dst(1087,0) should match src Y at (1263,0) = (1263 + 0*7) & 0xff = 239 */
+        ok("AtlasScaler crop center: Y[1087,0] = src[1263,0] = 239",
+           dst[1087] == 239);
+        /* Y at dst(0,479) should match src Y at (176,479) = (176 + 479*7) & 0xff = 201 */
+        ok("AtlasScaler crop center: Y[0,479] = src[176,479] = 201",
+           dst[479 * 1088] == 201);
+        /* Y at dst(1087,479) should match src Y at (1263,479) = (1263 + 479*7) & 0xff = 8 */
+        ok("AtlasScaler crop center: Y[1087,479] = src[1263,479] = 8",
+           dst[479 * 1088 + 1087] == 8);
+
+        /* U at dst(0,0) with center crop (crop_x=176) -> src U at (88,0) = (88*2 + 0*11 + 128) & 0xff = 48 */
+        ok("AtlasScaler crop center: U[0,0] = src U[88,0] = 48",
+           dst[1088 * 480 + 0] == 48);
+        /* V at dst(0,0) -> src V at (88,0) = (88*3 + 0*13 + 128) & 0xff = 136 */
+        ok("AtlasScaler crop center: V[0,0] = src V[88,0] = 136",
+           dst[1088 * 480 + 1088 / 2 + 0] == 136);
+        /* U at dst(543,239) with center crop -> src U at (631,239) = (631*2 + 239*11 + 128) & 0xff = 179 */
+        ok("AtlasScaler crop center: U[543,239] = src U[631,239] = 179",
+           dst[1088 * 480 + 239 * 1088 + 543] == 179);
+        /* V at dst(543,239) -> src V at (631,239) = (631*3 + 239*13 + 128) & 0xff = 8 */
+        ok("AtlasScaler crop center: V[543,239] = src V[631,239] = 8",
+           dst[1088 * 480 + 239 * 1088 + 1088 / 2 + 543] == 8);
+
+        /* Test crop at left edge (crop_x = 0) */
+        AtlasScaler scaler_left;
+        ok("AtlasScaler: configure 1440x636 -> 1088x480 with crop_x=0",
+           scaler_left.configure(1440, 636, 1088, 480, 0, 0, 0, 1088, 480));
+        std::vector<uint8_t> dst_left;
+        scaler_left.scale(src.data(), &dst_left);
+        /* Y at dst(0,0) should match src Y at (0,0) = 0 */
+        ok("AtlasScaler crop left: Y[0,0] = src[0,0] = 0",
+           dst_left[0] == 0);
+        /* Y at dst(1087,0) should match src Y at (1087,0) = 1087 & 0xff = 63 */
+        ok("AtlasScaler crop left: Y[1087,0] = src[1087,0] = 63",
+           dst_left[1087] == 63);
+        /* U at dst(0,0) with crop_x=0 -> src U at (0,0) = (0*2 + 0*11 + 128) & 0xff = 128 */
+        ok("AtlasScaler crop left: U[0,0] = src U[0,0] = 128",
+           dst_left[1088 * 480 + 0] == 128);
+        /* V at dst(0,0) -> src V at (0,0) = (0*3 + 0*13 + 128) & 0xff = 128 */
+        ok("AtlasScaler crop left: V[0,0] = src V[0,0] = 128",
+           dst_left[1088 * 480 + 1088 / 2 + 0] == 128);
+
+        /* Test crop at right edge (crop_x = 352) */
+        AtlasScaler scaler_right;
+        ok("AtlasScaler: configure 1440x636 -> 1088x480 with crop_x=352",
+           scaler_right.configure(1440, 636, 1088, 480, 0, 352, 0, 1088, 480));
+        std::vector<uint8_t> dst_right;
+        scaler_right.scale(src.data(), &dst_right);
+        /* Y at dst(0,0) should match src Y at (352,0) = 352 & 0xff = 96 */
+        ok("AtlasScaler crop right: Y[0,0] = src[352,0] = 96",
+           dst_right[0] == 96);
+        /* Y at dst(1087,0) should match src Y at (1439,0) = 1439 & 0xff = 159 */
+        ok("AtlasScaler crop right: Y[1087,0] = src[1439,0] = 159",
+           dst_right[1087] == 159);
+        /* U at dst(0,0) with crop_x=352 -> src U at (176,0) = (176*2 + 128) & 0xff = 224 */
+        ok("AtlasScaler crop right: U[0,0] = src U[176,0] = 224",
+           dst_right[1088 * 480 + 0] == 224);
+        /* V at dst(0,0) -> src V at (176,0) = (176*3 + 128) & 0xff = 144 */
+        ok("AtlasScaler crop right: V[0,0] = src V[176,0] = 144",
+           dst_right[1088 * 480 + 1088 / 2 + 0] == 144);
+
+        /* Test with non-zero crop_y */
+        AtlasScaler scaler_y;
+        ok("AtlasScaler: configure with crop_y=78 (1440x636 -> 1088x480, crop at 176,78)",
+           scaler_y.configure(1440, 636, 1088, 480, 0, 176, 78, 1088, 480));
+        std::vector<uint8_t> dst_y;
+        scaler_y.scale(src.data(), &dst_y);
+        /* Y at dst(0,0) should match src Y at (176,78) = (176 + 78*7) & 0xff = 210 */
+        ok("AtlasScaler crop_y=78: Y[0,0] = src[176,78] = 210",
+           dst_y[0] == 210);
+        /* Y at dst(0,479) should match src Y at (176,557) = (176 + 557*7) & 0xff = 235 */
+        ok("AtlasScaler crop_y=78: Y[0,479] = src[176,557] = 235",
+           dst_y[479 * 1088] == 235);
+        /* U at dst(0,0) with crop_y=78, crop_x=176 -> src U at (88,39) = (88*2 + 39*11 + 128) & 0xff = 221 */
+        ok("AtlasScaler crop_y=78: U[0,0] = src U[88,39] = 221",
+           dst_y[1088 * 480 + 0] == 221);
+        /* V at dst(0,0) -> src V at (88,39) = (88*3 + 39*13 + 128) & 0xff = 131 */
+        ok("AtlasScaler crop_y=78: V[0,0] = src V[88,39] = 131",
+           dst_y[1088 * 480 + 1088 / 2 + 0] == 131);
+
+        /* Verify downscaling with crop still works (e.g., 1440x636 -> 452x200) */
+        AtlasScaler scaler_hud;
+        ok("AtlasScaler: configure 1440x636 -> 452x200 with crop_x=176",
+           scaler_hud.configure(1440, 636, 452, 200, 2, 176, 0, 1088, 480));
+        std::vector<uint8_t> dst_hud;
+        scaler_hud.scale(src.data(), &dst_hud);
+        ok("AtlasScaler HUD: output size 452*300 = 135600",
+           dst_hud.size() == 452u * 300u);
+
+        /* Original 560x400 1:1 test still works with old pattern */
         std::vector<uint8_t> f(1088 * 720);
         for (size_t i = 0; i < f.size(); i++)
             f[i] = (uint8_t)((i * 7 + i / 1088 * 3) & 0xff);

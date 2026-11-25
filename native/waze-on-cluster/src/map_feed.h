@@ -309,8 +309,10 @@ private:
     bool has_cached_source_ = false; /* held_ holds a valid source atlas for recropping */
     bool elsewhere_ = false;      /* another feed has it (changed) */
     bool in_worker_ = false;      /* the worker has it, given back with its scaled frame */
-    uint64_t id_ = 0;             /* the newest frame's */
+    uint64_t id_ = 0;                 /* the newest frame's */
     uint64_t worker_generation_ = 0;  /* increments on each worker submit */
+    uint64_t source_generation_ = 0;  /* increments on each new source frame arrival */
+    uint64_t worker_source_gen_ = 0;  /* source generation the worker is working on */
     bool live_ = false, frozen_ = false;
     Picture picture_ = Picture::None;
     const char *stream_line_ = nullptr;   /* the stream's state as last logged */

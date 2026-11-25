@@ -497,8 +497,9 @@ void MapFeed::offer(std::vector<uint8_t> *atlas, uint64_t id, int64_t now_ms)
     if (scaling_ || !sending() || !client_.frame(layer_, atlas, id)) {
         hold(atlas, id);
         /* New frame arrived - any in-flight worker job is now stale.
-         * The worker will return the old atlas, which send_pending will
-         * discard because its generation won't match. */
+         * Increment source generation so send_pending discards stale results
+         * even when the ScaleShape is unchanged. */
+        ++source_generation_;
         in_worker_ = false;
     } else {
         id_ = id;
@@ -542,17 +543,19 @@ void MapFeed::send_pending(int64_t now_ms)
 {
     uint64_t sid = 0;
     uint64_t expected_gen = worker_generation_;
+    uint64_t expected_src_gen = worker_source_gen_;
     if (worker_.take(&scaled_, &sid, shape_, in_worker_ ? &held_ : nullptr)) {
         in_worker_ = false;
-        /* Validate frame freshness: the worker result must match the generation
-         * that was current when the job was submitted. If a newer frame has
-         * arrived (or offset changed), this result is stale and must be discarded. */
-        if (!scaled_.empty() && layer_ && sid == expected_gen) {
+        /* Validate frame freshness: the worker result must match both the
+         * worker generation AND the source generation that were current when
+         * the job was submitted. If a newer frame has arrived (even with
+         * unchanged ScaleShape), this result is stale and must be discarded. */
+        if (!scaled_.empty() && layer_ && sid == expected_gen && expected_src_gen == source_generation_) {
             client_.frame(layer_, &scaled_, sid);
             /* Successful scaling: the source atlas was returned in held_.
              * Cache it for possible recrop on offset change. */
             has_cached_source_ = true;
-        } else if (scaled_.empty() || sid != expected_gen) {
+        } else {
             /* Stale result: shape changed mid-job, or newer frame arrived.
              * The input atlas was returned in held_; mark it for resubmission
              * with the current shape. Do not overwrite held_ with older data. */
@@ -573,6 +576,7 @@ void MapFeed::send_pending(int64_t now_ms)
     if (worker_.submit(&held_, ++worker_generation_, shape_)) {
         held_new_ = false;
         in_worker_ = true;
+        worker_source_gen_ = source_generation_;  /* track which source frame the worker is processing */
         unsigned fps = cfg_.video.fps;
         if (fps_cap() && (!fps || fps_cap() < fps))
             fps = fps_cap();
@@ -588,6 +592,7 @@ void MapFeed::hold(std::vector<uint8_t> *atlas, uint64_t id)
     has_cached_source_ = true;
     elsewhere_ = in_worker_ = false;
     held_part_ = OutputPart();
+    ++source_generation_;   /* new source frame arrived */
 }
 
 void MapFeed::changed(uint64_t id)
@@ -596,6 +601,7 @@ void MapFeed::changed(uint64_t id)
     held_new_ = elsewhere_ = true;
     has_cached_source_ = true;
     in_worker_ = false;
+    ++source_generation_;   /* new source frame arrived elsewhere */
 }
 
 bool MapFeed::wants_picture(int64_t now_ms) const
