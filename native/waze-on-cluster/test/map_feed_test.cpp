@@ -1257,8 +1257,10 @@ static void frame_invalidation_test()
     r.feed->worker().release_worker();
 
     /* Let the worker finish A, then the feed will resubmit B,
-     * and B will complete without further test pauses. */
-    r.pump(2000);
+     * and B will complete without further test pauses. The stream keeps
+     * offering B, as the producer does. */
+    r.pump(2000, &fB);
+    ok("invalidation: the map is showing", r.st().state == "showing");
 
     /* Verify complete flush history:
      * 1. Frame A's expected output (stale) never appears in renderer flush history
