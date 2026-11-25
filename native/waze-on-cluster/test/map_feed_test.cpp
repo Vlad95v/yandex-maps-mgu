@@ -1207,8 +1207,11 @@ static void frame_invalidation_test()
      * the correct layer and ScaleWorker from the start. */
     Rig r(false, 6000, false, true, false, src_w, src_h);
 
-    /* Establish renderer connection and verify map layer exists */
-    r.pump(2000);
+    /* Establish renderer connection and the map target's scene with a warm-up
+     * frame: the scene's FakeGraph must exist before its flush history is
+     * captured, and a later target re-acquisition would replace it. */
+    const std::vector<uint8_t> fW = make_atlas(0);
+    r.pump(2000, &fW);
     const crs::Layer *layer = r.map_layer();
     ok("invalidation: map layer exists on renderer", layer != nullptr);
 
