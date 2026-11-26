@@ -206,15 +206,16 @@ void MapFeed::make_layer()
         shape_.h = cfg_.video.h;
         shape_.dw = sw;
         shape_.dh = sh;
-        /* Wider CarPlay source: the HUD shows the same independent centred
-         * 1088x480 crop it always did, scaled to its box. cluster_offset_x
-         * never reaches this shape. */
-        if (cfg_.video.w == kCarplayWideWidth && cfg_.video.h == kCarplayWideHeight) {
-            shape_.crop_x = 176;
-            shape_.crop_y = 0;
-            shape_.crop_w = 1088;
-            shape_.crop_h = 480;
+        /* The map's own region of the picture, and the share of its width
+         * hud_crop_width_pct keeps (hud_crop.h; quad() worked it out above). */
+        if (!hud_crop_.w) {
+            const HudGeometry g = hud_geometry(cfg_.video.w, cfg_.video.h, sw, sh, cfg_.hud_crop_width_pct);
+            hud_crop_ = g.crop;
         }
+        shape_.crop_x = hud_crop_.x;
+        shape_.crop_y = hud_crop_.y;
+        shape_.crop_w = hud_crop_.w;
+        shape_.crop_h = hud_crop_.h;
         shape_.level_bits = cfg_.scaled_level_bits;
         shape_.radius = cfg_.hud_round_corners ? (sh / 12 > 6 ? sh / 12 : 6) : 0;
         shape_.black = cfg_.hud_black_background;
@@ -297,10 +298,10 @@ void MapFeed::remake_layer()
 
 /* Where the map goes on a target of tw x th: the kit's fitted rect, or on
  * the HUD with a size set, that width (the picture's shape kept, at most the
- * HUD's height), centred; on the HUD then moved by the offset, held inside
- * the scene. On the cluster, crop horizontally from wider 1440x636 source:
- * crop_x = 176 - cluster_offset_x, crop_w = 1088, crop_h = 480.
- * HUD gets independent centered crop (crop_x = 176). */
+ * HUD's height), centred; on the HUD then narrowed to hud_crop_width_pct of
+ * its region, the height kept (hud_crop.h); then moved by the offset, held
+ * inside the scene. On the cluster, crop horizontally from wider 1440x636
+ * source: crop_x = 176 - cluster_offset_x, crop_w = 1088, crop_h = 480. */
 crk::QuadRect MapFeed::quad(uint32_t tw, uint32_t th) const
 {
     if (cfg_.target != "hud" || !cfg_.video.w || !cfg_.video.h) {
@@ -328,6 +329,20 @@ crk::QuadRect MapFeed::quad(uint32_t tw, uint32_t th) const
         }
         q = crk::QuadRect{(uint32_t)((tw - w) / 2), (uint32_t)((th - h) / 2), (uint32_t)w, (uint32_t)h};
     }
+    /* hud_crop_width_pct: a centred share of the map's own region shown, the
+     * height and the pixel scale kept: a narrower box, not a squeezed map.
+     * Only where the HUD scales the frame down (the box is smaller than the
+     * picture); without that there is no crop to take, and it is 100 %. */
+    if (cfg_.target == "hud" &&
+        (cfg_.scale_down || (cfg_.video.w == kCarplayWideWidth && cfg_.video.h == kCarplayWideHeight))) {
+        const HudGeometry g = hud_geometry(cfg_.video.w, cfg_.video.h, q.w, q.h, cfg_.hud_crop_width_pct);
+        hud_crop_ = g.crop;
+        if (g.box.w != q.w || g.box.h != q.h) {
+            q.x += (q.w - g.box.w) / 2;   /* its centre where the box's was */
+            q.w = g.box.w;
+            q.h = g.box.h;
+        }
+    }
     const long x = (long)q.x + cfg_.hud_offset_x, y = (long)q.y + cfg_.hud_offset_y;
     const long xmax = (long)tw - (long)q.w, ymax = (long)th - (long)q.h;
     const uint32_t cx = q.x, cy = q.y;
@@ -335,10 +350,6 @@ crk::QuadRect MapFeed::quad(uint32_t tw, uint32_t th) const
     q.y = (uint32_t)(y < 0 ? 0 : y > ymax ? ymax : y);
     placed_x_ = (int)q.x - (int)cx;
     placed_y_ = (int)q.y - (int)cy;
-    /* HUD feed: independent centered crop from 1440x636 at crop_x = 176. */
-    if (cfg_.target == "hud" && cfg_.video.w == kCarplayWideWidth && cfg_.video.h == kCarplayWideHeight) {
-        crop_x_ = 176;
-    }
     return q;
 }
 
@@ -418,6 +429,20 @@ void MapFeed::set_hud_width(unsigned pct)
         return;
     /* the texture's size changes with it: a new layer at the new size */
     log_info("render: HUD map %u%% wide", pct);
+    remake_layer();
+}
+
+void MapFeed::set_hud_crop_width(unsigned pct)
+{
+    if (pct == cfg_.hud_crop_width_pct)
+        return;
+    cfg_.hud_crop_width_pct = pct;
+    uint32_t tw, th;
+    /* hosted, the host sizes it: the width waits for the HUD's own */
+    if (cfg_.target != "hud" || !layer_ || hosted() || !target_size(client_.targets, "hud", &tw, &th))
+        return;
+    /* the texture's size changes with it: a new layer at the new size */
+    log_info("render: HUD map %u%% of its width", pct);
     remake_layer();
 }
 
@@ -704,6 +729,7 @@ FeedStatus MapFeed::status(const std::string &decode, const std::string &stream)
     s.target = drawn_target();
     s.hosted = hosted();
     s.hud_width_pct = cfg_.hud_width_pct;
+    s.hud_crop_width_pct = cfg_.hud_crop_width_pct;
     s.hud_offset_x = placed_x_;
     s.hud_keep_shown = cfg_.hud_keep_shown;
     s.hud_offset_y = placed_y_;

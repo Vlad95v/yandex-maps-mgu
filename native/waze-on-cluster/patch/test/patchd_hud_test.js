@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Robert Nisipeanu
-/* patchd's map settings ({"cmd":"cluster"}, "hud", "hud-size", "hud-pos",
- * "hud-keep-shown"):
+/* patchd's map settings ({"cmd":"cluster"}, "hud", "hud-size", "hud-crop-width",
+ * "hud-pos", "hud-keep-shown"):
  * each saved in map.state.conf for the render's next start, replacing an
  * earlier value and keeping the other lines, waze-on-cluster.local.conf
  * untouched; a bad value is refused and nothing written. A burst of changes
@@ -175,6 +175,24 @@ function ok(name, cond) {
     r = await ask({ cmd: 'hud-keep-shown', on: '1' });
     ok('a keep-shown that is not 0 or 1 is refused, nothing written', !r.ok && fs.readFileSync(STATE, 'utf8') === state);
     ok('the local conf untouched by every setting', fs.readFileSync(CONF, 'utf8') === conf);
+    /* hud_crop_width_pct: how much of the HUD map's width it shows, 20-100,
+     * saved for the render's next start. */
+    r = await ask({ cmd: 'hud-crop-width', hud_crop_width_pct: 50 });
+    ok('the HUD width shown is saved next to the size', r.ok && r.hud_crop_width_pct === 50 &&
+        /hud_crop_width_pct = 50\n$/.test(fs.readFileSync(STATE, 'utf8')));
+    r = await ask({ cmd: 'hud-crop-width', hud_crop_width_pct: 20 });
+    ok('20 % (the narrowest) replaces it', r.ok && r.hud_crop_width_pct === 20 &&
+        /hud_crop_width_pct = 20\n$/.test(fs.readFileSync(STATE, 'utf8')));
+    r = await ask({ cmd: 'hud-crop-width', hud_crop_width_pct: 100 });
+    ok('100 % (the whole of it) replaces it', r.ok && r.hud_crop_width_pct === 100 &&
+        /hud_crop_width_pct = 100\n$/.test(fs.readFileSync(STATE, 'utf8')));
+    state = fs.readFileSync(STATE, 'utf8');
+    r = await ask({ cmd: 'hud-crop-width', hud_crop_width_pct: 15 });
+    ok('a width shown under 20 % is refused, nothing written', !r.ok && fs.readFileSync(STATE, 'utf8') === state);
+    r = await ask({ cmd: 'hud-crop-width', hud_crop_width_pct: 101 });
+    ok('a width shown over 100 % is refused, nothing written', !r.ok && fs.readFileSync(STATE, 'utf8') === state);
+    r = await ask({ cmd: 'hud-crop-width', hud_crop_width_pct: 55.5 });
+    ok('a width shown that is not a whole percent is refused, nothing written', !r.ok && fs.readFileSync(STATE, 'utf8') === state);
     /* A burst: one write SAVE_MS after the last change, every reply after it. */
     var saves = function () { return out.split('(saved for the next start)').length - 1; };
     var before = fs.readFileSync(STATE, 'utf8'), n = saves(), t0 = Date.now();
