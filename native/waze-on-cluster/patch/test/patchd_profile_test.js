@@ -228,8 +228,8 @@ var A = 'a1b2c3d4-0000-4000-8000-000000000001', B = 'a1b2c3d4-0000-4000-8000-000
 
     /* The format a patchd and render without profiles read. */
     var lines = fs.readFileSync(STATE, 'utf8').split('\n').filter(Boolean);
-    ok('map.state.conf: only "key = whole number" lines of the seven map keys (0.9.x reads them, leaving out hud_keep_shown and cluster_offset_x)',
-        lines.length === 7 && lines.every(function (l) {
+    ok('map.state.conf: only "key = whole number" lines of the eight map keys (0.9.x reads them, leaving out hud_crop_width_pct, hud_keep_shown and cluster_offset_x)',
+        lines.length === 8 && lines.every(function (l) {
             return /^(cluster|hud|hud_width_pct|hud_crop_width_pct|hud_offset_x|hud_offset_y|hud_keep_shown|cluster_offset_x) = -?\d+$/.test(l);
         }), lines.join('|'));
 
