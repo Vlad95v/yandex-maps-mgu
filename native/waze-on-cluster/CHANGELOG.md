@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+The Logs page can keep one full CarPlay picture, before the map is cropped and
+scaled for the cluster and the HUD: "Capture full CarPlay frame" asks for the
+next 1440x636 whole frame, which is written beside the map's state
+(`carplay-frame-1440x636.yuva`, 1,373,760 bytes, and its `.json` with the size
+and the capture time), and Save logs puts both in the archive byte for byte
+(the scrub never sees the binary) and removes them once the archive is whole.
+Nothing is captured unless it is asked for. `tools/yuv_atlas_to_png.py` turns
+the archive's frame into a PNG on a PC.
+
 ## 0.14.15
 
 HUD: a new **Width** setting shows a centred share (20-100 %) of the map's

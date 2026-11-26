@@ -529,6 +529,53 @@ class WazeClusterControl extends EventEmitter {
         this._askedHud = null;
     }
 
+    /* ---- the full CarPlay frame (the Logs page) ---- */
+    /* The dump's state as the render reports it: off, waiting, captured,
+     * saved or failed; null from a render before the setting. */
+    frameDump() {
+        const v = this.renderStatus && this.renderStatus.frame_dump;
+        return typeof v === 'string' ? v : null;
+    }
+
+    /* Its status as the Logs page shows it, with the tool's reason when the
+     * capture failed (data: not translated). */
+    frameDumpText() {
+        const s = this.frameDump();
+        if (s === null) {
+            return t('CarPlay frame: {0}', t('Unavailable'));
+        }
+        switch (s) {
+        case 'waiting':
+            return t('CarPlay frame: {0}', t('Waiting for CarPlay frame'));
+        case 'captured':
+        case 'saved':
+            return t('CarPlay frame: {0}', t('Frame captured. Ready to save logs'));
+        case 'failed': {
+            const why = (this.renderStatus && this.renderStatus.frame_dump_reason) || '';
+            return t('CarPlay frame: {0}', why ? t('Capture failed') + ' — ' + why : t('Capture failed'));
+        }
+        default:
+            return t('CarPlay frame: {0}', t('Not captured'));
+        }
+    }
+
+    /* A capture may be asked for when the render has the feature and no
+     * frame waits or is being written. */
+    canCaptureFrame() {
+        const s = this.frameDump();
+        return this.render.connected() && s !== null && s !== 'waiting' && s !== 'captured';
+    }
+
+    /* The next full CarPlay frame, once: the render captures it and reports
+     * the state in its status; the Logs page's Save logs then puts it in the
+     * archive. */
+    captureFrame() {
+        if (this.canCaptureFrame()) {
+            this.render.send({ cmd: 'frame-dump' });
+            this.emit('change');
+        }
+    }
+
     /* ---- how much of the HUD map's width it shows ---- */
     hudCropWidth() {
         if (this._askedHudCrop != null) {

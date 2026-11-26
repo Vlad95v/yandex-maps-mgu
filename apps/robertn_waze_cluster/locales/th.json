@@ -96,6 +96,13 @@
     "Audio may cut out. On your iPhone, turn Wi-Fi off and on.": "เสียงอาจขาดหาย ให้ปิดแล้วเปิด Wi-Fi บน iPhone",
     "Own settings for this driver": "การตั้งค่าเฉพาะสำหรับผู้ขับขี่คนนี้",
     "Keep HUD map over BMW's pop-ups": "คงแผนที่บน HUD ไว้เหนือป๊อปอัปของ BMW",
-    "Cluster offset: {0}": "ออฟเซ็ตคลัสเตอร์: {0}"
+    "Cluster offset: {0}": "ออฟเซ็ตคลัสเตอร์: {0}",
+    "Capture full CarPlay frame": "аё€аё±аёљаё аёІаёћа№ЂаёџаёЈаёЎ CarPlay а№Ѓаёљаёља№Ђаё•а№‡аёЎ",
+    "CarPlay frame: {0}": "а№ЂаёџаёЈаёЎ CarPlay: {0}",
+    "Waiting for CarPlay frame": "аёЃаёіаёҐаё±аё‡аёЈаё­а№ЂаёџаёЈаёЎ CarPlay",
+    "Frame captured. Ready to save logs": "аё€аё±аёљаё аёІаёћа№ЂаёџаёЈаёЎа№ЃаёҐа№‰аё§ аёћаёЈа№‰аё­аёЎаёљаё±аё™аё—аё¶аёЃаёљаё±аё™аё—аё¶аёЃ",
+    "Capture failed": "аё€аё±аёљаё аёІаёћа№„аёЎа№€аёЄаёіа№ЂаёЈа№‡аё€",
+    "Not captured": "аёўаё±аё‡а№„аёЎа№€а№„аё”а№‰аё€аё±аёљаё аёІаёћ",
+    "The frame is not scrubbed: the archive may contain the map, addresses, your location and route.": "а№ЂаёџаёЈаёЎа№„аёЎа№€а№„аё”а№‰аё–аё№аёЃаё—аёіа№ѓаё«а№‰а№„аёЎа№€аёЈаё°аёљаёёаё•аё±аё§аё•аё™: а№„аёџаёҐа№Њаё­аёІаё€аёЎаёµа№Ѓаёњаё™аё—аёµа№€ аё—аёµа№€аё­аёўаё№а№€ аё•аёіа№Ѓаё«аё™а№€аё‡аё‚аё­аё‡аё„аёёаё“ а№ЃаёҐаё°а№ЂаёЄа№‰аё™аё—аёІаё‡"
   }
 }

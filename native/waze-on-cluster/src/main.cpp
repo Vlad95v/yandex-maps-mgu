@@ -36,6 +36,7 @@
 #include "alt_screen.h"
 #include "config.h"
 #include "control.h"
+#include "frame_dump.h"
 #include "opt_in.h"
 #include "guide_setting.h"
 #include "head_unit.h"
@@ -67,7 +68,7 @@ namespace {
  * This version does not read it. */
 const char kUnreadLocalConf[] = "/var/opt/waze-on-cluster/waze-on-cluster.local.conf";
 
-std::string status_line(const FeedStatus &s)
+std::string status_line(const FeedStatus &s, const FrameDump &dump)
 {
     return "{\"ev\":\"status\",\"state\":" + json_escape(s.state) + ",\"target\":" + json_escape(s.target) +
            ",\"page\":" + json_escape(s.page) + ",\"reason\":" + json_escape(s.reason) +
@@ -86,19 +87,23 @@ std::string status_line(const FeedStatus &s)
            ",\"cluster_crop_x\":" + std::to_string(s.cluster_crop_x) +
            ",\"source_w\":" + std::to_string(s.source_w) + ",\"source_h\":" + std::to_string(s.source_h) +
            ",\"output_w\":" + std::to_string(s.output_w) + ",\"output_h\":" + std::to_string(s.output_h) +
+           /* the full CarPlay frame the app's Logs page asked for, once */
+           ",\"frame_dump\":" + json_escape(dump.state_word()) + ",\"frame_dump_reason\":" + json_escape(dump.reason()) +
+           ",\"frame_dump_size\":" + std::to_string(FrameDump::atlas_bytes()) +
            /* only while hosted: otherwise the line is as it always was */
            (s.hosted ? ",\"hosted\":1" : "") + "}";
 }
 
 class Server : public Control::Handler {
 public:
-    Server(MapFeeds *feeds, GuideSetting *guide) : feeds_(feeds), guide_(guide) {}
+    Server(MapFeeds *feeds, GuideSetting *guide, FrameDump *dump) : feeds_(feeds), guide_(guide), dump_(dump) {}
     void set_control(Control *c) { control_ = c; }
 
     /* cluster and hud turn the map on each off or on ("on"), hud also sizes
      * and places the HUD's and says how much of its width it shows; the map
      * itself comes and goes with the stream. guide is the app's switch for
-     * BMW's turn box (guide_setting.h). */
+     * BMW's turn box (guide_setting.h). frame-dump asks for the next full
+     * CarPlay frame, once (frame_dump.h). */
     void on_command(const std::map<std::string, std::string> &msg) override
     {
         const std::string &cmd = msg.at("cmd");
@@ -107,7 +112,10 @@ public:
         auto cw = msg.find("hud_crop_width_pct");
         auto hx = msg.find("hud_x"), hy = msg.find("hud_y"), on = msg.find("on");
         auto keep = msg.find("hud_keep_shown");
-        if (cmd == "guide" && hide != msg.end() && guide_->set(hide->second)) {
+        if (cmd == "frame-dump") {
+            dump_->request(cld::now_ms());
+            log_info("frame dump: the next full CarPlay frame asked for (%s)", dump_->state_word());
+        } else if (cmd == "guide" && hide != msg.end() && guide_->set(hide->second)) {
             log_info("guide: BMW's turn box %s while the map shows", guide_->hide() ? "hidden" : "shown");
             feeds_->set_guide_hold(guide_->hide());
         } else if (cmd == "cluster" && on != msg.end() && (on->second == "0" || on->second == "1")) {
@@ -201,6 +209,7 @@ public:
 private:
     MapFeeds *feeds_;
     GuideSetting *guide_;
+    FrameDump *dump_;
     Control *control_ = nullptr;
     uint64_t log_seq_ = 0;
     std::string last_;
@@ -329,7 +338,8 @@ int serve(Config cfg)
     std::string err;
     VideoProducer producer(vc);
     MapFeeds feed(fc, cfg.num("cluster") == 1, cfg.num("hud") == 1, (unsigned)cfg.num("hud_fps"));
-    Server server(&feed, &guide);
+    FrameDump dump(cfg.str("frame_dump_dir"));
+    Server server(&feed, &guide, &dump);
     Control control(&server);
     server.set_control(&control);
     if (!control.listen(cfg.str("socket_path"), (unsigned)std::strtoul(cfg.str("socket_mode").c_str(), nullptr, 8),
@@ -346,6 +356,7 @@ int serve(Config cfg)
     const AltScreen alt((uint16_t)cfg.num("alt_screen_port"), (uint32_t)cfg.num("alt_screen_uid"));
     StreamLiveness liveness(vc.stall_ms);
     std::string last_detail;
+    std::string last_frame_dump = "off";   /* the dump state as last logged */
     AltScreen::State alt_state = AltScreen::Unknown;
     int64_t alt_read_ms = 0;
     for (;;) {
@@ -372,12 +383,26 @@ int serve(Config cfg)
         bool same = false;
         OutputPart part;
         if (producer.take(&frame, &id, &same, &part)) {
+            /* The app's one frame, before the feed takes the buffer: the full
+             * picture, no crop, no scale (frame_dump.h). */
+            if (!same)
+                dump.offer(frame.data(), frame.size(), vc.tex_width, vc.tex_height, part.set(), now);
             if (same)
                 feed.repeat(id, now);
             else if (part.set())
                 feed.offer_part(&frame, id, part, now);
             else
                 feed.offer(&frame, id, now);
+        }
+        dump.write_pending(now);
+        const std::string dump_state = dump.state_word();
+        if (dump_state != last_frame_dump) {
+            const std::string why = dump.reason();
+            last_frame_dump = dump_state;
+            if (dump_state == "failed")
+                log_warn("frame dump: %s: %s", dump_state.c_str(), why.c_str());
+            else
+                log_info("frame dump: %s%s%s", dump_state.c_str(), why.empty() ? "" : " - ", why.c_str());
         }
         if (now - alt_read_ms >= 1000) {
             const AltScreen::State s = cfg.num("alt_screen_port") ? alt.read() : AltScreen::Unknown;
@@ -410,7 +435,7 @@ int serve(Config cfg)
             producer.set_part(feed.part());
         producer.retry_sources(now);
         const FeedStatus fs = feed.status(producer.decode_status(), producer.stream_reason());
-        const std::string status = status_line(fs);
+        const std::string status = status_line(fs, dump);
         /* The frame rate changes the status every second; the log keeps
          * to its state, reason and target, so the app's last lines are not
          * all status. */
@@ -550,6 +575,7 @@ void define_keys(Config *cfg)
     cfg->define("hide_bmw_guidance", "1");
     cfg->define("state_file", "/var/opt/waze-on-cluster/state/waze-on-cluster.state.conf");
     cfg->define("map_state_file", "/var/opt/waze-on-cluster/map.state.conf");
+    cfg->define("frame_dump_dir", "/var/opt/waze-on-cluster/state");
     cfg->define("features_file", "/var/opt/waze-on-cluster/features.conf");
     cfg->define("cluster", "1");
     cfg->define("hud", "0");

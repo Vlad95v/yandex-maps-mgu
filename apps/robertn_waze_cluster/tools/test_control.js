@@ -426,6 +426,37 @@ test('the HUD map size as a slider: 5 % steps from 30 to 85 %, Standard at the s
     assert.deepStrictEqual([c.hudSizeText(), c.hudSizeStep()], ['Size: —', null], 'nothing known while closed');
 });
 
+test('the full CarPlay frame: asked once, the render reports it, greyed while it waits or is written; a render before it is unavailable', async (render, patch) => {
+    const c = control();
+    c.open();
+    await until('connected', () => c.connectedRender() && c.connectedPatch());
+    render.stream(true);
+    await until('a render with it', () => c.renderStatus && c.frameDump() === 'off');
+    assert.deepStrictEqual([c.frameDumpText(), c.canCaptureFrame()], ['CarPlay frame: Not captured', true]);
+    c.captureFrame();
+    await until('waiting', () => c.frameDump() === 'waiting' && c.frameDumpText() === 'CarPlay frame: Waiting for CarPlay frame');
+    const asked = () => render.received.filter((m) => m.cmd === 'frame-dump').length;
+    assert.strictEqual(asked(), 1, 'one ask');
+    assert(!c.canCaptureFrame(), 'greyed while it waits');
+    c.captureFrame();
+    await sleep(50);
+    assert.strictEqual(asked(), 1, 'no second ask while one waits');
+    render.frameCaptured(false);
+    await until('held for the archive', () => c.frameDump() === 'captured' &&
+        c.frameDumpText() === 'CarPlay frame: Frame captured. Ready to save logs' && !c.canCaptureFrame());
+    render.frameCaptured(true);
+    await until('saved', () => c.frameDumpText() === 'CarPlay frame: Frame captured. Ready to save logs' && c.canCaptureFrame());
+    render.frameFailed('the picture is a part of the frame (hosted_vpp_scale), not the whole CarPlay frame');
+    await until('failed with the reason', () => c.frameDumpText() === 'CarPlay frame: Capture failed — the picture is a part of the ' +
+        'frame (hosted_vpp_scale), not the whole CarPlay frame');
+    render.frameDump = null;
+    render.announce(render.state, render.reason);
+    await until('a render before it', () => c.frameDump() === null && c.frameDumpText() === 'CarPlay frame: Unavailable' && !c.canCaptureFrame());
+    c.captureFrame();
+    assert.strictEqual(asked(), 1, 'nothing sent to a render without it');
+    c.close();
+});
+
 test('the HUD map over BMW\'s pop-ups: gives way by default; a flip goes to the render and patchd, the render\'s status shows it; ' +
     'greyed while the HUD is off and for a render without it', async (render, patch) => {
     const c = control();

@@ -177,6 +177,18 @@
                 <property id="2" value="1"/>
                 <property id="3" value="0"/>
             </component>
+            <component id="110" type="button" widget="LT_Button_1Row">
+                <property id="2" value="1"/>
+                <property id="3" value="3"/>
+            </component>
+            <component id="111" type="label" widget="LT_Label_1Row">
+                <property id="2" value="1"/>
+                <property id="3" value="0"/>
+            </component>
+            <component id="112" type="label" widget="LT_Label_1Row">
+                <property id="2" value="1"/>
+                <property id="3" value="0"/>
+            </component>
             <component id="81" type="button" widget="LT_Button_1Row">
                 <property id="2" value="1"/>
                 <property id="3" value="3"/>

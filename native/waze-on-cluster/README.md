@@ -296,6 +296,23 @@ sources are left out.
 - **Save logs** keeps at most 5 archives in `/var/opt/waze-on-cluster/saved`.
   The Logs page serves them to a phone on the car's Wi-Fi hotspot, at the
   address it shows, while the page is open and for 15 minutes after a save.
+- **The full CarPlay frame.** The app's **Capture full CarPlay frame** asks
+  this tool for the next whole 1440x636 picture, before the map feed crops or
+  scales it: it is copied on the main loop (never on the decode thread) and
+  written to `carplay-frame-1440x636.yuva` in `frame_dump_dir`
+  (`/var/opt/waze-on-cluster/state`, 1,373,760 bytes: the map's 4:2:0 atlas,
+  `native/cluster-render/kit/yuv_atlas.h`) with `carplay-frame-1440x636.json`
+  beside it (size, capture time, that it is a full frame), atomically: a
+  temporary file, then a rename, world-readable for the logs service. A frame
+  that is a part (`hosted_vpp_scale`), another size, a repeat, or nothing
+  while no map shows is not taken, and the status says why
+  (`frame_dump`, `frame_dump_reason`). `collect-logs.sh` adds the two files
+  to the archive **after** the scrub, byte for byte (the scrub never sees a
+  binary), and removes them once the archive is whole; a failed save keeps
+  them for another try. They are there only when the button was pressed, and
+  they are **not** anonymised: the picture can show the map, the route and
+  addresses. `tools/yuv_atlas_to_png.py <archive> --output <png>` turns it
+  into a PNG on a PC (standard library only, `atlas_rgb()`'s colours).
 
 ### Processes
 

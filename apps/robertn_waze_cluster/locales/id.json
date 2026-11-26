@@ -96,6 +96,13 @@
     "Audio may cut out. On your iPhone, turn Wi-Fi off and on.": "Audio mungkin terputus. Di iPhone Anda, matikan lalu nyalakan Wi-Fi.",
     "Own settings for this driver": "Pengaturan sendiri untuk pengemudi ini",
     "Keep HUD map over BMW's pop-ups": "Pertahankan peta di HUD di atas pop-up BMW",
-    "Cluster offset: {0}": "Offset cluster: {0}"
+    "Cluster offset: {0}": "Offset cluster: {0}",
+    "Capture full CarPlay frame": "Ambil bingkai CarPlay penuh",
+    "CarPlay frame: {0}": "Bingkai CarPlay: {0}",
+    "Waiting for CarPlay frame": "Menunggu bingkai CarPlay",
+    "Frame captured. Ready to save logs": "Bingkai diambil. Siap menyimpan log",
+    "Capture failed": "Pengambilan gagal",
+    "Not captured": "Tidak diambil",
+    "The frame is not scrubbed: the archive may contain the map, addresses, your location and route.": "Bingkai tidak dibersihkan: arsip dapat berisi peta, alamat, lokasi, dan rute Anda."
   }
 }

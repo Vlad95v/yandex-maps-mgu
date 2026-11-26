@@ -96,6 +96,13 @@
     "Audio may cut out. On your iPhone, turn Wi-Fi off and on.": "Sunetul se poate întrerupe. Pe iPhone, dezactivați și reactivați Wi-Fi.",
     "Own settings for this driver": "Setări proprii pentru acest șofer",
     "Keep HUD map over BMW's pop-ups": "Păstrare hartă pe HUD peste ferestrele pop-up BMW",
-    "Cluster offset: {0}": "Deplasare cluster: {0}"
+    "Cluster offset: {0}": "Deplasare cluster: {0}",
+    "Capture full CarPlay frame": "CapteazДѓ un cadru CarPlay complet",
+    "CarPlay frame: {0}": "Cadru CarPlay: {0}",
+    "Waiting for CarPlay frame": "Se aИ™teaptДѓ cadrul CarPlay",
+    "Frame captured. Ready to save logs": "Cadru capturat. Gata de salvarea jurnalelor",
+    "Capture failed": "Captura a eИ™uat",
+    "Not captured": "Necapturat",
+    "The frame is not scrubbed: the archive may contain the map, addresses, your location and route.": "Cadrul nu este curДѓИ›at: arhiva poate conИ›ine harta, adrese, locaИ›ia И™i traseul dvs."
   }
 }

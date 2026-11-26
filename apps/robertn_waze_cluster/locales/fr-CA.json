@@ -96,6 +96,13 @@
     "Audio may cut out. On your iPhone, turn Wi-Fi off and on.": "Le son peut se couper. Sur votre iPhone, désactivez puis réactivez le Wi-Fi.",
     "Own settings for this driver": "Réglages propres à ce conducteur",
     "Keep HUD map over BMW's pop-ups": "Garder la carte sur le HUD devant les fenêtres contextuelles BMW",
-    "Cluster offset: {0}": "Décalage du combiné: {0}"
+    "Cluster offset: {0}": "Décalage du combiné: {0}",
+    "Capture full CarPlay frame": "Capturer une image CarPlay complГЁte",
+    "CarPlay frame: {0}": "Image CarPlay : {0}",
+    "Waiting for CarPlay frame": "En attente de l'image CarPlay",
+    "Frame captured. Ready to save logs": "Image capturГ©e. PrГЄt Г  enregistrer les journaux",
+    "Capture failed": "Г‰chec de la capture",
+    "Not captured": "Non capturГ©e",
+    "The frame is not scrubbed: the archive may contain the map, addresses, your location and route.": "L'image n'est pas nettoyГ©e : l'archive peut contenir la carte, des adresses, votre position et votre itinГ©raire."
   }
 }

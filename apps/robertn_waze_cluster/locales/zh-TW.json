@@ -98,6 +98,13 @@
     "Audio may cut out. On your iPhone, turn Wi-Fi off and on.": "音訊可能中斷。請在 iPhone 上關閉再開啟 Wi-Fi。",
     "Own settings for this driver": "此駕駛的專屬設定",
     "Keep HUD map over BMW's pop-ups": "HUD 地圖保持在 BMW 彈出視窗之上",
-    "Cluster offset: {0}": "群集偏移: {0}"
+    "Cluster offset: {0}": "群集偏移: {0}",
+    "Capture full CarPlay frame": "ж“·еЏ–е®Њж•ґ CarPlay з•«йќў",
+    "CarPlay frame: {0}": "CarPlay з•«йќўпјљ{0}",
+    "Waiting for CarPlay frame": "ж­ЈењЁз­‰еѕ… CarPlay з•«йќў",
+    "Frame captured. Ready to save logs": "е·Іж“·еЏ–з•«йќўгЂ‚еЏЇд»Ґе„Іе­ж—ҐиЄЊдє†",
+    "Capture failed": "ж“·еЏ–е¤±ж•—",
+    "Not captured": "жњЄж“·еЏ–",
+    "The frame is not scrubbed: the archive may contain the map, addresses, your location and route.": "з•«йќўжњЄеЋ»и­е€ҐеЊ–пјљеЈ“зё®жЄ”еЏЇиѓЅеЊ…еђ«ењ°ењ–гЂЃењ°еќЂгЂЃж‚Ёзљ„дЅЌзЅ®е’Њи·Їз·љгЂ‚"
   }
 }

@@ -132,6 +132,42 @@ If you are asked for a capture: press **Start capture**, reconnect your
 phone, wait until the problem shows, then press **Save logs**. The capture
 stops by itself after 5 minutes.
 
+### The full CarPlay frame
+
+To see what the phone actually sends, before the map is cropped for the
+cluster and the HUD:
+
+1. With CarPlay running (the map on the cluster or the HUD), open **Logs**
+   and press **Capture full CarPlay frame**.
+2. Wait until **CarPlay frame** reads **Frame captured. Ready to save logs**
+   (while it waits it says **Waiting for CarPlay frame**; if it cannot capture
+   it says why).
+3. Press **Save logs**, then download the archive as above.
+
+The archive holds `carplay-frame-1440x636.yuva` — the whole 1440x636 picture
+as the decoder makes it, 1,373,760 bytes, the map's 4:2:0 atlas format
+(`native/cluster-render/kit/yuv_atlas.h`) — and `carplay-frame-1440x636.json`
+with its size, capture time and that it is a full frame. Nothing is captured
+unless you press the button, and the dump is removed once the archive is
+whole; only the archive keeps it.
+
+**The picture is not anonymised.** Unlike the rest of the archive, the frame
+is a photograph of your map: it can show your location, the route, addresses,
+street names and whatever the navigation app draws. It goes into the archive
+only when you press **Capture full CarPlay frame** and then **Save logs**, so
+attach that archive only where you mean to share the picture.
+
+To look at it on a PC (Python 3, no other packages):
+
+```
+py -3 native\waze-on-cluster\tools\yuv_atlas_to_png.py ^
+  "C:\path\woc-logs-XXXXXXXX.tar.gz" ^
+  --output "C:\path\carplay-full-frame.png"
+```
+
+The colours are the cluster shader's (full-range BT.601, chroma upsampled
+inside its own part), so the PNG is what the renderer drew from.
+
 ![The Logs page](docs/logs-page.png)
 
 ## Remove
