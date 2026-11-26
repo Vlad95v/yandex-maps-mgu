@@ -995,6 +995,72 @@
             }
           ]
         },
+        "110": {
+          "type": "button",
+          "name": "wocCaptureFrame",
+          "properties": {
+            "Visible": {
+              "value": 1,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text": {
+                "value": "Capture full CarPlay frame",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "111": {
+          "type": "label",
+          "name": "wocFrameStatus",
+          "properties": {
+            "Visible": {
+              "value": 1,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 0,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text": {
+                "value": "CarPlay frame: —",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "112": {
+          "type": "label",
+          "name": "wocFrameNote",
+          "properties": {
+            "Visible": {
+              "value": 1,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 0,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text": {
+                "value": "The frame is not scrubbed: the archive may contain the map, addresses, your location and route.",
+                "type": "Text"
+              }
+            }
+          ]
+        },
         "81": {
           "type": "button",
           "name": "wocLogsSave",

@@ -133,6 +133,9 @@ class FakeRender extends LineServer {
         this.hudKeep = 0;
         /* how much of the HUD map's width it shows (null: a tool without the field) */
         this.hudCrop = 100;
+        /* the full CarPlay frame (null: a tool before the feature) */
+        this.frameDump = 'off';
+        this.frameDumpReason = '';
         this._showTimer = null;
     }
 
@@ -159,6 +162,11 @@ class FakeRender extends LineServer {
                 hud_width_pct: this.hudWidth || 0, hud_x: this.hudX || 0, hud_y: this.hudY || 0 });
             if (this.hudKeep !== null) s.hud_keep_shown = this.hudKeep;
             if (this.hudCrop !== null) s.hud_crop_width_pct = this.hudCrop;
+            if (this.frameDump !== null) {
+                s.frame_dump = this.frameDump;
+                s.frame_dump_reason = this.frameDumpReason;
+                s.frame_dump_size = 1373760;
+            }
         }
         if (this.hide !== null) {
             s.hide_bmw_guidance = this.hide;
@@ -205,6 +213,33 @@ class FakeRender extends LineServer {
             if (msg.hud_x !== undefined) this.hudX = lim(Number(msg.hud_x));
             if (msg.hud_y !== undefined) this.hudY = Number(msg.hud_y);
             if (msg.hud_keep_shown !== undefined && this.hudKeep !== null) this.hudKeep = Number(msg.hud_keep_shown);
+            this._broadcast(this._status());
+        }
+        if (msg.cmd === 'frame-dump' && this.frameDump !== null) {
+            /* one request, one frame: what waits or is written is the answer */
+            if (this.frameDump !== 'waiting' && this.frameDump !== 'captured') {
+                this.frameDump = 'waiting';
+                this.frameDumpReason = 'waiting for a 1440x636 CarPlay frame';
+                this._broadcast(this._status());
+            }
+        }
+    }
+
+    /* The full CarPlay frame the app asked for is written (saved) or held
+     * for the archive (not yet). */
+    frameCaptured(saved) {
+        if (this.frameDump !== null) {
+            this.frameDump = saved === false ? 'captured' : 'saved';
+            this.frameDumpReason = '';
+            this._broadcast(this._status());
+        }
+    }
+
+    /* The capture failed, with the tool's reason. */
+    frameFailed(why) {
+        if (this.frameDump !== null) {
+            this.frameDump = 'failed';
+            this.frameDumpReason = why || 'no CarPlay frame yet';
             this._broadcast(this._status());
         }
     }

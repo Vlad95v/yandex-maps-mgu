@@ -98,6 +98,10 @@ const CLUSTER_OFFSET_NAME = 'wocClusterOffset';
 const CLUSTER_OFFSET_MOVE_NAMES = { left: 'wocClusterLeft', right: 'wocClusterRight' };
 const CLUSTER_CENTRE_NAME = 'wocClusterCentre';
 const CAPTURE_NAME = 'wocCapture';
+/* The Logs page's own capture of one full CarPlay frame, and its status. */
+const CAPTURE_FRAME_NAME = 'wocCaptureFrame';
+const FRAME_STATUS_NAME = 'wocFrameStatus';
+const FRAME_NOTE_NAME = 'wocFrameNote';
 const CAPTURE_STATUS = 'wocCaptureStatus';
 const LOGS_NAME = 'wocLogs';
 const LOGS_STATE = 'ST_OnlineApps_WazeClusterLogs';
@@ -141,7 +145,11 @@ class WazeClusterApp extends OnlineApp {
         this._sawForeground = false;
         this._shutdownPromise = null;
         this._control = new WazeClusterControl({ log: logger });
-        this._control.on('change', () => this._render());
+        this._control.on('change', () => {
+            this._render();
+            /* the Logs page's frame capture reads the render's status too */
+            this._renderLogs();
+        });
         this._logs = new LogsControl({ log: logger });
         this._logs.on('change', () => this._renderLogs());
         /* the map settings per driver profile, page shown or not */
@@ -212,7 +220,8 @@ class WazeClusterApp extends OnlineApp {
             AA_ENABLE_NAME, AA_DISABLE_NAME, AA_ZOOM_NAME, AA_ZOOM_OUT_NAME, AA_ZOOM_IN_NAME, AA_CARD_NAME, RESTART_NAME, GUIDE_NAME,
             HEAD_GENERAL_NAME, HEAD_HUD_NAME, SHOW_ON_NAME, PROFILE_NAME, HUD_NAME, HUD_KEEP_NAME, HUD_SIZE_NAME, HUD_CROP_NAME, HUD_POS_NAME]
             .concat(Object.values(HUD_MOVE_NAMES), [HUD_CENTRE_NAME, CAPTURE_NAME, CAPTURE_STATUS,
-                LOGS_NAME, LOGS_SAVE, LOGS_STATUS, LOGS_QR, LOGS_URL], LOGS_ROW_NAMES,
+                LOGS_NAME, LOGS_SAVE, LOGS_STATUS, LOGS_QR, LOGS_URL, CAPTURE_FRAME_NAME, FRAME_STATUS_NAME,
+                FRAME_NOTE_NAME], LOGS_ROW_NAMES,
                 [CLUSTER_OFFSET_NAME, CLUSTER_OFFSET_MOVE_NAMES.left, CLUSTER_OFFSET_MOVE_NAMES.right, CLUSTER_CENTRE_NAME]);
         names.forEach((name) => { this._components[name] = rhmi.getByName(name); });
         const missing = names.filter((name) => !this._components[name]);
@@ -284,6 +293,7 @@ class WazeClusterApp extends OnlineApp {
         this._bind(LOGS_NAME, () => Promise.resolve(rhmi.openState(LOGS_STATE))
             .catch((err) => logger.warn(`openState ${LOGS_STATE} failed: ${err && err.message}`)));
         this._bind(LOGS_SAVE, () => this._logs.save());
+        this._bind(CAPTURE_FRAME_NAME, () => this._control.captureFrame());
         // Presses also arrive as the application's raw 'userEvent'; both paths
         // land in _press, which keeps a press delivered twice to one.
         rhmi.on('userEvent', (ev) => {
@@ -621,6 +631,13 @@ class WazeClusterApp extends OnlineApp {
         this._write(LOGS_STATUS, this._logs.statusText());
         this._write(LOGS_URL, this._logs.urlText());
         this._setEnabled(LOGS_SAVE, this._logs.canSave());
+        /* The full CarPlay frame: asked for here, captured by the render,
+         * and taken into the archive by Save logs above. */
+        this._write(CAPTURE_FRAME_NAME, t('Capture full CarPlay frame'));
+        this._write(FRAME_STATUS_NAME, this._control.frameDumpText());
+        this._setEnabled(CAPTURE_FRAME_NAME, this._control.canCaptureFrame());
+        this._write(FRAME_NOTE_NAME,
+            t('The frame is not scrubbed: the archive may contain the map, addresses, your location and route.'));
         const rows = this._logs.rows();
         LOGS_ROW_NAMES.forEach((name, i) => this._write(name, oneRow(rows[i])));
         this._showQr(this._logs.url());

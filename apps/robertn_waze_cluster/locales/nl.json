@@ -98,6 +98,13 @@
     "Audio may cut out. On your iPhone, turn Wi-Fi off and on.": "Het geluid kan wegvallen. Zet Wi-Fi op je iPhone uit en weer aan.",
     "Own settings for this driver": "Eigen instellingen voor deze bestuurder",
     "Keep HUD map over BMW's pop-ups": "Kaart in HUD boven BMW-pop-ups houden",
-    "Cluster offset: {0}": "Cluster-verschuiving: {0}"
+    "Cluster offset: {0}": "Cluster-verschuiving: {0}",
+    "Capture full CarPlay frame": "Volledig CarPlay-frame vastleggen",
+    "CarPlay frame: {0}": "CarPlay-frame: {0}",
+    "Waiting for CarPlay frame": "Wachten op CarPlay-frame",
+    "Frame captured. Ready to save logs": "Frame vastgelegd. Klaar om de logboeken op te slaan",
+    "Capture failed": "Vastleggen mislukt",
+    "Not captured": "Niet vastgelegd",
+    "The frame is not scrubbed: the archive may contain the map, addresses, your location and route.": "Het frame wordt niet opgeschoond: het archief kan de kaart, adressen, uw locatie en route bevatten."
   }
 }

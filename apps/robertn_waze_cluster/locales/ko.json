@@ -96,6 +96,13 @@
     "Audio may cut out. On your iPhone, turn Wi-Fi off and on.": "오디오가 끊길 수 있습니다. iPhone에서 Wi-Fi를 껐다가 다시 켜십시오.",
     "Own settings for this driver": "이 운전자 전용 설정",
     "Keep HUD map over BMW's pop-ups": "BMW 팝업 위에 HUD 지도 유지",
-    "Cluster offset: {0}": "클러스터 오프셋: {0}"
+    "Cluster offset: {0}": "클러스터 오프셋: {0}",
+    "Capture full CarPlay frame": "м „мІґ CarPlay н”„л €мћ„ мєЎмІ",
+    "CarPlay frame: {0}": "CarPlay н”„л €мћ„: {0}",
+    "Waiting for CarPlay frame": "CarPlay н”„л €мћ„ лЊЂкё° м¤‘",
+    "Frame captured. Ready to save logs": "н”„л €мћ„мќ„ мєЎмІн–€мЉµл‹€л‹¤. лЎњк·ёлҐј м ЂмћҐн•  м¤Ђл№„к°Ђ лђм—€мЉµл‹€л‹¤",
+    "Capture failed": "мєЎмІ м‹¤нЊЁ",
+    "Not captured": "мєЎмІлђм§Ђ м•ЉмќЊ",
+    "The frame is not scrubbed: the archive may contain the map, addresses, your location and route.": "н”„л €мћ„мќЂ мќµлЄ…н™”лђм§Ђ м•ЉмЉµл‹€л‹¤. м•„м№ґмќґлёЊм—ђ м§ЂлЏ„, мЈјм†Њ, мњ„м№ л°Џ кІЅлЎњк°Ђ нЏ¬н•Ёлђ  м€ мћ€мЉµл‹€л‹¤."
   }
 }

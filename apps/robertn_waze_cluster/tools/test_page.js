@@ -338,12 +338,16 @@ async function main() {
     assert.deepStrictEqual(xmlIds('2').map(([id, type]) => `${id} ${type}`).sort(),
         Object.entries(logsPage.components).map(([id, d]) => `${id} ${d.type}`).sort(), 'application.xml and uiDescription agree on the Logs page');
     assert.deepStrictEqual(xmlIds('2').map(([id]) => logsPage.components[id].name), ['wocLogsTitle', 'wocCapture', 'wocCaptureStatus',
-        'wocLogsSave', 'wocLogsStatus', 'wocLogsQr', 'wocLogsUrl', 'wocLogsRow1', 'wocLogsRow2', 'wocLogsRow3', 'wocLogsRow4', 'wocLogsRow5']);
+        'wocCaptureFrame', 'wocFrameStatus', 'wocFrameNote', 'wocLogsSave', 'wocLogsStatus', 'wocLogsQr', 'wocLogsUrl', 'wocLogsRow1',
+        'wocLogsRow2', 'wocLogsRow3', 'wocLogsRow4', 'wocLogsRow5']);
     assert(/<component id="83" type="label" widget="LT_Label_1Graphic_Scalable">/.test(XML), 'the QR code is a graphic');
     assert.strictEqual(APP_JSON.application.entryPoints.length, 1);
     assert.deepStrictEqual(xmlIds('2').slice(1).map(([id]) => logsPage.components[id].rows[0].Text && logsPage.components[id].rows[0].Text.value)
-        .slice(0, 4), ['Start capture', 'Capture: Unavailable', 'Save logs', 'Saved logs: Connecting…']);
-    console.log('ok   the Logs page: Start capture and its row, Save logs and its row, QR code, address, five archives; a child of the main page');
+        .slice(0, 7), ['Start capture', 'Capture: Unavailable', 'Capture full CarPlay frame', 'CarPlay frame: \u2014',
+        'The frame is not scrubbed: the archive may contain the map, addresses, your location and route.',
+        'Save logs', 'Saved logs: Connecting…']);
+    console.log('ok   the Logs page: Start capture, the full CarPlay frame and its note, Save logs and its row, QR code, address, ' +
+        'five archives; a child of the main page');
 
     const render = new FakeRender(RSOCK);
     let patch = new FakePatch(PSOCK);
@@ -364,7 +368,7 @@ async function main() {
         assert(!logs.some((l) => /^error/.test(l)), logs.filter((l) => /^error/.test(l)).join('\n'));
         const bound = logs.filter((l) => l.startsWith('info: BIND OK: ')).map((l) => l.split(' ')[3]).sort();
         assert.deepStrictEqual(bound, ['wocAaCard', 'wocAaDisable', 'wocAaEnable', 'wocAaZoomIn', 'wocAaZoomOut', 'wocCapture',
-            'wocClusterCentre', 'wocClusterLeft', 'wocClusterRight', 'wocDisable', 'wocEnable',
+            'wocCaptureFrame', 'wocClusterCentre', 'wocClusterLeft', 'wocClusterRight', 'wocDisable', 'wocEnable',
             'wocGuide', 'wocHudCentre', 'wocHudDown', 'wocHudKeep', 'wocHudLeft', 'wocHudRight', 'wocHudUp', 'wocLogs', 'wocLogsSave', 'wocProfile',
             'wocRestart'],
             'bound buttons and checkbox');
@@ -728,6 +732,41 @@ async function main() {
         assert.deepStrictEqual(fs.readFileSync(qr1).slice(0, 8), Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]));
         assert.strictEqual(fs.statSync(qr1).mode & 0o777, 0o644, 'the HMI reads it');
         console.log('ok   Logs opens the Logs page; the app stays shown; the page shows the address and its QR code');
+
+        /* The full CarPlay frame: the button asks the render once, the page
+         * follows the render's state, and Save logs takes the frame in. */
+        const frameBtn = byName.wocCaptureFrame;
+        const frameStatus = byName.wocFrameStatus;
+        await until('the frame row', () => frameBtn.text === 'Capture full CarPlay frame' &&
+            frameStatus.text === 'CarPlay frame: Not captured' && frameBtn.enabled === true &&
+            byName.wocFrameNote.visible === true &&
+            /^The frame is not scrubbed/.test(byName.wocFrameNote.text));
+        render.received.length = 0;
+        frameBtn.emit('action');
+        await until('asked', () => render.frameDump === 'waiting' && frameStatus.text === 'CarPlay frame: Waiting for CarPlay frame');
+        assert.deepStrictEqual(render.received, [{ cmd: 'frame-dump' }], 'one command to the render');
+        await until('the button greyed while it waits', () => frameBtn.enabled === false);
+        frameBtn.emit('action');
+        await sleep(100);
+        assert.strictEqual(render.received.length, 1, 'a greyed press sends nothing, and no second capture is asked for');
+        render.frameCaptured(false);
+        await until('held for the archive', () => frameStatus.text === 'CarPlay frame: Frame captured. Ready to save logs' &&
+            frameBtn.enabled === false);
+        render.frameCaptured(true);
+        await until('saved, ready for Save logs', () => frameStatus.text === 'CarPlay frame: Frame captured. Ready to save logs' &&
+            frameBtn.enabled === true);
+        render.frameFailed('the picture is a part of the frame (hosted_vpp_scale), not the whole CarPlay frame');
+        await until('failed with the reason', () => /^CarPlay frame: Capture failed — the picture is a part/.test(frameStatus.text) &&
+            frameBtn.enabled === true);
+        render.frameDump = null;   /* a render before the feature */
+        render.announce(render.state, render.reason);
+        await until('a render without it: greyed, Unavailable', () => frameStatus.text === 'CarPlay frame: Unavailable' &&
+            frameBtn.enabled === false);
+        render.frameDump = 'off';
+        render.announce(render.state, render.reason);
+        await until('back', () => frameStatus.text === 'CarPlay frame: Not captured' && frameBtn.enabled === true);
+        console.log('ok   the full CarPlay frame: asked once, greyed while it waits, the render\'s state with its reason, ' +
+            'Unavailable for a render without it');
 
         byName.wocLogsSave.emit('action');
         ['wocCaptureStatus', 'wocLogsStatus', 'wocLogsUrl'].forEach((n) => assert(/^[A-Z][a-z ]+: [A-Z0-9h]/.test(byName[n].text), byName[n].text));

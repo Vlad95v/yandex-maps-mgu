@@ -96,6 +96,13 @@
     "Audio may cut out. On your iPhone, turn Wi-Fi off and on.": "Âm thanh có thể bị ngắt. Trên iPhone, hãy tắt rồi bật lại Wi-Fi.",
     "Own settings for this driver": "Cài đặt riêng cho người lái này",
     "Keep HUD map over BMW's pop-ups": "Giữ bản đồ trên HUD phía trên cửa sổ bật lên của BMW",
-    "Cluster offset: {0}": "Độ lệch cụm: {0}"
+    "Cluster offset: {0}": "Độ lệch cụm: {0}",
+    "Capture full CarPlay frame": "Chб»Ґp khung hГ¬nh CarPlay Д‘бє§y Д‘б»§",
+    "CarPlay frame: {0}": "Khung hГ¬nh CarPlay: {0}",
+    "Waiting for CarPlay frame": "Дђang chб»ќ khung hГ¬nh CarPlay",
+    "Frame captured. Ready to save logs": "ДђГЈ chб»Ґp khung hГ¬nh. Sбєµn sГ ng lЖ°u nhбє­t kГЅ",
+    "Capture failed": "Chб»Ґp khГґng thГ nh cГґng",
+    "Not captured": "ChЖ°a chб»Ґp",
+    "The frame is not scrubbed: the archive may contain the map, addresses, your location and route.": "Khung hГ¬nh khГґng Д‘Ж°б»Јc lГ m sбєЎch: tб»‡p lЖ°u trб»Ї cГі thб»ѓ chб»©a bбєЈn Д‘б»“, Д‘б»‹a chб»‰, vб»‹ trГ­ vГ  lб»™ trГ¬nh cб»§a bбєЎn."
   }
 }

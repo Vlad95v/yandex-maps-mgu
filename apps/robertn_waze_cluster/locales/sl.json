@@ -96,6 +96,13 @@
     "Audio may cut out. On your iPhone, turn Wi-Fi off and on.": "Zvok se lahko prekinja. Na iPhonu izklopite in vklopite Wi-Fi.",
     "Own settings for this driver": "Lastne nastavitve za tega voznika",
     "Keep HUD map over BMW's pop-ups": "Ohrani zemljevid na HUD nad pojavnimi okni BMW",
-    "Cluster offset: {0}": "Premik klasterja: {0}"
+    "Cluster offset: {0}": "Premik klasterja: {0}",
+    "Capture full CarPlay frame": "Zajemi celoten okvir CarPlay",
+    "CarPlay frame: {0}": "Okvir CarPlay: {0}",
+    "Waiting for CarPlay frame": "ДЊakanje na okvir CarPlay",
+    "Frame captured. Ready to save logs": "Okvir zajet. Pripravljeno za shranjevanje dnevnikov",
+    "Capture failed": "Zajem ni uspel",
+    "Not captured": "Ni zajeto",
+    "The frame is not scrubbed: the archive may contain the map, addresses, your location and route.": "Okvir ni oДЌiЕЎДЌen: arhiv lahko vsebuje zemljevid, naslove, vaЕЎo lokacijo in pot."
   }
 }

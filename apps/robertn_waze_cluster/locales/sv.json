@@ -96,6 +96,13 @@
     "Audio may cut out. On your iPhone, turn Wi-Fi off and on.": "Ljudet kan försvinna. Stäng av och slå på Wi-Fi på din iPhone.",
     "Own settings for this driver": "Egna inställningar för den här föraren",
     "Keep HUD map over BMW's pop-ups": "Behåll karta i HUD över BMW:s popup-fönster",
-    "Cluster offset: {0}": "Klusterförskjutning: {0}"
+    "Cluster offset: {0}": "Klusterförskjutning: {0}",
+    "Capture full CarPlay frame": "FГҐnga en hel CarPlay-bild",
+    "CarPlay frame: {0}": "CarPlay-bild: {0}",
+    "Waiting for CarPlay frame": "VГ¤ntar pГҐ CarPlay-bild",
+    "Frame captured. Ready to save logs": "Bilden fГҐngad. Klar att spara loggarna",
+    "Capture failed": "FГҐngsten misslyckades",
+    "Not captured": "Inte fГҐngad",
+    "The frame is not scrubbed: the archive may contain the map, addresses, your location and route.": "Bilden rensas inte: arkivet kan innehГҐlla kartan, adresser, din position och rutt."
   }
 }

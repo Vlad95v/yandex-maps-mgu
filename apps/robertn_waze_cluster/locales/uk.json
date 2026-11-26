@@ -96,6 +96,13 @@
     "Audio may cut out. On your iPhone, turn Wi-Fi off and on.": "Звук може перериватися. На iPhone вимкніть і знову ввімкніть Wi-Fi.",
     "Own settings for this driver": "Власні налаштування для цього водія",
     "Keep HUD map over BMW's pop-ups": "Залишати карту на HUD поверх спливних вікон BMW",
-    "Cluster offset: {0}": "Зміщення кластера: {0}"
+    "Cluster offset: {0}": "Зміщення кластера: {0}",
+    "Capture full CarPlay frame": "Р—Р°С…РѕРїРёС‚Рё РїРѕРІРЅРёР№ РєР°РґСЂ CarPlay",
+    "CarPlay frame: {0}": "РљР°РґСЂ CarPlay: {0}",
+    "Waiting for CarPlay frame": "РћС‡С–РєСѓРІР°РЅРЅСЏ РєР°РґСЂСѓ CarPlay",
+    "Frame captured. Ready to save logs": "РљР°РґСЂ Р·Р°С…РѕРїР»РµРЅРѕ. РњРѕР¶РЅР° Р·Р±РµСЂС–РіР°С‚Рё Р»РѕРіРё",
+    "Capture failed": "РќРµ РІРґР°Р»РѕСЃСЏ Р·Р°С…РѕРїРёС‚Рё",
+    "Not captured": "РќРµ Р·Р°С…РѕРїР»РµРЅРѕ",
+    "The frame is not scrubbed: the archive may contain the map, addresses, your location and route.": "РљР°РґСЂ РЅРµ Р·РЅРµРѕСЃРѕР±Р»СЋС”С‚СЊСЃСЏ: РІ Р°СЂС…С–РІС– РјРѕР¶СѓС‚СЊ Р±СѓС‚Рё РєР°СЂС‚Р°, Р°РґСЂРµСЃРё, РІР°С€Рµ РјС–СЃС†РµРїРѕР»РѕР¶РµРЅРЅСЏ С‚Р° РјР°СЂС€СЂСѓС‚."
   }
 }

@@ -96,6 +96,13 @@
     "Audio may cut out. On your iPhone, turn Wi-Fi off and on.": "音声が途切れることがあります。iPhoneでWi-Fiをオフにしてからオンにしてください。",
     "Own settings for this driver": "このドライバー専用の設定",
     "Keep HUD map over BMW's pop-ups": "HUDの地図をBMWのポップアップより優先",
-    "Cluster offset: {0}": "クラスタオフセット: {0}"
+    "Cluster offset: {0}": "クラスタオフセット: {0}",
+    "Capture full CarPlay frame": "CarPlay гЃ®е…Ёз”»йќўгѓ•гѓ¬гѓјгѓ г‚’г‚­гѓЈгѓ—гѓЃгѓЈ",
+    "CarPlay frame: {0}": "CarPlay гѓ•гѓ¬гѓјгѓ : {0}",
+    "Waiting for CarPlay frame": "CarPlay гѓ•гѓ¬гѓјгѓ г‚’еѕ…ж©џдё­",
+    "Frame captured. Ready to save logs": "гѓ•гѓ¬гѓјгѓ г‚’г‚­гѓЈгѓ—гѓЃгѓЈгЃ—гЃѕгЃ—гЃџгЂ‚гѓ­г‚°г‚’дїќе­гЃ§гЃЌгЃѕгЃ™",
+    "Capture failed": "г‚­гѓЈгѓ—гѓЃгѓЈгЃ«е¤±ж•—гЃ—гЃѕгЃ—гЃџ",
+    "Not captured": "жњЄг‚­гѓЈгѓ—гѓЃгѓЈ",
+    "The frame is not scrubbed: the archive may contain the map, addresses, your location and route.": "гѓ•гѓ¬гѓјгѓ гЃЇеЊїеђЌеЊ–гЃ•г‚ЊгЃѕгЃ›г‚“гЂ‚г‚ўгѓјг‚«г‚¤гѓ–гЃ«гЃЇењ°е›ігЂЃдЅЏж‰ЂгЂЃзЏѕењЁењ°гЂЃгѓ«гѓјгѓ€гЃЊеђ«гЃѕг‚Њг‚‹е ґеђ€гЃЊгЃ‚г‚ЉгЃѕгЃ™гЂ‚"
   }
 }

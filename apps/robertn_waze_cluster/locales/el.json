@@ -96,6 +96,13 @@
     "Audio may cut out. On your iPhone, turn Wi-Fi off and on.": "Ο ήχος μπορεί να διακόπτεται. Στο iPhone, απενεργοποιήστε και ενεργοποιήστε ξανά το Wi-Fi.",
     "Own settings for this driver": "Δικές ρυθμίσεις για αυτόν τον οδηγό",
     "Keep HUD map over BMW's pop-ups": "Διατήρηση χάρτη στο HUD πάνω από τα αναδυόμενα της BMW",
-    "Cluster offset: {0}": "Μετατόπιση kombi: {0}"
+    "Cluster offset: {0}": "Μετατόπιση kombi: {0}",
+    "Capture full CarPlay frame": "ОљО±П„О±ОіПЃО±П†О® ПЂО»О®ПЃОїП…П‚ ОєО±ПЃО­ CarPlay",
+    "CarPlay frame: {0}": "ОљО±ПЃО­ CarPlay: {0}",
+    "Waiting for CarPlay frame": "О‘ОЅО±ОјОїОЅО® ОіО№О± ОєО±ПЃО­ CarPlay",
+    "Frame captured. Ready to save logs": "О¤Ої ОєО±ПЃО­ ОєО±П„О±ОіПЃО¬П†О·ОєОµ. О€П„ОїО№ОјОї ОіО№О± О±ПЂОїОёО®ОєОµП…ПѓО· О±ПЃП‡ОµОЇП‰ОЅ ОєО±П„О±ОіПЃО±П†О®П‚",
+    "Capture failed": "О— ОєО±П„О±ОіПЃО±П†О® О±ПЂО­П„П…П‡Оµ",
+    "Not captured": "О”ОµОЅ ОєО±П„О±ОіПЃО¬П†О·ОєОµ",
+    "The frame is not scrubbed: the archive may contain the map, addresses, your location and route.": "О¤Ої ОєО±ПЃО­ ОґОµОЅ ОєО±ОёО±ПЃОЇО¶ОµП„О±О№: П„Ої О±ПЃП‡ОµОЇОї ОјПЂОїПЃОµОЇ ОЅО± ПЂОµПЃО№О­П‡ОµО№ П„ОїОЅ П‡О¬ПЃП„О·, ОґО№ОµП…ОёПЌОЅПѓОµО№П‚, П„О·ОЅ П„ОїПЂОїОёОµПѓОЇО± ОєО±О№ П„О· ОґО№О±ОґПЃОїОјО® ПѓО±П‚."
   }
 }

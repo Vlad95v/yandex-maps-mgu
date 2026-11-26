@@ -96,6 +96,13 @@
     "Audio may cut out. On your iPhone, turn Wi-Fi off and on.": "Zvuk se může přerušovat. Na iPhonu vypněte a zapněte Wi-Fi.",
     "Own settings for this driver": "Vlastní nastavení pro tohoto řidiče",
     "Keep HUD map over BMW's pop-ups": "Ponechat mapu na HUD přes vyskakovací okna BMW",
-    "Cluster offset: {0}": "Posun kombi: {0}"
+    "Cluster offset: {0}": "Posun kombi: {0}",
+    "Capture full CarPlay frame": "Zachytit celГЅ snГ­mek CarPlay",
+    "CarPlay frame: {0}": "SnГ­mek CarPlay: {0}",
+    "Waiting for CarPlay frame": "ДЊekГЎnГ­ na snГ­mek CarPlay",
+    "Frame captured. Ready to save logs": "SnГ­mek zachycen. PЕ™ipraveno k uloЕѕenГ­ protokolЕЇ",
+    "Capture failed": "ZachycenГ­ se nezdaЕ™ilo",
+    "Not captured": "Nezachyceno",
+    "The frame is not scrubbed: the archive may contain the map, addresses, your location and route.": "SnГ­mek se neДЌistГ­: archiv mЕЇЕѕe obsahovat mapu, adresy, vaЕЎi polohu a trasu."
   }
 }

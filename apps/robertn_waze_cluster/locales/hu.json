@@ -96,6 +96,13 @@
     "Audio may cut out. On your iPhone, turn Wi-Fi off and on.": "A hang akadozhat. Az iPhone-on kapcsolja ki, majd be a Wi-Fi-t.",
     "Own settings for this driver": "Saját beállítások ennek a vezetőnek",
     "Keep HUD map over BMW's pop-ups": "Térkép megtartása a HUD-on a BMW felugró ablakai felett",
-    "Cluster offset: {0}": "Kombi eltolás: {0}"
+    "Cluster offset: {0}": "Kombi eltolás: {0}",
+    "Capture full CarPlay frame": "Teljes CarPlay-kГ©pkocka rГ¶gzГ­tГ©se",
+    "CarPlay frame: {0}": "CarPlay-kГ©pkocka: {0}",
+    "Waiting for CarPlay frame": "VГЎrakozГЎs a CarPlay-kГ©pkockГЎra",
+    "Frame captured. Ready to save logs": "KГ©pkocka rГ¶gzГ­tve. KГ©sz a naplГіk mentГ©sГ©re",
+    "Capture failed": "A rГ¶gzГ­tГ©s nem sikerГјlt",
+    "Not captured": "Nincs rГ¶gzГ­tve",
+    "The frame is not scrubbed: the archive may contain the map, addresses, your location and route.": "A kГ©pkocka nincs tisztГ­tva: az archГ­vum tartalmazhatja a tГ©rkГ©pet, a cГ­meket, a helyГ©t Г©s az ГєtvonalГЎt."
   }
 }

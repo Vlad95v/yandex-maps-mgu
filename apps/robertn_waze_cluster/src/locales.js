@@ -100,7 +100,14 @@ module.exports = [
    "Audio may cut out. On your iPhone, turn Wi-Fi off and on.": "قد ينقطع الصوت. على iPhone، أوقف Wi-Fi ثم شغّله.",
    "Own settings for this driver": "إعدادات خاصة لهذا السائق",
    "Keep HUD map over BMW's pop-ups": "إبقاء خريطة HUD فوق النوافذ المنبثقة من BMW",
-   "Cluster offset: {0}": "إزاحة الكومبي: {0}"
+   "Cluster offset: {0}": "إزاحة الكومبي: {0}",
+   "Capture full CarPlay frame": "Ш§Щ„ШЄЩ‚Ш§Ш· ШҐШ·Ш§Ш± CarPlay ЩѓШ§Щ…Щ„",
+   "CarPlay frame: {0}": "ШҐШ·Ш§Ш± CarPlay: {0}",
+   "Waiting for CarPlay frame": "ЩЃЩЉ Ш§Щ†ШЄШёШ§Ш± ШҐШ·Ш§Ш± CarPlay",
+   "Frame captured. Ready to save logs": "ШЄЩ… Ш§Щ„ШЄЩ‚Ш§Ш· Ш§Щ„ШҐШ·Ш§Ш±. Ш¬Ш§Щ‡ШІ Щ„Ш­ЩЃШё Ш§Щ„ШіШ¬Щ„Ш§ШЄ",
+   "Capture failed": "ЩЃШґЩ„ Ш§Щ„Ш§Щ„ШЄЩ‚Ш§Ш·",
+   "Not captured": "Щ„Щ… ЩЉШЄЩ… Ш§Щ„Ш§Щ„ШЄЩ‚Ш§Ш·",
+   "The frame is not scrubbed: the archive may contain the map, addresses, your location and route.": "Щ„Ш§ ШЄШЄЩ… ШЄЩ†Щ‚ЩЉШ© Ш§Щ„ШҐШ·Ш§Ш±: Щ‚ШЇ ЩЉШ­ШЄЩ€ЩЉ Ш§Щ„ШЈШ±ШґЩЉЩЃ Ш№Щ„Щ‰ Ш§Щ„Ш®Ш±ЩЉШ·Ш© Щ€Ш§Щ„Ш№Щ†Ш§Щ€ЩЉЩ† Щ€Щ…Щ€Щ‚Ш№Щѓ Щ€Щ…ШіШ§Ш±Щѓ."
   }
  },
  {
@@ -202,7 +209,14 @@ module.exports = [
    "Audio may cut out. On your iPhone, turn Wi-Fi off and on.": "Zvuk se může přerušovat. Na iPhonu vypněte a zapněte Wi-Fi.",
    "Own settings for this driver": "Vlastní nastavení pro tohoto řidiče",
    "Keep HUD map over BMW's pop-ups": "Ponechat mapu na HUD přes vyskakovací okna BMW",
-   "Cluster offset: {0}": "Posun kombi: {0}"
+   "Cluster offset: {0}": "Posun kombi: {0}",
+   "Capture full CarPlay frame": "Zachytit celГЅ snГ­mek CarPlay",
+   "CarPlay frame: {0}": "SnГ­mek CarPlay: {0}",
+   "Waiting for CarPlay frame": "ДЊekГЎnГ­ na snГ­mek CarPlay",
+   "Frame captured. Ready to save logs": "SnГ­mek zachycen. PЕ™ipraveno k uloЕѕenГ­ protokolЕЇ",
+   "Capture failed": "ZachycenГ­ se nezdaЕ™ilo",
+   "Not captured": "Nezachyceno",
+   "The frame is not scrubbed: the archive may contain the map, addresses, your location and route.": "SnГ­mek se neДЌistГ­: archiv mЕЇЕѕe obsahovat mapu, adresy, vaЕЎi polohu a trasu."
   }
  },
  {
@@ -304,7 +318,14 @@ module.exports = [
    "Audio may cut out. On your iPhone, turn Wi-Fi off and on.": "Lyden kan falde ud. Slå Wi-Fi fra og til på din iPhone.",
    "Own settings for this driver": "Egne indstillinger for denne fører",
    "Keep HUD map over BMW's pop-ups": "Behold kort i HUD over BMW's pop-ups",
-   "Cluster offset: {0}": "Kombi-forskydning: {0}"
+   "Cluster offset: {0}": "Kombi-forskydning: {0}",
+   "Capture full CarPlay frame": "Optag et helt CarPlay-billede",
+   "CarPlay frame: {0}": "CarPlay-billede: {0}",
+   "Waiting for CarPlay frame": "Venter pГҐ CarPlay-billede",
+   "Frame captured. Ready to save logs": "Billede optaget. Klar til at gemme logfiler",
+   "Capture failed": "Optagelsen mislykkedes",
+   "Not captured": "Ikke optaget",
+   "The frame is not scrubbed: the archive may contain the map, addresses, your location and route.": "Billedet renses ikke: arkivet kan indeholde kortet, adresser, din placering og rute."
   }
  },
  {
@@ -406,7 +427,14 @@ module.exports = [
    "Audio may cut out. On your iPhone, turn Wi-Fi off and on.": "Der Ton kann aussetzen. Am iPhone WLAN aus- und wieder einschalten.",
    "Own settings for this driver": "Eigene Einstellungen für diesen Fahrer",
    "Keep HUD map over BMW's pop-ups": "Karte im HUD vor BMW-Pop-ups behalten",
-   "Cluster offset: {0}": "Kombi-Versatz: {0}"
+   "Cluster offset: {0}": "Kombi-Versatz: {0}",
+   "Capture full CarPlay frame": "Ganzes CarPlay-Bild aufnehmen",
+   "CarPlay frame: {0}": "CarPlay-Bild: {0}",
+   "Waiting for CarPlay frame": "Warten auf CarPlay-Bild",
+   "Frame captured. Ready to save logs": "Bild aufgenommen. Bereit zum Speichern der Protokolle",
+   "Capture failed": "Aufnahme fehlgeschlagen",
+   "Not captured": "Nicht aufgenommen",
+   "The frame is not scrubbed: the archive may contain the map, addresses, your location and route.": "Das Bild wird nicht bereinigt: Das Archiv kann die Karte, Adressen, Ihren Standort und Ihre Route enthalten."
   }
  },
  {
@@ -508,7 +536,14 @@ module.exports = [
    "Audio may cut out. On your iPhone, turn Wi-Fi off and on.": "Ο ήχος μπορεί να διακόπτεται. Στο iPhone, απενεργοποιήστε και ενεργοποιήστε ξανά το Wi-Fi.",
    "Own settings for this driver": "Δικές ρυθμίσεις για αυτόν τον οδηγό",
    "Keep HUD map over BMW's pop-ups": "Διατήρηση χάρτη στο HUD πάνω από τα αναδυόμενα της BMW",
-   "Cluster offset: {0}": "Μετατόπιση kombi: {0}"
+   "Cluster offset: {0}": "Μετατόπιση kombi: {0}",
+   "Capture full CarPlay frame": "ОљО±П„О±ОіПЃО±П†О® ПЂО»О®ПЃОїП…П‚ ОєО±ПЃО­ CarPlay",
+   "CarPlay frame: {0}": "ОљО±ПЃО­ CarPlay: {0}",
+   "Waiting for CarPlay frame": "О‘ОЅО±ОјОїОЅО® ОіО№О± ОєО±ПЃО­ CarPlay",
+   "Frame captured. Ready to save logs": "О¤Ої ОєО±ПЃО­ ОєО±П„О±ОіПЃО¬П†О·ОєОµ. О€П„ОїО№ОјОї ОіО№О± О±ПЂОїОёО®ОєОµП…ПѓО· О±ПЃП‡ОµОЇП‰ОЅ ОєО±П„О±ОіПЃО±П†О®П‚",
+   "Capture failed": "О— ОєО±П„О±ОіПЃО±П†О® О±ПЂО­П„П…П‡Оµ",
+   "Not captured": "О”ОµОЅ ОєО±П„О±ОіПЃО¬П†О·ОєОµ",
+   "The frame is not scrubbed: the archive may contain the map, addresses, your location and route.": "О¤Ої ОєО±ПЃО­ ОґОµОЅ ОєО±ОёО±ПЃОЇО¶ОµП„О±О№: П„Ої О±ПЃП‡ОµОЇОї ОјПЂОїПЃОµОЇ ОЅО± ПЂОµПЃО№О­П‡ОµО№ П„ОїОЅ П‡О¬ПЃП„О·, ОґО№ОµП…ОёПЌОЅПѓОµО№П‚, П„О·ОЅ П„ОїПЂОїОёОµПѓОЇО± ОєО±О№ П„О· ОґО№О±ОґПЃОїОјО® ПѓО±П‚."
   }
  },
  {
@@ -610,7 +645,14 @@ module.exports = [
    "Audio may cut out. On your iPhone, turn Wi-Fi off and on.": "El audio puede cortarse. En tu iPhone, desactiva y vuelve a activar el Wi-Fi.",
    "Own settings for this driver": "Configuración propia para este conductor",
    "Keep HUD map over BMW's pop-ups": "Mantener mapa en el HUD sobre ventanas emergentes de BMW",
-   "Cluster offset: {0}": "Desplazamiento del cluster: {0}"
+   "Cluster offset: {0}": "Desplazamiento del cluster: {0}",
+   "Capture full CarPlay frame": "Capturar un fotograma completo de CarPlay",
+   "CarPlay frame: {0}": "Fotograma de CarPlay: {0}",
+   "Waiting for CarPlay frame": "Esperando el fotograma de CarPlay",
+   "Frame captured. Ready to save logs": "Fotograma capturado. Listo para guardar los registros",
+   "Capture failed": "Error al capturar",
+   "Not captured": "No capturado",
+   "The frame is not scrubbed: the archive may contain the map, addresses, your location and route.": "El fotograma no se depura: el archivo puede contener el mapa, direcciones, tu ubicaciГіn y tu ruta."
   }
  },
  {
@@ -712,7 +754,14 @@ module.exports = [
    "Audio may cut out. On your iPhone, turn Wi-Fi off and on.": "El audio puede cortarse. En tu iPhone, desactiva y vuelve a activar la Wi-Fi.",
    "Own settings for this driver": "Ajustes propios para este conductor",
    "Keep HUD map over BMW's pop-ups": "Mantener mapa en el HUD sobre ventanas emergentes de BMW",
-   "Cluster offset: {0}": "Desplazamiento del cluster: {0}"
+   "Cluster offset: {0}": "Desplazamiento del cluster: {0}",
+   "Capture full CarPlay frame": "Capturar un fotograma completo de CarPlay",
+   "CarPlay frame: {0}": "Fotograma de CarPlay: {0}",
+   "Waiting for CarPlay frame": "Esperando el fotograma de CarPlay",
+   "Frame captured. Ready to save logs": "Fotograma capturado. Listo para guardar los registros",
+   "Capture failed": "Error al capturar",
+   "Not captured": "No capturado",
+   "The frame is not scrubbed: the archive may contain the map, addresses, your location and route.": "El fotograma no se depura: el archivo puede contener el mapa, direcciones, tu ubicaciГіn y tu ruta."
   }
  },
  {
@@ -814,7 +863,14 @@ module.exports = [
    "Audio may cut out. On your iPhone, turn Wi-Fi off and on.": "Ääni voi katkeilla. Laita iPhonen Wi-Fi pois ja takaisin päälle.",
    "Own settings for this driver": "Omat asetukset tälle kuljettajalle",
    "Keep HUD map over BMW's pop-ups": "Pidä HUD-kartta BMW:n ponnahdusikkunoiden päällä",
-   "Cluster offset: {0}": "Klusterin siirto: {0}"
+   "Cluster offset: {0}": "Klusterin siirto: {0}",
+   "Capture full CarPlay frame": "Kaappaa koko CarPlay-kuva",
+   "CarPlay frame: {0}": "CarPlay-kuva: {0}",
+   "Waiting for CarPlay frame": "Odotetaan CarPlay-kuvaa",
+   "Frame captured. Ready to save logs": "Kuva kaapattu. Valmis tallentamaan lokit",
+   "Capture failed": "Kaappaus epГ¤onnistui",
+   "Not captured": "Ei kaapattu",
+   "The frame is not scrubbed: the archive may contain the map, addresses, your location and route.": "Kuvaa ei siivota: arkisto voi sisГ¤ltГ¤Г¤ kartan, osoitteet, sijaintisi ja reittisi."
   }
  },
  {
@@ -916,7 +972,14 @@ module.exports = [
    "Audio may cut out. On your iPhone, turn Wi-Fi off and on.": "Le son peut se couper. Sur votre iPhone, désactivez puis réactivez le Wi-Fi.",
    "Own settings for this driver": "Réglages propres à ce conducteur",
    "Keep HUD map over BMW's pop-ups": "Garder la carte sur le HUD devant les fenêtres contextuelles BMW",
-   "Cluster offset: {0}": "Décalage du combiné: {0}"
+   "Cluster offset: {0}": "Décalage du combiné: {0}",
+   "Capture full CarPlay frame": "Capturer une image CarPlay complГЁte",
+   "CarPlay frame: {0}": "Image CarPlay : {0}",
+   "Waiting for CarPlay frame": "En attente de l'image CarPlay",
+   "Frame captured. Ready to save logs": "Image capturГ©e. PrГЄt Г  enregistrer les journaux",
+   "Capture failed": "Г‰chec de la capture",
+   "Not captured": "Non capturГ©e",
+   "The frame is not scrubbed: the archive may contain the map, addresses, your location and route.": "L'image n'est pas nettoyГ©e : l'archive peut contenir la carte, des adresses, votre position et votre itinГ©raire."
   }
  },
  {
@@ -1018,7 +1081,14 @@ module.exports = [
    "Audio may cut out. On your iPhone, turn Wi-Fi off and on.": "Le son peut se couper. Sur votre iPhone, désactivez puis réactivez le Wi-Fi.",
    "Own settings for this driver": "Réglages propres à ce conducteur",
    "Keep HUD map over BMW's pop-ups": "Garder la carte sur le HUD devant les pop-up BMW",
-   "Cluster offset: {0}": "Décalage du combiné: {0}"
+   "Cluster offset: {0}": "Décalage du combiné: {0}",
+   "Capture full CarPlay frame": "Capturer une image CarPlay complГЁte",
+   "CarPlay frame: {0}": "Image CarPlay : {0}",
+   "Waiting for CarPlay frame": "En attente de l'image CarPlay",
+   "Frame captured. Ready to save logs": "Image capturГ©e. PrГЄt Г  enregistrer les journaux",
+   "Capture failed": "Г‰chec de la capture",
+   "Not captured": "Non capturГ©e",
+   "The frame is not scrubbed: the archive may contain the map, addresses, your location and route.": "L'image n'est pas nettoyГ©e : l'archive peut contenir la carte, des adresses, votre position et votre itinГ©raire."
   }
  },
  {
@@ -1120,7 +1190,14 @@ module.exports = [
    "Audio may cut out. On your iPhone, turn Wi-Fi off and on.": "השמע עלול להיקטע. ב-iPhone, כבו את ה-Wi-Fi והפעילו אותו מחדש.",
    "Own settings for this driver": "הגדרות נפרדות לנהג זה",
    "Keep HUD map over BMW's pop-ups": "השארת המפה ב-HUD מעל החלונות הקופצים של BMW",
-   "Cluster offset: {0}": "היסט אשכול: {0}"
+   "Cluster offset: {0}": "היסט אשכול: {0}",
+   "Capture full CarPlay frame": "ЧњЧ›Ч™Ч“ЧЄ Ч¤ЧЁЧ™Ч™Чќ CarPlay ЧћЧњЧђ",
+   "CarPlay frame: {0}": "Ч¤ЧЁЧ™Ч™Чќ CarPlay: {0}",
+   "Waiting for CarPlay frame": "ЧћЧћЧЄЧ™Чџ ЧњЧ¤ЧЁЧ™Ч™Чќ CarPlay",
+   "Frame captured. Ready to save logs": "Ч”Ч¤ЧЁЧ™Ч™Чќ Ч ЧњЧ›Ч“. ЧћЧ•Ч›Чџ ЧњЧ©ЧћЧ™ЧЁЧЄ Ч”Ч™Ч•ЧћЧ Ч™Чќ",
+   "Capture failed": "Ч”ЧњЧ›Ч™Ч“Ч” Ч Ч›Ч©ЧњЧ”",
+   "Not captured": "ЧњЧђ Ч ЧњЧ›Ч“",
+   "The frame is not scrubbed: the archive may contain the map, addresses, your location and route.": "Ч”Ч¤ЧЁЧ™Ч™Чќ ЧђЧ™Ч Ч• ЧћЧ Ч•Ч§Ч”: Ч”ЧђЧЁЧ›Ч™Ч•Чџ ЧўЧ©Ч•Ч™ ЧњЧ”Ч›Ч™Чњ ЧђЧЄ Ч”ЧћЧ¤Ч”, Ч›ЧЄЧ•Ч‘Ч•ЧЄ, ЧђЧЄ ЧћЧ™Ч§Ч•ЧћЧљ Ч•ЧђЧЄ Ч”ЧћЧЎЧњЧ•Чњ Ч©ЧњЧљ."
   }
  },
  {
@@ -1222,7 +1299,14 @@ module.exports = [
    "Audio may cut out. On your iPhone, turn Wi-Fi off and on.": "A hang akadozhat. Az iPhone-on kapcsolja ki, majd be a Wi-Fi-t.",
    "Own settings for this driver": "Saját beállítások ennek a vezetőnek",
    "Keep HUD map over BMW's pop-ups": "Térkép megtartása a HUD-on a BMW felugró ablakai felett",
-   "Cluster offset: {0}": "Kombi eltolás: {0}"
+   "Cluster offset: {0}": "Kombi eltolás: {0}",
+   "Capture full CarPlay frame": "Teljes CarPlay-kГ©pkocka rГ¶gzГ­tГ©se",
+   "CarPlay frame: {0}": "CarPlay-kГ©pkocka: {0}",
+   "Waiting for CarPlay frame": "VГЎrakozГЎs a CarPlay-kГ©pkockГЎra",
+   "Frame captured. Ready to save logs": "KГ©pkocka rГ¶gzГ­tve. KГ©sz a naplГіk mentГ©sГ©re",
+   "Capture failed": "A rГ¶gzГ­tГ©s nem sikerГјlt",
+   "Not captured": "Nincs rГ¶gzГ­tve",
+   "The frame is not scrubbed: the archive may contain the map, addresses, your location and route.": "A kГ©pkocka nincs tisztГ­tva: az archГ­vum tartalmazhatja a tГ©rkГ©pet, a cГ­meket, a helyГ©t Г©s az ГєtvonalГЎt."
   }
  },
  {
@@ -1324,7 +1408,14 @@ module.exports = [
    "Audio may cut out. On your iPhone, turn Wi-Fi off and on.": "Audio mungkin terputus. Di iPhone Anda, matikan lalu nyalakan Wi-Fi.",
    "Own settings for this driver": "Pengaturan sendiri untuk pengemudi ini",
    "Keep HUD map over BMW's pop-ups": "Pertahankan peta di HUD di atas pop-up BMW",
-   "Cluster offset: {0}": "Offset cluster: {0}"
+   "Cluster offset: {0}": "Offset cluster: {0}",
+   "Capture full CarPlay frame": "Ambil bingkai CarPlay penuh",
+   "CarPlay frame: {0}": "Bingkai CarPlay: {0}",
+   "Waiting for CarPlay frame": "Menunggu bingkai CarPlay",
+   "Frame captured. Ready to save logs": "Bingkai diambil. Siap menyimpan log",
+   "Capture failed": "Pengambilan gagal",
+   "Not captured": "Tidak diambil",
+   "The frame is not scrubbed: the archive may contain the map, addresses, your location and route.": "Bingkai tidak dibersihkan: arsip dapat berisi peta, alamat, lokasi, dan rute Anda."
   }
  },
  {
@@ -1426,7 +1517,14 @@ module.exports = [
    "Audio may cut out. On your iPhone, turn Wi-Fi off and on.": "L'audio potrebbe interrompersi. Sull'iPhone, disattiva e riattiva il Wi-Fi.",
    "Own settings for this driver": "Impostazioni proprie per questo conducente",
    "Keep HUD map over BMW's pop-ups": "Mantieni la mappa sull'HUD sopra i pop-up BMW",
-   "Cluster offset: {0}": "Offset cluster: {0}"
+   "Cluster offset: {0}": "Offset cluster: {0}",
+   "Capture full CarPlay frame": "Acquisisci un fotogramma CarPlay completo",
+   "CarPlay frame: {0}": "Fotogramma CarPlay: {0}",
+   "Waiting for CarPlay frame": "In attesa del fotogramma CarPlay",
+   "Frame captured. Ready to save logs": "Fotogramma acquisito. Pronto per salvare i log",
+   "Capture failed": "Acquisizione non riuscita",
+   "Not captured": "Non acquisito",
+   "The frame is not scrubbed: the archive may contain the map, addresses, your location and route.": "Il fotogramma non viene ripulito: l'archivio puГІ contenere la mappa, indirizzi, la tua posizione e il percorso."
   }
  },
  {
@@ -1528,7 +1626,14 @@ module.exports = [
    "Audio may cut out. On your iPhone, turn Wi-Fi off and on.": "音声が途切れることがあります。iPhoneでWi-Fiをオフにしてからオンにしてください。",
    "Own settings for this driver": "このドライバー専用の設定",
    "Keep HUD map over BMW's pop-ups": "HUDの地図をBMWのポップアップより優先",
-   "Cluster offset: {0}": "クラスタオフセット: {0}"
+   "Cluster offset: {0}": "クラスタオフセット: {0}",
+   "Capture full CarPlay frame": "CarPlay гЃ®е…Ёз”»йќўгѓ•гѓ¬гѓјгѓ г‚’г‚­гѓЈгѓ—гѓЃгѓЈ",
+   "CarPlay frame: {0}": "CarPlay гѓ•гѓ¬гѓјгѓ : {0}",
+   "Waiting for CarPlay frame": "CarPlay гѓ•гѓ¬гѓјгѓ г‚’еѕ…ж©џдё­",
+   "Frame captured. Ready to save logs": "гѓ•гѓ¬гѓјгѓ г‚’г‚­гѓЈгѓ—гѓЃгѓЈгЃ—гЃѕгЃ—гЃџгЂ‚гѓ­г‚°г‚’дїќе­гЃ§гЃЌгЃѕгЃ™",
+   "Capture failed": "г‚­гѓЈгѓ—гѓЃгѓЈгЃ«е¤±ж•—гЃ—гЃѕгЃ—гЃџ",
+   "Not captured": "жњЄг‚­гѓЈгѓ—гѓЃгѓЈ",
+   "The frame is not scrubbed: the archive may contain the map, addresses, your location and route.": "гѓ•гѓ¬гѓјгѓ гЃЇеЊїеђЌеЊ–гЃ•г‚ЊгЃѕгЃ›г‚“гЂ‚г‚ўгѓјг‚«г‚¤гѓ–гЃ«гЃЇењ°е›ігЂЃдЅЏж‰ЂгЂЃзЏѕењЁењ°гЂЃгѓ«гѓјгѓ€гЃЊеђ«гЃѕг‚Њг‚‹е ґеђ€гЃЊгЃ‚г‚ЉгЃѕгЃ™гЂ‚"
   }
  },
  {
@@ -1630,7 +1735,14 @@ module.exports = [
    "Audio may cut out. On your iPhone, turn Wi-Fi off and on.": "오디오가 끊길 수 있습니다. iPhone에서 Wi-Fi를 껐다가 다시 켜십시오.",
    "Own settings for this driver": "이 운전자 전용 설정",
    "Keep HUD map over BMW's pop-ups": "BMW 팝업 위에 HUD 지도 유지",
-   "Cluster offset: {0}": "클러스터 오프셋: {0}"
+   "Cluster offset: {0}": "클러스터 오프셋: {0}",
+   "Capture full CarPlay frame": "м „мІґ CarPlay н”„л €мћ„ мєЎмІ",
+   "CarPlay frame: {0}": "CarPlay н”„л €мћ„: {0}",
+   "Waiting for CarPlay frame": "CarPlay н”„л €мћ„ лЊЂкё° м¤‘",
+   "Frame captured. Ready to save logs": "н”„л €мћ„мќ„ мєЎмІн–€мЉµл‹€л‹¤. лЎњк·ёлҐј м ЂмћҐн•  м¤Ђл№„к°Ђ лђм—€мЉµл‹€л‹¤",
+   "Capture failed": "мєЎмІ м‹¤нЊЁ",
+   "Not captured": "мєЎмІлђм§Ђ м•ЉмќЊ",
+   "The frame is not scrubbed: the archive may contain the map, addresses, your location and route.": "н”„л €мћ„мќЂ мќµлЄ…н™”лђм§Ђ м•ЉмЉµл‹€л‹¤. м•„м№ґмќґлёЊм—ђ м§ЂлЏ„, мЈјм†Њ, мњ„м№ л°Џ кІЅлЎњк°Ђ нЏ¬н•Ёлђ  м€ мћ€мЉµл‹€л‹¤."
   }
  },
  {
@@ -1732,7 +1844,14 @@ module.exports = [
    "Audio may cut out. On your iPhone, turn Wi-Fi off and on.": "Lyden kan falle ut. Slå Wi-Fi av og på igjen på iPhone.",
    "Own settings for this driver": "Egne innstillinger for denne føreren",
    "Keep HUD map over BMW's pop-ups": "Behold kart i HUD over BMWs popup-vinduer",
-   "Cluster offset: {0}": "Klynge-forskyvning: {0}"
+   "Cluster offset: {0}": "Klynge-forskyvning: {0}",
+   "Capture full CarPlay frame": "Ta opp en hel CarPlay-ramme",
+   "CarPlay frame: {0}": "CarPlay-ramme: {0}",
+   "Waiting for CarPlay frame": "Venter pГҐ CarPlay-ramme",
+   "Frame captured. Ready to save logs": "Rammen er tatt opp. Klar til ГҐ lagre loggene",
+   "Capture failed": "Opptaket mislyktes",
+   "Not captured": "Ikke tatt opp",
+   "The frame is not scrubbed: the archive may contain the map, addresses, your location and route.": "Rammen blir ikke renset: arkivet kan inneholde kartet, adresser, posisjonen og ruten din."
   }
  },
  {
@@ -1836,7 +1955,14 @@ module.exports = [
    "Audio may cut out. On your iPhone, turn Wi-Fi off and on.": "Het geluid kan wegvallen. Zet Wi-Fi op je iPhone uit en weer aan.",
    "Own settings for this driver": "Eigen instellingen voor deze bestuurder",
    "Keep HUD map over BMW's pop-ups": "Kaart in HUD boven BMW-pop-ups houden",
-   "Cluster offset: {0}": "Cluster-verschuiving: {0}"
+   "Cluster offset: {0}": "Cluster-verschuiving: {0}",
+   "Capture full CarPlay frame": "Volledig CarPlay-frame vastleggen",
+   "CarPlay frame: {0}": "CarPlay-frame: {0}",
+   "Waiting for CarPlay frame": "Wachten op CarPlay-frame",
+   "Frame captured. Ready to save logs": "Frame vastgelegd. Klaar om de logboeken op te slaan",
+   "Capture failed": "Vastleggen mislukt",
+   "Not captured": "Niet vastgelegd",
+   "The frame is not scrubbed: the archive may contain the map, addresses, your location and route.": "Het frame wordt niet opgeschoond: het archief kan de kaart, adressen, uw locatie en route bevatten."
   }
  },
  {
@@ -1938,7 +2064,14 @@ module.exports = [
    "Audio may cut out. On your iPhone, turn Wi-Fi off and on.": "Dźwięk może się przerywać. Na iPhonie wyłącz i włącz Wi-Fi.",
    "Own settings for this driver": "Własne ustawienia dla tego kierowcy",
    "Keep HUD map over BMW's pop-ups": "Zachowaj mapę na HUD nad wyskakującymi oknami BMW",
-   "Cluster offset: {0}": "Przesunięcie klastra: {0}"
+   "Cluster offset: {0}": "Przesunięcie klastra: {0}",
+   "Capture full CarPlay frame": "PrzechwyД‡ peЕ‚nД… klatkД™ CarPlay",
+   "CarPlay frame: {0}": "Klatka CarPlay: {0}",
+   "Waiting for CarPlay frame": "Oczekiwanie na klatkД™ CarPlay",
+   "Frame captured. Ready to save logs": "Klatka przechwycona. Gotowe do zapisania dziennikГіw",
+   "Capture failed": "Przechwycenie nie powiodЕ‚o siД™",
+   "Not captured": "Nie przechwycono",
+   "The frame is not scrubbed: the archive may contain the map, addresses, your location and route.": "Klatka nie jest oczyszczana: archiwum moЕјe zawieraД‡ mapД™, adresy, TwojД… lokalizacjД™ i trasД™."
   }
  },
  {
@@ -2040,7 +2173,14 @@ module.exports = [
    "Audio may cut out. On your iPhone, turn Wi-Fi off and on.": "O áudio pode falhar. No iPhone, desative e ative o Wi-Fi.",
    "Own settings for this driver": "Configurações próprias para este motorista",
    "Keep HUD map over BMW's pop-ups": "Manter mapa no HUD sobre pop-ups da BMW",
-   "Cluster offset: {0}": "Deslocamento do cluster: {0}"
+   "Cluster offset: {0}": "Deslocamento do cluster: {0}",
+   "Capture full CarPlay frame": "Capturar um quadro completo do CarPlay",
+   "CarPlay frame: {0}": "Quadro do CarPlay: {0}",
+   "Waiting for CarPlay frame": "Aguardando o quadro do CarPlay",
+   "Frame captured. Ready to save logs": "Quadro capturado. Pronto para salvar os logs",
+   "Capture failed": "Falha na captura",
+   "Not captured": "NГЈo capturado",
+   "The frame is not scrubbed: the archive may contain the map, addresses, your location and route.": "O quadro nГЈo Г© limpo: o arquivo pode conter o mapa, endereГ§os, a sua localizaГ§ГЈo e o percurso."
   }
  },
  {
@@ -2142,7 +2282,14 @@ module.exports = [
    "Audio may cut out. On your iPhone, turn Wi-Fi off and on.": "O áudio pode falhar. No iPhone, desative e volte a ativar o Wi-Fi.",
    "Own settings for this driver": "Definições próprias para este condutor",
    "Keep HUD map over BMW's pop-ups": "Manter mapa no HUD sobre pop-ups BMW",
-   "Cluster offset: {0}": "Deslocamento do cluster: {0}"
+   "Cluster offset: {0}": "Deslocamento do cluster: {0}",
+   "Capture full CarPlay frame": "Capturar um quadro completo do CarPlay",
+   "CarPlay frame: {0}": "Quadro do CarPlay: {0}",
+   "Waiting for CarPlay frame": "A aguardar o quadro do CarPlay",
+   "Frame captured. Ready to save logs": "Quadro capturado. Pronto para guardar os registos",
+   "Capture failed": "Falha na captura",
+   "Not captured": "NГЈo capturado",
+   "The frame is not scrubbed: the archive may contain the map, addresses, your location and route.": "O quadro nГЈo Г© limpo: o arquivo pode conter o mapa, endereГ§os, a sua localizaГ§ГЈo e o percurso."
   }
  },
  {
@@ -2244,7 +2391,14 @@ module.exports = [
    "Audio may cut out. On your iPhone, turn Wi-Fi off and on.": "Sunetul se poate întrerupe. Pe iPhone, dezactivați și reactivați Wi-Fi.",
    "Own settings for this driver": "Setări proprii pentru acest șofer",
    "Keep HUD map over BMW's pop-ups": "Păstrare hartă pe HUD peste ferestrele pop-up BMW",
-   "Cluster offset: {0}": "Deplasare cluster: {0}"
+   "Cluster offset: {0}": "Deplasare cluster: {0}",
+   "Capture full CarPlay frame": "CapteazДѓ un cadru CarPlay complet",
+   "CarPlay frame: {0}": "Cadru CarPlay: {0}",
+   "Waiting for CarPlay frame": "Se aИ™teaptДѓ cadrul CarPlay",
+   "Frame captured. Ready to save logs": "Cadru capturat. Gata de salvarea jurnalelor",
+   "Capture failed": "Captura a eИ™uat",
+   "Not captured": "Necapturat",
+   "The frame is not scrubbed: the archive may contain the map, addresses, your location and route.": "Cadrul nu este curДѓИ›at: arhiva poate conИ›ine harta, adrese, locaИ›ia И™i traseul dvs."
   }
  },
  {
@@ -2346,7 +2500,14 @@ module.exports = [
    "Audio may cut out. On your iPhone, turn Wi-Fi off and on.": "Звук может прерываться. На iPhone выключите и снова включите Wi-Fi.",
    "Own settings for this driver": "Свои настройки для этого водителя",
    "Keep HUD map over BMW's pop-ups": "Оставлять карту на HUD поверх всплывающих окон BMW",
-   "Cluster offset: {0}": "Смещение кластера: {0}"
+   "Cluster offset: {0}": "Смещение кластера: {0}",
+   "Capture full CarPlay frame": "Р—Р°С…РІР°С‚РёС‚СЊ РїРѕР»РЅС‹Р№ РєР°РґСЂ CarPlay",
+   "CarPlay frame: {0}": "РљР°РґСЂ CarPlay: {0}",
+   "Waiting for CarPlay frame": "РћР¶РёРґР°РЅРёРµ РєР°РґСЂР° CarPlay",
+   "Frame captured. Ready to save logs": "РљР°РґСЂ Р·Р°С…РІР°С‡РµРЅ. РњРѕР¶РЅРѕ СЃРѕС…СЂР°РЅСЏС‚СЊ Р»РѕРіРё",
+   "Capture failed": "РќРµ СѓРґР°Р»РѕСЃСЊ Р·Р°С…РІР°С‚РёС‚СЊ",
+   "Not captured": "РќРµ Р·Р°С…РІР°С‡РµРЅ",
+   "The frame is not scrubbed: the archive may contain the map, addresses, your location and route.": "РљР°РґСЂ РЅРµ РѕР±РµР·Р»РёС‡РёРІР°РµС‚СЃСЏ: РІ Р°СЂС…РёРІРµ РјРѕРіСѓС‚ Р±С‹С‚СЊ РєР°СЂС‚Р°, Р°РґСЂРµСЃР°, РІР°С€Рµ РјРµСЃС‚РѕРїРѕР»РѕР¶РµРЅРёРµ Рё РјР°СЂС€СЂСѓС‚."
   }
  },
  {
@@ -2448,7 +2609,14 @@ module.exports = [
    "Audio may cut out. On your iPhone, turn Wi-Fi off and on.": "Zvuk sa môže prerušovať. Na iPhone vypnite a zapnite Wi-Fi.",
    "Own settings for this driver": "Vlastné nastavenia pre tohto vodiča",
    "Keep HUD map over BMW's pop-ups": "Ponechať mapu na HUD nad kontextovými oknami BMW",
-   "Cluster offset: {0}": "Posun klastra: {0}"
+   "Cluster offset: {0}": "Posun klastra: {0}",
+   "Capture full CarPlay frame": "ZachytiЕҐ celГє snГ­mku CarPlay",
+   "CarPlay frame: {0}": "SnГ­mka CarPlay: {0}",
+   "Waiting for CarPlay frame": "ДЊakanie na snГ­mku CarPlay",
+   "Frame captured. Ready to save logs": "SnГ­mka zachytenГЎ. PripravenГ© na uloЕѕenie protokolov",
+   "Capture failed": "Zachytenie zlyhalo",
+   "Not captured": "NezachytenГ©",
+   "The frame is not scrubbed: the archive may contain the map, addresses, your location and route.": "SnГ­mka sa neДЌistГ­: archГ­v mГґЕѕe obsahovaЕҐ mapu, adresy, vaЕЎu polohu a trasu."
   }
  },
  {
@@ -2550,7 +2718,14 @@ module.exports = [
    "Audio may cut out. On your iPhone, turn Wi-Fi off and on.": "Zvok se lahko prekinja. Na iPhonu izklopite in vklopite Wi-Fi.",
    "Own settings for this driver": "Lastne nastavitve za tega voznika",
    "Keep HUD map over BMW's pop-ups": "Ohrani zemljevid na HUD nad pojavnimi okni BMW",
-   "Cluster offset: {0}": "Premik klasterja: {0}"
+   "Cluster offset: {0}": "Premik klasterja: {0}",
+   "Capture full CarPlay frame": "Zajemi celoten okvir CarPlay",
+   "CarPlay frame: {0}": "Okvir CarPlay: {0}",
+   "Waiting for CarPlay frame": "ДЊakanje na okvir CarPlay",
+   "Frame captured. Ready to save logs": "Okvir zajet. Pripravljeno za shranjevanje dnevnikov",
+   "Capture failed": "Zajem ni uspel",
+   "Not captured": "Ni zajeto",
+   "The frame is not scrubbed: the archive may contain the map, addresses, your location and route.": "Okvir ni oДЌiЕЎДЌen: arhiv lahko vsebuje zemljevid, naslove, vaЕЎo lokacijo in pot."
   }
  },
  {
@@ -2652,7 +2827,14 @@ module.exports = [
    "Audio may cut out. On your iPhone, turn Wi-Fi off and on.": "Ljudet kan försvinna. Stäng av och slå på Wi-Fi på din iPhone.",
    "Own settings for this driver": "Egna inställningar för den här föraren",
    "Keep HUD map over BMW's pop-ups": "Behåll karta i HUD över BMW:s popup-fönster",
-   "Cluster offset: {0}": "Klusterförskjutning: {0}"
+   "Cluster offset: {0}": "Klusterförskjutning: {0}",
+   "Capture full CarPlay frame": "FГҐnga en hel CarPlay-bild",
+   "CarPlay frame: {0}": "CarPlay-bild: {0}",
+   "Waiting for CarPlay frame": "VГ¤ntar pГҐ CarPlay-bild",
+   "Frame captured. Ready to save logs": "Bilden fГҐngad. Klar att spara loggarna",
+   "Capture failed": "FГҐngsten misslyckades",
+   "Not captured": "Inte fГҐngad",
+   "The frame is not scrubbed: the archive may contain the map, addresses, your location and route.": "Bilden rensas inte: arkivet kan innehГҐlla kartan, adresser, din position och rutt."
   }
  },
  {
@@ -2754,7 +2936,14 @@ module.exports = [
    "Audio may cut out. On your iPhone, turn Wi-Fi off and on.": "เสียงอาจขาดหาย ให้ปิดแล้วเปิด Wi-Fi บน iPhone",
    "Own settings for this driver": "การตั้งค่าเฉพาะสำหรับผู้ขับขี่คนนี้",
    "Keep HUD map over BMW's pop-ups": "คงแผนที่บน HUD ไว้เหนือป๊อปอัปของ BMW",
-   "Cluster offset: {0}": "ออฟเซ็ตคลัสเตอร์: {0}"
+   "Cluster offset: {0}": "ออฟเซ็ตคลัสเตอร์: {0}",
+   "Capture full CarPlay frame": "аё€аё±аёљаё аёІаёћа№ЂаёџаёЈаёЎ CarPlay а№Ѓаёљаёља№Ђаё•а№‡аёЎ",
+   "CarPlay frame: {0}": "а№ЂаёџаёЈаёЎ CarPlay: {0}",
+   "Waiting for CarPlay frame": "аёЃаёіаёҐаё±аё‡аёЈаё­а№ЂаёџаёЈаёЎ CarPlay",
+   "Frame captured. Ready to save logs": "аё€аё±аёљаё аёІаёћа№ЂаёџаёЈаёЎа№ЃаёҐа№‰аё§ аёћаёЈа№‰аё­аёЎаёљаё±аё™аё—аё¶аёЃаёљаё±аё™аё—аё¶аёЃ",
+   "Capture failed": "аё€аё±аёљаё аёІаёћа№„аёЎа№€аёЄаёіа№ЂаёЈа№‡аё€",
+   "Not captured": "аёўаё±аё‡а№„аёЎа№€а№„аё”а№‰аё€аё±аёљаё аёІаёћ",
+   "The frame is not scrubbed: the archive may contain the map, addresses, your location and route.": "а№ЂаёџаёЈаёЎа№„аёЎа№€а№„аё”а№‰аё–аё№аёЃаё—аёіа№ѓаё«а№‰а№„аёЎа№€аёЈаё°аёљаёёаё•аё±аё§аё•аё™: а№„аёџаёҐа№Њаё­аёІаё€аёЎаёµа№Ѓаёњаё™аё—аёµа№€ аё—аёµа№€аё­аёўаё№а№€ аё•аёіа№Ѓаё«аё™а№€аё‡аё‚аё­аё‡аё„аёёаё“ а№ЃаёҐаё°а№ЂаёЄа№‰аё™аё—аёІаё‡"
   }
  },
  {
@@ -2856,7 +3045,14 @@ module.exports = [
    "Audio may cut out. On your iPhone, turn Wi-Fi off and on.": "Ses kesilebilir. iPhone'unuzda Wi-Fi'yi kapatıp açın.",
    "Own settings for this driver": "Bu sürücüye özel ayarlar",
    "Keep HUD map over BMW's pop-ups": "HUD haritasını BMW açılır pencerelerinin üstünde tut",
-   "Cluster offset: {0}": "Küme kayması: {0}"
+   "Cluster offset: {0}": "Küme kayması: {0}",
+   "Capture full CarPlay frame": "Tam bir CarPlay karesi yakala",
+   "CarPlay frame: {0}": "CarPlay karesi: {0}",
+   "Waiting for CarPlay frame": "CarPlay karesi bekleniyor",
+   "Frame captured. Ready to save logs": "Kare yakalandД±. GГјnlГјkleri kaydetmeye hazД±r",
+   "Capture failed": "Yakalama baЕџarД±sД±z",
+   "Not captured": "YakalanmadД±",
+   "The frame is not scrubbed: the archive may contain the map, addresses, your location and route.": "Kare anonimleЕџtirilmez: arЕџiv haritayД±, adresleri, konumunuzu ve rotanД±zД± iГ§erebilir."
   }
  },
  {
@@ -2958,7 +3154,14 @@ module.exports = [
    "Audio may cut out. On your iPhone, turn Wi-Fi off and on.": "Звук може перериватися. На iPhone вимкніть і знову ввімкніть Wi-Fi.",
    "Own settings for this driver": "Власні налаштування для цього водія",
    "Keep HUD map over BMW's pop-ups": "Залишати карту на HUD поверх спливних вікон BMW",
-   "Cluster offset: {0}": "Зміщення кластера: {0}"
+   "Cluster offset: {0}": "Зміщення кластера: {0}",
+   "Capture full CarPlay frame": "Р—Р°С…РѕРїРёС‚Рё РїРѕРІРЅРёР№ РєР°РґСЂ CarPlay",
+   "CarPlay frame: {0}": "РљР°РґСЂ CarPlay: {0}",
+   "Waiting for CarPlay frame": "РћС‡С–РєСѓРІР°РЅРЅСЏ РєР°РґСЂСѓ CarPlay",
+   "Frame captured. Ready to save logs": "РљР°РґСЂ Р·Р°С…РѕРїР»РµРЅРѕ. РњРѕР¶РЅР° Р·Р±РµСЂС–РіР°С‚Рё Р»РѕРіРё",
+   "Capture failed": "РќРµ РІРґР°Р»РѕСЃСЏ Р·Р°С…РѕРїРёС‚Рё",
+   "Not captured": "РќРµ Р·Р°С…РѕРїР»РµРЅРѕ",
+   "The frame is not scrubbed: the archive may contain the map, addresses, your location and route.": "РљР°РґСЂ РЅРµ Р·РЅРµРѕСЃРѕР±Р»СЋС”С‚СЊСЃСЏ: РІ Р°СЂС…С–РІС– РјРѕР¶СѓС‚СЊ Р±СѓС‚Рё РєР°СЂС‚Р°, Р°РґСЂРµСЃРё, РІР°С€Рµ РјС–СЃС†РµРїРѕР»РѕР¶РµРЅРЅСЏ С‚Р° РјР°СЂС€СЂСѓС‚."
   }
  },
  {
@@ -3060,7 +3263,14 @@ module.exports = [
    "Audio may cut out. On your iPhone, turn Wi-Fi off and on.": "Âm thanh có thể bị ngắt. Trên iPhone, hãy tắt rồi bật lại Wi-Fi.",
    "Own settings for this driver": "Cài đặt riêng cho người lái này",
    "Keep HUD map over BMW's pop-ups": "Giữ bản đồ trên HUD phía trên cửa sổ bật lên của BMW",
-   "Cluster offset: {0}": "Độ lệch cụm: {0}"
+   "Cluster offset: {0}": "Độ lệch cụm: {0}",
+   "Capture full CarPlay frame": "Chб»Ґp khung hГ¬nh CarPlay Д‘бє§y Д‘б»§",
+   "CarPlay frame: {0}": "Khung hГ¬nh CarPlay: {0}",
+   "Waiting for CarPlay frame": "Дђang chб»ќ khung hГ¬nh CarPlay",
+   "Frame captured. Ready to save logs": "ДђГЈ chб»Ґp khung hГ¬nh. Sбєµn sГ ng lЖ°u nhбє­t kГЅ",
+   "Capture failed": "Chб»Ґp khГґng thГ nh cГґng",
+   "Not captured": "ChЖ°a chб»Ґp",
+   "The frame is not scrubbed: the archive may contain the map, addresses, your location and route.": "Khung hГ¬nh khГґng Д‘Ж°б»Јc lГ m sбєЎch: tб»‡p lЖ°u trб»Ї cГі thб»ѓ chб»©a bбєЈn Д‘б»“, Д‘б»‹a chб»‰, vб»‹ trГ­ vГ  lб»™ trГ¬nh cб»§a bбєЎn."
   }
  },
  {
@@ -3164,7 +3374,14 @@ module.exports = [
    "Audio may cut out. On your iPhone, turn Wi-Fi off and on.": "音频可能中断。请在 iPhone 上关闭再打开无线局域网。",
    "Own settings for this driver": "此驾驶员的专属设置",
    "Keep HUD map over BMW's pop-ups": "HUD 地图保持在 BMW 弹窗之上",
-   "Cluster offset: {0}": "集群偏移: {0}"
+   "Cluster offset: {0}": "集群偏移: {0}",
+   "Capture full CarPlay frame": "жЌ•иЋ·е®Њж•ґ CarPlay з”»йќў",
+   "CarPlay frame: {0}": "CarPlay з”»йќўпјљ{0}",
+   "Waiting for CarPlay frame": "ж­ЈењЁз­‰еѕ… CarPlay з”»йќў",
+   "Frame captured. Ready to save logs": "е·ІжЌ•иЋ·з”»йќўгЂ‚еЏЇд»Ґдїќе­ж—Ґеї—дє†",
+   "Capture failed": "жЌ•иЋ·е¤±иґҐ",
+   "Not captured": "жњЄжЌ•иЋ·",
+   "The frame is not scrubbed: the archive may contain the map, addresses, your location and route.": "з”»йќўжњЄи„±ж•ЏпјљеЋ‹зј©еЊ…еЏЇиѓЅеЊ…еђ«ењ°е›ѕгЂЃењ°еќЂгЂЃж‚Ёзљ„дЅЌзЅ®е’Њи·ЇзєїгЂ‚"
   }
  },
  {
@@ -3268,7 +3485,14 @@ module.exports = [
    "Audio may cut out. On your iPhone, turn Wi-Fi off and on.": "音訊可能中斷。請在 iPhone 上關閉再開啟 Wi-Fi。",
    "Own settings for this driver": "此駕駛的專屬設定",
    "Keep HUD map over BMW's pop-ups": "HUD 地圖保持在 BMW 彈出視窗之上",
-   "Cluster offset: {0}": "群集偏移: {0}"
+   "Cluster offset: {0}": "群集偏移: {0}",
+   "Capture full CarPlay frame": "ж“·еЏ–е®Њж•ґ CarPlay з•«йќў",
+   "CarPlay frame: {0}": "CarPlay з•«йќўпјљ{0}",
+   "Waiting for CarPlay frame": "ж­ЈењЁз­‰еѕ… CarPlay з•«йќў",
+   "Frame captured. Ready to save logs": "е·Іж“·еЏ–з•«йќўгЂ‚еЏЇд»Ґе„Іе­ж—ҐиЄЊдє†",
+   "Capture failed": "ж“·еЏ–е¤±ж•—",
+   "Not captured": "жњЄж“·еЏ–",
+   "The frame is not scrubbed: the archive may contain the map, addresses, your location and route.": "з•«йќўжњЄеЋ»и­е€ҐеЊ–пјљеЈ“зё®жЄ”еЏЇиѓЅеЊ…еђ«ењ°ењ–гЂЃењ°еќЂгЂЃж‚Ёзљ„дЅЌзЅ®е’Њи·Їз·љгЂ‚"
   }
  }
 ];
