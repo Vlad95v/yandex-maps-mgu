@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.6.19
+
 A "Capture full CarPlay frame" button on the Logs page keeps one full CarPlay
 picture, before the map is cropped for the cluster and the HUD, and Save logs
 puts it in the archive beside the logs; the page says the picture is not

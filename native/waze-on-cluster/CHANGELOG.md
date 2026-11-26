@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.14.16
+
 The Logs page can keep one full CarPlay picture, before the map is cropped and
 scaled for the cluster and the HUD: "Capture full CarPlay frame" asks for the
 next 1440x636 whole frame, which is written beside the map's state
