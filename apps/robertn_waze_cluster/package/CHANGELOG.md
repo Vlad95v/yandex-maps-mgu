@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.6.18
+
 A new **Width** slider under **HUD** sets how much of the map's width the HUD
 shows, 20 % to 100 % (100 % the whole of it, by default). The map keeps its
 height and the size of its roads and labels: the HUD shows a narrower,

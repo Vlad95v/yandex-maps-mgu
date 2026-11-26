@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.14.15
+
 HUD: a new **Width** setting shows a centred share (20-100 %) of the map's
 own horizontal region, the height and the pixel scale kept, so the map on the
 HUD gets narrower without its roads, route and labels getting smaller. 100 %
