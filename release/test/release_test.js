@@ -39,7 +39,7 @@ const zlib = require('zlib');
 const cp = require('child_process');
 const { buildArtifact } = require('../tool_artifact.js');
 const { components, catalogEntry, catalogTexts, retext, exportHead, bumpVersion, releaseChangelog, plan, writePlan,
-    prLabels } = require('../release.js');
+    writeRequires, prLabels } = require('../release.js');
 const catalog = require('../catalog.js');
 
 /* The members of a tgz the packer wrote (ustar), by name. */
@@ -373,6 +373,18 @@ test('versions: "requires" of "next" is the version released with it, or the one
     r.change('native/b/component.json', JSON.stringify(Object.assign(r.json('b'), { requires: { a: 'next' } }), null, 2));
     assert.deepStrictEqual(r.stamp(['b']), ['a@1.0.3', 'b@2.0.3']);
     assert.deepStrictEqual(r.json('b').requires, { a: '1.0.3' });
+});
+
+test('versions: an app\'s release.json takes the resolved version for "next", its own keys kept', () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'mgu-rel-app-'));
+    const dir = path.join(root, 'apps', 'x');
+    fs.mkdirSync(dir, { recursive: true });
+    const file = path.join(dir, 'release.json');
+    const text = '{ "build": "node tools/build.js", "requires": { "a": "next", "b": "0.1.0" }, "uninstallable": true }\n';
+    fs.writeFileSync(file, text);
+    writeRequires(root, { dir: 'apps/x', kind: 'app' }, { a: '1.2.3' });
+    assert.deepStrictEqual(JSON.parse(fs.readFileSync(file, 'utf8')).requires, { a: '1.2.3', b: '0.1.0' }, 'the app\'s, not a tool\'s');
+    assert.throws(() => writeRequires(root, { dir: 'apps/x', kind: 'app' }, { c: '1.0.0' }), /no "c": "next"/);
 });
 
 test('versions: a version stamped and not released keeps its number; later entries join its section', () => {

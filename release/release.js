@@ -956,4 +956,4 @@ if (require.main === module) {
 }
 
 module.exports = { components, catalogTexts, retext, compareVersions, catalogEntry, exportHead, bumpVersion, releaseChangelog,
-    unreleasedOf, plan, writePlan, prLabels };
+    unreleasedOf, plan, writePlan, writeRequires, prLabels };
