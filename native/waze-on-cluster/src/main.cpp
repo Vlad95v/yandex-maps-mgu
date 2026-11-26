@@ -44,6 +44,7 @@
 #include "map_feed.h"
 #include "map_feeds.h"
 #include "map_geometry.h"
+#include "map_size.h"
 #include "map_state.h"
 #include "refused.h"
 #include "video_producer.h"
@@ -54,7 +55,6 @@ using namespace woc;
 using crk::atlas_height;
 using crk::block_bytes;
 using crk::pack_blocks;
-using crk::texture_size_error;
 
 /* component.json's version, given by the target build. */
 #ifndef WOC_VERSION
@@ -210,8 +210,10 @@ int serve(Config cfg)
         log_error("tex_size must be WxH");
         return 1;
     }
-    if (const char *e = texture_size_error(vc.tex_width, vc.tex_height)) {
-        log_error("tex_size %ux%u: %s", vc.tex_width, vc.tex_height, e);
+    const bool wide = vc.tex_width == kCarplayWideWidth && vc.tex_height == kCarplayWideHeight;
+    if (const char *e = map_size_error(vc.tex_width, vc.tex_height)) {
+        log_error("tex_size %ux%u (map %ux%u): %s", vc.tex_width, vc.tex_height,
+                  wide ? crk::kMapAreaWidth : vc.tex_width, wide ? crk::kMapAreaHeight : vc.tex_height, e);
         return 1;
     }
     if (const char *why = parse_source_crop(cfg.str("src_crop"), &vc.src_crop))
@@ -457,7 +459,7 @@ void usage()
 int bench_pack(const Config &cfg, const char *path)
 {
     uint32_t w = 0, h = 0;
-    if (!cfg.size("tex_size", &w, &h) || texture_size_error(w, h) || h % 4) {
+    if (!cfg.size("tex_size", &w, &h) || map_size_error(w, h) || h % 4) {
         std::fprintf(stderr, "bench-pack: tex_size must be a valid map size with a height that is a multiple of 4\n");
         return 2;
     }

@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+Fix start with the wide CarPlay source: `tex_size = 1440x636` is the decoder
+source MapFeed crops to the cluster's 1088x480 map, so it is validated as that
+output instead of being refused as an oversized map texture. `bench-pack`
+accepts it too.
+
 ## 0.14.13
 
 CarPlay's cluster map can be moved left and right, up to 176 pixels each way

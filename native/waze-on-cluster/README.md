@@ -165,7 +165,10 @@ upload budget is cluster-render's: set it with `upload_kb_per_s` in
 "Upload budget").
 
 The map covers the cluster's central map area, 1088x480 on the 1920x720
-panel. The patch advertises exactly that, so `tex_size` must equal it.
+panel. For wide CarPlay the patch advertises 1440x636 at 183x81 mm
+(`--res wide`), so `tex_size` is 1440x636 and MapFeed crops the 1088x480 view
+from it at `crop_x = 176 - cluster_offset_x`. With a non-wide patch
+`tex_size` is 1088x480, the map texture itself.
 `src_crop` takes part of a picture of one size and scales it to `tex_size`
 (Android Auto's 1280x720 stream has its map in the top 1280x564).
 `map_rect` draws the map stretched into a rect of the map slot.

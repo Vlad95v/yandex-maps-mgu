@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+Requires the next waze-on-cluster, which starts with the wide 1440x636
+CarPlay source instead of exiting on its texture-size check.
+
 ## 0.6.16
 
 Move the CarPlay map on the cluster left and right in 2-pixel steps, up to
