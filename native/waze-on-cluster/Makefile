@@ -67,7 +67,7 @@ CPP_TESTS = $(BUILD)/host/nal_reader_test $(BUILD)/host/rtp_h264_test $(BUILD)/h
 		$(BUILD)/host/stream_health_test $(BUILD)/host/source_crop_test \
 		$(BUILD)/host/map_rect_test $(BUILD)/host/guide_setting_test $(BUILD)/host/decoder_test \
 		$(BUILD)/host/map_state_test $(BUILD)/host/opt_in_test $(BUILD)/host/atlas_scale_test $(BUILD)/host/sps_info_test \
-		$(BUILD)/host/picture_pace_test
+		$(BUILD)/host/map_size_test $(BUILD)/host/picture_pace_test
 # The control socket (accept4) and the producer (pipe2) are Linux's: built and run on Linux only
 # (make test-x86).
 LINUX_TESTS = $(if $(filter Linux,$(shell uname -s)),$(BUILD)/host/refused_test $(BUILD)/host/video_producer_test)
@@ -93,7 +93,7 @@ test-bin: $(CPP_TESTS)
 # set (077): every file they replace keeps the mode its service needs.
 NODE_TESTS = locate permissions file_mode mutation undo rollback_conf patch patchd_patch patchd_activate \
 	patchd_hud patchd_profile patchd_dlt patchd_reboot patchd_wifi wifi_band dlt_capture capture_host recovery \
-	recovery_lock inmem journal_keep logs collect_logs logs_fw units x86_flow aapd_locate aapd head_unit
+	recovery_lock inmem journal_keep logs collect_logs logs_fw units wide_geometry x86_flow aapd_locate aapd head_unit
 NODE_RUNS = $(addprefix node-,$(NODE_TESTS)) $(addprefix node-rollback.,$(ROLLBACK_PART_IDS))
 
 test-node:
@@ -240,6 +240,10 @@ $(BUILD)/host/guide_setting_test: test/guide_setting_test.cpp src/guide_setting.
 $(BUILD)/host/map_state_test: test/map_state_test.cpp src/map_state.cpp src/map_state.h $(CR)/src/config.cpp $(CR)/src/log.cpp
 	mkdir -p $(@D)
 	$(CXX) $(CXXFLAGS) -Isrc -I$(CR)/src -o $@ test/map_state_test.cpp src/map_state.cpp $(CR)/src/config.cpp $(CR)/src/log.cpp -lpthread
+
+$(BUILD)/host/map_size_test: test/map_size_test.cpp src/map_size.h src/map_feed.h $(KIT)/map_geometry.cpp $(KIT)/map_geometry.h
+	mkdir -p $(@D)
+	$(CXX) $(CXXFLAGS) -Isrc -I$(KIT) -I$(CR)/include -I$(CR)/src -o $@ test/map_size_test.cpp $(KIT)/map_geometry.cpp
 
 $(BUILD)/host/opt_in_test: test/opt_in_test.cpp src/opt_in.cpp src/opt_in.h $(CR)/src/config.cpp $(CR)/src/log.cpp
 	mkdir -p $(@D)

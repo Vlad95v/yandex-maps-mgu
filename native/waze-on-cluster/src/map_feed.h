@@ -73,6 +73,12 @@
 
 namespace woc {
 
+/* The wide CarPlay source the patch's --res wide advertises. MapFeed crops
+ * its 1088x480 view from this; the cluster renderer never receives it as a
+ * map texture. */
+constexpr uint32_t kCarplayWideWidth = 1440;
+constexpr uint32_t kCarplayWideHeight = 636;
+
 /* The HUD map's widest size, % of the HUD's width: wider is cut off at its
  * edges. A larger hud_width_pct is held to it. */
 const unsigned kHudMaxPct = 85;

@@ -278,6 +278,11 @@ the map is shown at: the cluster's central map area, 1088x480 px at
 138x61 mm, the view area the full frame. The decoder then passes the picture
 through unscaled.
 
+`--res wide` instead advertises 1440x636 at 183x81 mm, with safe area
+`667x488+379+95`; `map_feed.cpp` crops the cluster's 1088x480 view from that
+source at `crop_x = 176 - cluster_offset_x`. The HUD keeps its own centred
+1088x480 crop. The default above stays 1088x480 for a non-wide patch.
+
 The IC_HIGH builder in `ICSafeAreaProvider` (`0x20ca30`) fills its object from
 four `movabs` immediates; only the 8 immediate bytes after each 2-byte opcode
 change:

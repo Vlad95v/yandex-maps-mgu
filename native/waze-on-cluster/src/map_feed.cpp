@@ -164,7 +164,7 @@ void MapFeed::make_layer()
             part_ = OutputPart{crop.x, crop.y, crop.w, crop.h, dw, dh};
         log_info("render: hosted on %s: the map's %ux%u at %u,%u, as %ux%u%s", host_.into.c_str(), crop.w,
                  crop.h, crop.x, crop.y, dw, dh, part_.set() ? ", made by VPP (hosted_vpp_scale)" : "");
-    } else if (cfg_.target == "map" && cfg_.video.w == 1440 && cfg_.video.h == 636) {
+    } else if (cfg_.target == "map" && cfg_.video.w == kCarplayWideWidth && cfg_.video.h == kCarplayWideHeight) {
         /* Cluster feed: wider CarPlay source (1440x636) -> cluster viewport (1088x480).
          * Crop X shifts to pan horizontally: crop_x = 176 - cluster_offset_x. */
         const int offset = cfg_.cluster_offset_x;
@@ -191,7 +191,7 @@ void MapFeed::make_layer()
         log_info("render: cluster map from 1440x636, crop %ux%u at %u,0 -> %ux%u",
                  crop_w, crop_h, crop_x, dw, dh);
     } else if (cfg_.target == "hud" &&
-               (cfg_.scale_down || (cfg_.video.w == 1440 && cfg_.video.h == 636)) &&
+               (cfg_.scale_down || (cfg_.video.w == kCarplayWideWidth && cfg_.video.h == kCarplayWideHeight)) &&
                (sw < cfg_.video.w || sh < cfg_.video.h) && sw >= 64 &&
                sh >= 32 && sw <= cfg_.video.w && sh <= cfg_.video.h) {
         q.x += (q.w - sw) / 2;
@@ -209,7 +209,7 @@ void MapFeed::make_layer()
         /* Wider CarPlay source: the HUD shows the same independent centred
          * 1088x480 crop it always did, scaled to its box. cluster_offset_x
          * never reaches this shape. */
-        if (cfg_.video.w == 1440 && cfg_.video.h == 636) {
+        if (cfg_.video.w == kCarplayWideWidth && cfg_.video.h == kCarplayWideHeight) {
             shape_.crop_x = 176;
             shape_.crop_y = 0;
             shape_.crop_w = 1088;
@@ -307,7 +307,7 @@ crk::QuadRect MapFeed::quad(uint32_t tw, uint32_t th) const
         crk::QuadRect q = crk::map_quad(tw, th, cfg_.video.w, cfg_.video.h);
         /* Cluster feed: source is 1440x636 (RES_WIDE), output 1088x480.
          * Crop X shifts to pan: crop_x = 176 - cluster_offset_x. */
-        if (cfg_.target == "map" && cfg_.video.w == 1440 && cfg_.video.h == 636) {
+        if (cfg_.target == "map" && cfg_.video.w == kCarplayWideWidth && cfg_.video.h == kCarplayWideHeight) {
             const int offset = cfg_.cluster_offset_x;
             const int crop_x = 176 - offset;   // centered at offset 0, range 0..352
             crop_x_ = std::max(0, std::min(crop_x, 352));
@@ -336,7 +336,7 @@ crk::QuadRect MapFeed::quad(uint32_t tw, uint32_t th) const
     placed_x_ = (int)q.x - (int)cx;
     placed_y_ = (int)q.y - (int)cy;
     /* HUD feed: independent centered crop from 1440x636 at crop_x = 176. */
-    if (cfg_.target == "hud" && cfg_.video.w == 1440 && cfg_.video.h == 636) {
+    if (cfg_.target == "hud" && cfg_.video.w == kCarplayWideWidth && cfg_.video.h == kCarplayWideHeight) {
         crop_x_ = 176;
     }
     return q;
@@ -372,7 +372,7 @@ void MapFeed::set_cluster_offset(int dx)
         return;
     const crk::QuadRect q = quad(tw, th);
     /* Update AtlasScaler crop_x for live offset change. */
-    if (scaling_ && cfg_.video.w == 1440 && cfg_.video.h == 636) {
+    if (scaling_ && cfg_.video.w == kCarplayWideWidth && cfg_.video.h == kCarplayWideHeight) {
         const int crop_x = 176 - dx;
         shape_.crop_x = (uint32_t)std::max(0, std::min(crop_x, 352));
         crop_x_ = shape_.crop_x;
