@@ -3,6 +3,31 @@
 Tools and apps for the iDrive 7 head unit (MGU) of a BMW, installed from the
 mgu Store. Versions and CHANGELOG rules: `CONTRIBUTING.md`.
 
+## Git workflow: follow `CONTRIBUTING.md`
+
+Read `CONTRIBUTING.md` before touching the tree, and follow its **Git
+workflow** rules exactly: they define the branches (`main`,
+`stable/carplay-working`, `feature/<short-task-name>`), what may never be
+done to them (force-push, `reset --hard`, history rewrites, automatic
+releases, merges without an explicit request from the user), how a change is
+tested and reviewed, and how a broken update is recovered. They are part of
+this file's instructions for agents.
+
+In short, and never waived by a task:
+
+- Work on a dedicated `feature/<short-task-name>` branch cut from
+  `origin/main`; never develop on `main` or on `stable/carplay-working`.
+- `stable/carplay-working` is the last version the user personally verified
+  in the car. It moves only after the user says so, and is never
+  force-pushed.
+- CI passing is not vehicle validation: an untested version is never called
+  known-good.
+- Never stage unrelated untracked files (`.idea/`, `_audit/`), never
+  `git add -A`, never `git clean`.
+- Never run the Release workflow, publish to the Store, merge a pull
+  request or change a component version unless the user asked for exactly
+  that.
+
 ## Pull requests by AI agents
 
 A pull request opened, or mostly written, by an AI agent says in its
