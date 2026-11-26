@@ -153,9 +153,34 @@ else
     echo "no scrubber; everything is left out" > "$STAGE/$NAME/left-out.txt"
 fi
 
+# The app's full CarPlay frame (frame_dump.h): a binary 4:2:0 atlas that the
+# scrub never sees, with its metadata, added after the scrub so the archive
+# carries it byte for byte. It is there only when the Logs page's
+# "Capture full CarPlay frame" was pressed; the archive takes it over and
+# removes it once the archive is whole, so it never rides in a later one.
+FRAME_DIR=${WOC_FRAME_DIR:-/var/opt/waze-on-cluster/state}
+FRAME_ATLAS=$FRAME_DIR/carplay-frame-1440x636.yuva
+FRAME_JSON=$FRAME_DIR/carplay-frame-1440x636.json
+FRAME_ADDED=
+if [ -f "$FRAME_ATLAS" ] && [ -f "$FRAME_JSON" ] && [ ! -L "$FRAME_ATLAS" ] && [ ! -L "$FRAME_JSON" ]; then
+    if cp "$FRAME_ATLAS" "$STAGE/$NAME/carplay-frame-1440x636.yuva" 2>/dev/null &&
+            cp "$FRAME_JSON" "$STAGE/$NAME/carplay-frame-1440x636.json" 2>/dev/null; then
+        FRAME_ADDED=1
+    else
+        rm -f "$STAGE/$NAME/carplay-frame-1440x636.yuva" "$STAGE/$NAME/carplay-frame-1440x636.json"
+        echo "the full CarPlay frame could not be read ($FRAME_DIR); left out" > "$STAGE/$NAME/carplay-frame.txt"
+    fi
+elif [ -e "$FRAME_ATLAS" ] || [ -e "$FRAME_JSON" ]; then
+    echo "the full CarPlay frame is kept but not readable by the logs service ($FRAME_DIR); left out" \
+        > "$STAGE/$NAME/carplay-frame.txt"
+fi
+
 if ! tar -cf "$STAGE/$NAME.tar" -C "$STAGE" "$NAME" 2>/dev/null || ! gzip -c "$STAGE/$NAME.tar" > "$PART" ||
         ! mv "$PART" "$OUT"; then
     echo "collect-logs: could not write $OUT" >&2
     exit 1
+fi
+if [ -n "$FRAME_ADDED" ]; then
+    rm -f "$FRAME_ATLAS" "$FRAME_JSON"
 fi
 echo "$OUT"

@@ -374,8 +374,9 @@ var lx = require(path.join(CUR, 'logs_extra.js'));
         cp.execFileSync('tar', ['-xzf', archive, '-C', out]);
         var A = path.join(out, path.basename(archive).replace(/\.tar\.gz$/, ''));
         var files = {};
-        fs.readdirSync(A).forEach(function (n) { files[n] = fs.readFileSync(path.join(A, n), 'utf8'); });
-        return { files: files, ms: ms };
+        var raw = {};
+        fs.readdirSync(A).forEach(function (n) { files[n] = fs.readFileSync(path.join(A, n), 'utf8'); raw[n] = fs.readFileSync(path.join(A, n)); });
+        return { files: files, raw: raw, ms: ms, archive: archive, out: out };
     }
     var srv = serve('answer'), r;
     try { r = run(); } finally { srv.kill(); }
@@ -419,6 +420,51 @@ var lx = require(path.join(CUR, 'logs_extra.js'));
     var listing = cp.execFileSync('tar', ['-tzf', archive], { encoding: 'utf8' }).trim().split('\n').map(function (l) { return l.replace(/^[^/]*\/?/, ''); }).filter(Boolean);
     assert.deepStrictEqual(listing, ['left-out.txt'], listing.join(' '));
     console.log('ok   a scrub out of time or missing: the archive holds only what was scrubbed, and says what is left out');
+
+    /* The full CarPlay frame (frame_dump.h): the app's button asked for it,
+     * so the archive carries the binary atlas and its metadata byte for byte
+     * beside the scrubbed logs, and removes the dump once the archive is
+     * whole; a save that fails keeps it for another try; no request, no
+     * frame. */
+    var frameDir = path.join(dir, 'frame');
+    fs.mkdirSync(frameDir);
+    var ATLAS = path.join(frameDir, 'carplay-frame-1440x636.yuva');
+    var META = path.join(frameDir, 'carplay-frame-1440x636.json');
+    var atlas = Buffer.alloc(1373760);
+    for (var i = 0; i < atlas.length; i++) atlas[i] = (i * 7 + 3) & 0xff;
+    atlas.write('full-frame-mark', 100);
+    var meta = JSON.stringify({ width: 1440, height: 636, format: 'yuv420p_atlas', atlas_height: 954, size: 1373760,
+        captured_utc: '2026-11-27T00:00:00Z', source: 'carplay', full_frame: true }) + '\n';
+    var withFrame = function () {
+        fs.writeFileSync(ATLAS, atlas);
+        fs.writeFileSync(META, meta);
+    };
+    withFrame();
+    r = run({ WOC_FRAME_DIR: frameDir });
+    assert(r.raw['carplay-frame-1440x636.yuva'] !== undefined, 'the frame in the archive: ' + Object.keys(r.raw));
+    assert(r.raw['carplay-frame-1440x636.yuva'].equals(atlas), 'the frame byte for byte');
+    assert.strictEqual(r.files['carplay-frame-1440x636.json'], meta, 'its metadata as it was written');
+    assert(r.files['carplay-frame-1440x636.yuva'].indexOf('full-frame-mark') >= 0, 'the binary is not scrubbed');
+    assert(!fs.existsSync(ATLAS) && !fs.existsSync(META), 'the dump is removed once the archive is whole');
+    assert(!Object.keys(r.files).some(function (n) { return /^left-out/.test(n); }), 'nothing left out');
+    console.log('ok   the full CarPlay frame: in the archive byte for byte beside the scrubbed logs, removed after the save');
+
+    r = run({ WOC_FRAME_DIR: path.join(dir, 'no-frame') });
+    assert(!Object.keys(r.files).some(function (n) { return /carplay-frame/.test(n); }), 'no request, no frame: ' + Object.keys(r.files));
+    console.log('ok   no capture asked for: an ordinary archive');
+
+    withFrame();
+    var unwritable = path.join(dir, 'out-missing', 'not-there');
+    var failed = false;
+    try {
+        cp.execFileSync('sh', [SCRIPT, '-o', unwritable], { env: Object.assign({}, ENV, { WOC_LOGS_ROOT: R, WOC_FRAME_DIR: frameDir }),
+            encoding: 'utf8', stdio: 'pipe' });
+    } catch (e) { failed = true; }
+    assert(failed, 'the save failed');
+    assert(fs.existsSync(ATLAS) && fs.existsSync(META), 'a failed save keeps the frame for another try');
+    fs.unlinkSync(ATLAS);
+    fs.unlinkSync(META);
+    console.log('ok   a failed save keeps the frame; a successful one removes it');
 })();
 
 try { fs.rmSync ? fs.rmSync(dir, { recursive: true, force: true }) : null; } catch (e) { /* left in tmp */ }
