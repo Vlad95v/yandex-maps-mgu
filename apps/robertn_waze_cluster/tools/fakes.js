@@ -131,6 +131,8 @@ class FakeRender extends LineServer {
         this.hudState = null;
         /* the HUD map kept shown over BMW's pop-ups (null: a tool without the field) */
         this.hudKeep = 0;
+        /* how much of the HUD map's width it shows (null: a tool without the field) */
+        this.hudCrop = 100;
         this._showTimer = null;
     }
 
@@ -156,6 +158,7 @@ class FakeRender extends LineServer {
             Object.assign(s, { cluster: this.cluster, hud: this.hud, hud_state: this.hud ? this.hudState || this.state : 'off',
                 hud_width_pct: this.hudWidth || 0, hud_x: this.hudX || 0, hud_y: this.hudY || 0 });
             if (this.hudKeep !== null) s.hud_keep_shown = this.hudKeep;
+            if (this.hudCrop !== null) s.hud_crop_width_pct = this.hudCrop;
         }
         if (this.hide !== null) {
             s.hide_bmw_guidance = this.hide;
@@ -196,6 +199,7 @@ class FakeRender extends LineServer {
         if (msg.cmd === 'hud') {
             if (msg.on !== undefined) this.hud = Number(msg.on);
             if (msg.hud_width_pct !== undefined) this.hudWidth = Number(msg.hud_width_pct);
+            if (msg.hud_crop_width_pct !== undefined) this.hudCrop = Number(msg.hud_crop_width_pct);
             /* held inside the HUD, as the render does, when hudMaxX is set */
             const lim = (v) => (this.hudMaxX ? Math.max(-this.hudMaxX, Math.min(this.hudMaxX, v)) : v);
             if (msg.hud_x !== undefined) this.hudX = lim(Number(msg.hud_x));
@@ -229,7 +233,7 @@ class FakePatch extends LineServer {
         this.mute = false;         /* commands received and not answered */
         this.holdAa = false;       /* an Android Auto change stays busy until releaseAa(failure) */
         this.releaseAa = null;
-        this.map = { cluster: 1, hud: 0, hud_width_pct: 0, hud_offset_x: 0, hud_offset_y: 0, hud_keep_shown: 0 };
+        this.map = { cluster: 1, hud: 0, hud_width_pct: 0, hud_crop_width_pct: 100, hud_offset_x: 0, hud_offset_y: 0, hud_keep_shown: 0 };
         this.shared = null;
         this.own = {};
         this.active = null;
@@ -307,10 +311,11 @@ class FakePatch extends LineServer {
             if (!this.profileMute) this._profile(msg, socket);
             return;
         }
-        const MAP = { cluster: ['cluster'], hud: ['hud'], 'hud-size': ['hud_width_pct'], 'hud-pos': ['hud_offset_x', 'hud_offset_y'],
-            'hud-keep-shown': ['hud_keep_shown'] };
+        const MAP = { cluster: ['cluster'], hud: ['hud'], 'hud-size': ['hud_width_pct'], 'hud-crop-width': ['hud_crop_width_pct'],
+            'hud-pos': ['hud_offset_x', 'hud_offset_y'], 'hud-keep-shown': ['hud_keep_shown'] };
         if (MAP[msg.cmd]) {
-            const v = msg.cmd === 'hud-pos' ? [msg.hud_x, msg.hud_y] : [msg.cmd === 'hud-size' ? msg.hud_width_pct : msg.on];
+            const v = msg.cmd === 'hud-pos' ? [msg.hud_x, msg.hud_y]
+                : [msg.cmd === 'hud-size' ? msg.hud_width_pct : msg.cmd === 'hud-crop-width' ? msg.hud_crop_width_pct : msg.on];
             this.map = Object.assign({}, this.map);
             MAP[msg.cmd].forEach((k, i) => { this.map[k] = v[i]; });
             return;

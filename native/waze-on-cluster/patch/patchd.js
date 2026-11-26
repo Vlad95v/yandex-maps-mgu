@@ -52,20 +52,24 @@
  *                  {"cmd":"cluster","on":0|1,"cluster_x":-176..176}   (even integers only)
  *                  {"cmd":"hud","on":0|1}
  *                  {"cmd":"hud-size","hud_width_pct":0|20..100}   (over 85 saved as 85)
+ *                  {"cmd":"hud-crop-width","hud_crop_width_pct":20..100}
  *                  {"cmd":"hud-pos","hud_x":-800..800,"hud_y":-800..800}
  *                  {"cmd":"hud-keep-shown","on":0|1}
  *                                   the map on the cluster on or off, on the HUD on
  *                                   or off, the HUD's size
- *                                   (0: the default box), where it is moved from
+ *                                   (0: the default box), how much of its width it
+ *                                   shows, where it is moved from
  *                                   the centre (HUD pixels) and whether it stays
  *                                   shown over BMW's pop-ups, saved for the render's
  *                                   next start as "cluster", "hud", "hud_width_pct",
+ *                                   "hud_crop_width_pct",
  *                                   "hud_offset_x", "hud_offset_y", "cluster_offset_x"
  *                                   and "hud_keep_shown" in MAP_STATE
  *                                   (the app changes the running render itself).
  *                                   Changes are written together MAP_SAVE_MS
  *                                   after the last one; the reply (cluster-reply,
- *                                   hud-reply, hud-size-reply, hud-pos-reply,
+ *                                   hud-reply, hud-size-reply, hud-crop-width-reply,
+ *                                   hud-pos-reply,
  *                                   hud-keep-shown-reply)
  *                                   follows the write and carries ok, the values
  *                                   saved and reason.
@@ -176,6 +180,9 @@ var FIFO = process.env.WOC_FIFO || '/run/waze-on-cluster/alt.h264';
  * (waze-on-cluster.conf); the render listens on 127.0.0.1:UDP_PORT. */
 var UDP_PORT = process.env.WOC_UDP_PORT || '20557';
 var HUD_MAX_PCT = 85;   /* the widest HUD map size: wider is cut off at the HUD's edges */
+/* How much of its width the HUD map shows: 20-100 %, 100 % its own region
+ * unchanged (the map_feed's hud_crop.h). */
+var HUD_CROP_MIN_PCT = 20, HUD_CROP_MAX_PCT = 100;
 var SOCK = process.env.WOC_PATCH_SOCK || '/dev/shm/waze-on-cluster/patch.sock';
 var SOCK_GROUP = process.env.WOC_PATCH_GROUP || 'tm_oap_app';
 var LOGS_SOCK = process.env.WOC_PATCH_LOGS_SOCK || path.join(path.dirname(SOCK), 'patch-logs.sock');
@@ -254,7 +261,7 @@ var LOCAL_CONF = process.env.WOC_LOCAL_CONF || '/var/opt/waze-on-cluster/waze-on
  * configuration. Not in LOCAL_CONF, which waze-on-cluster 0.8 refuses to
  * start with any of MAP_KEYS in. */
 var MAP_STATE = path.join(STATE_DIR, 'map.state.conf');
-var MAP_KEYS = ['cluster', 'hud', 'hud_width_pct', 'hud_offset_x', 'hud_offset_y', 'hud_keep_shown', 'cluster_offset_x'];
+var MAP_KEYS = ['cluster', 'hud', 'hud_width_pct', 'hud_crop_width_pct', 'hud_offset_x', 'hud_offset_y', 'hud_keep_shown', 'cluster_offset_x'];
 /* The opt-in settings: the render reads this file (its features_file) over
  * its configuration. Not in LOCAL_CONF, which every release up to 0.10.7
  * refuses to start with any of FEATURE_KEYS in; no release before 0.10.9
@@ -293,6 +300,7 @@ function rewriteConf(file, set, drop) {
 function mapValueOk(k, v) {
     var n = Number(v);
     return /^-?\d+$/.test(v) && (k === 'hud_width_pct' ? n === 0 || (n >= 20 && n <= 100)
+        : k === 'hud_crop_width_pct' ? n >= HUD_CROP_MIN_PCT && n <= HUD_CROP_MAX_PCT
         : k === 'cluster_offset_x' ? n >= -176 && n <= 176 && n % 2 === 0
         : /^hud_offset_/.test(k) ? n >= -800 && n <= 800 : n === 0 || n === 1);
 }
@@ -427,7 +435,7 @@ function saveLater(settings, withProfiles) {
 var PROFILES_FILE = path.join(STATE_DIR, 'profiles.json');
 var PROFILE_ID = /^[A-Za-z0-9][A-Za-z0-9._:@+={}-]{0,127}$/;
 var MAX_OWN = 16;
-var MAP_DEFAULTS = { cluster: 1, hud: 0, hud_width_pct: 0, hud_offset_x: 0, hud_offset_y: 0, hud_keep_shown: 0, cluster_offset_x: 0 };
+var MAP_DEFAULTS = { cluster: 1, hud: 0, hud_width_pct: 0, hud_crop_width_pct: 100, hud_offset_x: 0, hud_offset_y: 0, hud_keep_shown: 0, cluster_offset_x: 0 };
 var profiles = null;          /* PROFILES_FILE as read at the start, and changed since */
 var currentProfile;           /* the profile the app last told (null: none; undefined: not told since the start) */
 var restored = false;         /* MAP_STATE written from PROFILES_FILE at the start, not yet told to the app */
@@ -442,14 +450,15 @@ function profilesKept(p) { return profilesInUse(p) || !!p.shared; }
 /* The settings in effect as PROFILES_FILE keeps them. */
 function profileEntry(p) { return p.active ? p.own[p.active] : p.shared; }
 /* Settings as PROFILES_FILE holds them, or null when any key is missing or
- * out of range; hud_keep_shown missing (a set saved before it) is its default. */
+ * out of range; hud_keep_shown, cluster_offset_x and hud_crop_width_pct
+ * missing (a set saved before each) are their defaults. */
 function profileSettings(o) {
     if (!o || typeof o !== 'object') return null;
     var s = {};
     for (var i = 0; i < MAP_KEYS.length; i++) {
         var k = MAP_KEYS[i];
         var v = typeof o[k] === 'number' ? String(o[k])
-            : (k === 'hud_keep_shown' || k === 'cluster_offset_x') && !(k in o) ? String(MAP_DEFAULTS[k]) : null;
+            : (k === 'hud_keep_shown' || k === 'cluster_offset_x' || k === 'hud_crop_width_pct') && !(k in o) ? String(MAP_DEFAULTS[k]) : null;
         if (v === null || !mapValueOk(k, v)) return null;
         s[k] = Number(v);
     }
@@ -2397,6 +2406,15 @@ function handle(line, sock) {
             return;
         }
         saveMapSettings(sock, 'hud-size-reply', { hud_width_pct: Math.min(pct, HUD_MAX_PCT) }, 'the HUD map size');
+        return;
+    }
+    if (msg.cmd === 'hud-crop-width') {
+        var cw = msg.hud_crop_width_pct;
+        if (!(typeof cw === 'number' && cw >= HUD_CROP_MIN_PCT && cw <= HUD_CROP_MAX_PCT && cw === Math.floor(cw))) {
+            reply(sock, { ev: 'hud-crop-width-reply', ok: false, reason: 'HUD width shown must be 20-100 %' });
+            return;
+        }
+        saveMapSettings(sock, 'hud-crop-width-reply', { hud_crop_width_pct: cw }, 'the HUD map width shown');
         return;
     }
     if (msg.cmd === 'hud-pos') {

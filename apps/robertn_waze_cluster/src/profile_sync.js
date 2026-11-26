@@ -324,6 +324,10 @@ class ProfileSync extends EventEmitter {
         const on = (v) => (v ? '1' : '0');
         const shows = ['cluster', 'hud'].sort((a, b) => s[b] - s[a]);
         const hud = { cmd: 'hud', hud_width_pct: String(s.hud_width_pct), hud_x: String(s.hud_offset_x), hud_y: String(s.hud_offset_y) };
+        /* a patchd before the HUD width setting has no value to send */
+        if (typeof s.hud_crop_width_pct === 'number') {
+            hud.hud_crop_width_pct = String(s.hud_crop_width_pct);
+        }
         if (s.hud_keep_shown === 0 || s.hud_keep_shown === 1) {
             hud.hud_keep_shown = on(s.hud_keep_shown);
         }

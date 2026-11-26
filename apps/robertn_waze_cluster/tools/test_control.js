@@ -44,7 +44,7 @@
  */
 const assert = require('assert');
 const fs = require('fs');
-const { WazeClusterControl, SIZE, SAFE, ZOOM_STEP, HUD_SIZE_STEPS } = require('../src/waze_cluster_control.js');
+const { WazeClusterControl, SIZE, SAFE, ZOOM_STEP, HUD_SIZE_STEPS, HUD_CROP_STEPS } = require('../src/waze_cluster_control.js');
 const { LogsControl } = require('../src/logs_control.js');
 const { FakeRender, FakePatch, FakeLogs, RENDER_PAGE, RENDER_FPS } = require('./fakes.js');
 
@@ -478,6 +478,46 @@ test('an asked HUD size the render does not show: the render\'s own after a mome
     await until('taken again after the reconnect', () => asked() === 3);
     c.close();
     assert.deepStrictEqual([c.hudSizeText(), c.hudSizeStep()], ['Size: —', null], 'nothing asked kept while closed');
+});
+
+test('the HUD map width as a slider: 5 % steps from 20 to 100 %, 100 % the whole of it', async (render, patch) => {
+    render.hud = 1;
+    const c = control();
+    c.open();
+    await until('connected', () => c.connectedRender() && c.connectedPatch());
+    render.stream(true);
+    await until('on', () => c.renderStatus && c.canChangeHudSize());
+    assert.deepStrictEqual([c.hudCropText(), c.hudCropStep()], ['Width: 100 %', HUD_CROP_STEPS], 'the whole of it');
+    c.setHudCropStep(HUD_CROP_STEPS - 1);
+    assert.deepStrictEqual([c.hudCropText(), c.hudCropStep()], ['Width: 95 %', HUD_CROP_STEPS - 1], 'shown at once');
+    await until('95 %', () => render.hudCrop === 95 && c.renderStatus.hud_crop_width_pct === 95);
+    c.setHudCropStep(0);
+    await until('20 %', () => c.renderStatus.hud_crop_width_pct === 20 && c.hudCropText() === 'Width: 20 %');
+    const sent = render.received.length;
+    [-1, HUD_CROP_STEPS + 1, 2.5, '3', HUD_CROP_STEPS].forEach((step) => c.setHudCropStep(step));
+    assert.strictEqual(render.received.length, sent, 'nothing sent past either end, between steps or for the same step');
+    await until('each one saved', () => patch.received.filter((m) => m.cmd === 'hud-crop-width').map((m) => m.hud_crop_width_pct).join() === '95,20');
+    assert.strictEqual(patch.map.hud_crop_width_pct, 20, 'saved for the next start');
+    assert.strictEqual(patch.map.hud_width_pct, 0, 'the size setting untouched');
+    c.close();
+    assert.deepStrictEqual([c.hudCropText(), c.hudCropStep()], ['Width: —', null], 'nothing known while closed');
+});
+
+test('the HUD map width: a render before it is the whole of it; an asked one it does not show goes back to the render\'s own', async (render, patch) => {
+    render.hud = 1;
+    render.hudCrop = null;   /* a tool before the setting */
+    const c = control();
+    c.open();
+    await until('on', () => c.renderStatus && c.canChangeHudSize());
+    assert.deepStrictEqual([c.hudCropText(), c.hudCropStep()], ['Width: 100 %', HUD_CROP_STEPS], 'the whole of it');
+    render.hudCrop = 100;
+    render.announce(render.state, render.reason);
+    const take = render._onCommand.bind(render);
+    render._onCommand = (msg) => (msg.cmd === 'hud' && msg.hud_crop_width_pct !== undefined ? render.received.push(msg) : take(msg));
+    c.setHudCropStep(HUD_CROP_STEPS - 4);
+    assert.strictEqual(c.hudCropText(), 'Width: 80 %', 'shown at once');
+    await until('the render\'s own again', () => c.hudCropText() === 'Width: 100 %');
+    c.close();
 });
 
 test('the HUD map position: 10 px a press each way, Centre back; the render moves it and patchd saves it', async (render, patch) => {

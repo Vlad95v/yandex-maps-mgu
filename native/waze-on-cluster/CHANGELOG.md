@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+HUD: a new **Width** setting shows a centred share (20-100 %) of the map's
+own horizontal region, the height and the pixel scale kept, so the map on the
+HUD gets narrower without its roads, route and labels getting smaller. 100 %
+is the geometry it always had; the cluster's crop and offset never reach it.
+Saved like the other HUD settings, per driver profile too.
+
 ## 0.14.14
 
 Fix start with the wide CarPlay source: `tex_size = 1440x636` is the decoder

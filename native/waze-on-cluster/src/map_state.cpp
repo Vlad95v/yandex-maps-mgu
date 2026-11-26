@@ -10,12 +10,13 @@
 #include <iterator>
 
 #include "log.h"
+#include "hud_crop.h"
 
 namespace woc {
 
-const char *const kMapStateKeys[7] = {"cluster",         "hud",            "hud_width_pct",
-                                      "hud_offset_x",    "hud_offset_y",   "hud_keep_shown",
-                                      "cluster_offset_x"};
+const char *const kMapStateKeys[8] = {"cluster",           "hud",            "hud_width_pct",
+                                      "hud_crop_width_pct", "hud_offset_x",   "hud_offset_y",
+                                      "hud_keep_shown",    "cluster_offset_x"};
 
 namespace {
 
@@ -26,8 +27,8 @@ std::string trim(const std::string &s)
 }
 
 /* A whole number in the key's range: the map on (1) or off (0), 0 or 20-100 %
- * wide, -800..800 px from the centre, -176..176 px cluster offset (step 2),
- * kept shown (1) or not (0). */
+ * wide, 20-100 % of its width shown, -800..800 px from the centre,
+ * -176..176 px cluster offset (step 2), kept shown (1) or not (0). */
 bool valid(const std::string &key, const std::string &value)
 {
     char *end = nullptr;
@@ -36,6 +37,8 @@ bool valid(const std::string &key, const std::string &value)
         return false;
     if (key == "hud_width_pct")
         return v == 0 || (v >= 20 && v <= 100);
+    if (key == "hud_crop_width_pct")
+        return v >= (long)kHudCropMinPct && v <= (long)kHudCropMaxPct;
     if (key == "hud_offset_x" || key == "hud_offset_y")
         return v >= -800 && v <= 800;
     if (key == "cluster_offset_x")

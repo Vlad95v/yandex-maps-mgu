@@ -78,6 +78,7 @@ std::string status_line(const FeedStatus &s)
            ",\"cluster\":" + (s.cluster ? "1" : "0") +
            ",\"hud\":" + (s.hud ? "1" : "0") + ",\"hud_state\":" + json_escape(s.hud_state) +
            ",\"hud_width_pct\":" + std::to_string(s.hud_width_pct) +
+           ",\"hud_crop_width_pct\":" + std::to_string(s.hud_crop_width_pct) +
            ",\"hud_x\":" + std::to_string(s.hud_offset_x) + ",\"hud_y\":" + std::to_string(s.hud_offset_y) +
            ",\"hud_keep_shown\":" + (s.hud_keep_shown ? "1" : "0") +
            ",\"cluster_x\":" + std::to_string(s.cluster_offset_x) +
@@ -95,13 +96,15 @@ public:
     void set_control(Control *c) { control_ = c; }
 
     /* cluster and hud turn the map on each off or on ("on"), hud also sizes
-     * and places the HUD's; the map itself comes and goes with the stream.
-     * guide is the app's switch for BMW's turn box (guide_setting.h). */
+     * and places the HUD's and says how much of its width it shows; the map
+     * itself comes and goes with the stream. guide is the app's switch for
+     * BMW's turn box (guide_setting.h). */
     void on_command(const std::map<std::string, std::string> &msg) override
     {
         const std::string &cmd = msg.at("cmd");
         auto hide = msg.find("hide");
         auto pct = msg.find("hud_width_pct");
+        auto cw = msg.find("hud_crop_width_pct");
         auto hx = msg.find("hud_x"), hy = msg.find("hud_y"), on = msg.find("on");
         auto keep = msg.find("hud_keep_shown");
         if (cmd == "guide" && hide != msg.end() && guide_->set(hide->second)) {
@@ -109,8 +112,8 @@ public:
             feeds_->set_guide_hold(guide_->hide());
         } else if (cmd == "cluster" && on != msg.end() && (on->second == "0" || on->second == "1")) {
             feeds_->set_cluster(on->second == "1");
-        } else if (cmd == "hud" && (on != msg.end() || pct != msg.end() || hx != msg.end() || hy != msg.end() ||
-                                    keep != msg.end())) {
+        } else if (cmd == "hud" && (on != msg.end() || pct != msg.end() || cw != msg.end() || hx != msg.end() ||
+                                    hy != msg.end() || keep != msg.end())) {
             if (on != msg.end()) {
                 if (on->second == "0" || on->second == "1")
                     feeds_->set_hud(on->second == "1");
@@ -124,6 +127,17 @@ public:
                     feeds_->set_hud_width((unsigned)v);
                 } else {
                     log_warn("hud: width %s out of range (0, or 20-100)", pct->second.c_str());
+                }
+            }
+            /* and how much of its width it shows: 20-100 % */
+            if (cw != msg.end()) {
+                const long v = std::strtol(cw->second.c_str(), nullptr, 10);
+                if (v >= (long)kHudCropMinPct && v <= (long)kHudCropMaxPct) {
+                    log_info("hud: map %ld%% of its width", v);
+                    feeds_->set_hud_crop_width((unsigned)v);
+                } else {
+                    log_warn("hud: hud_crop_width_pct %s out of range (%u-%u)", cw->second.c_str(), kHudCropMinPct,
+                             kHudCropMaxPct);
                 }
             }
             /* and where it is: moved from the centre, in HUD pixels (-800..800 each; held inside the HUD) */
@@ -223,7 +237,8 @@ int serve(Config cfg)
         {"target_fps", 0, 60},      {"picture_fps", 0, 60},          {"pan_blocks", 0, 1},
         {"stall_ms", 1000, 600000},
         {"cluster", 0, 1},          {"hud", 0, 1},                   {"hud_fps", 1, 30},
-        {"hud_width_pct", 0, 100},  {"hud_offset_x", -800, 800},     {"hud_offset_y", -800, 800},
+        {"hud_width_pct", 0, 100},  {"hud_crop_width_pct", (long)kHudCropMinPct, (long)kHudCropMaxPct},
+        {"hud_offset_x", -800, 800},     {"hud_offset_y", -800, 800},
         {"cluster_offset_x", -176, 176},
         {"hud_scale_down", 0, 1},   {"hud_round_corners", 0, 1},     {"hud_black_background", 0, 1},
         {"hud_keep_shown", 0, 1},
@@ -274,6 +289,7 @@ int serve(Config cfg)
         log_warn("hud_width_pct %u: 0 or 20-100; the default box instead", fc.hud_width_pct);
         fc.hud_width_pct = 0;
     }
+    fc.hud_crop_width_pct = (unsigned)cfg.num("hud_crop_width_pct");
     fc.hud_offset_x = (int)cfg.num("hud_offset_x");
     fc.hud_offset_y = (int)cfg.num("hud_offset_y");
     fc.cluster_offset_x = (int)cfg.num("cluster_offset_x");
@@ -539,6 +555,7 @@ void define_keys(Config *cfg)
     cfg->define("hud", "0");
     cfg->define("hud_fps", "10");
     cfg->define("hud_width_pct", "0");
+    cfg->define("hud_crop_width_pct", "100");
     cfg->define("hud_offset_x", "0");
     cfg->define("hud_offset_y", "0");
     cfg->define("cluster_offset_x", "0");

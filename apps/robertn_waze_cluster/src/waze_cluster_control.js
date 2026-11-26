@@ -12,11 +12,12 @@
  *
  *   Render control socket (RENDER_PATH)
  *     app  -> tool  {"cmd":"guide","hide":0|1}  BMW's turn box hidden while the map shows, or not
- *                   {"cmd":"cluster"|"hud","on":"0"|"1"}, {"cmd":"hud","hud_width_pct"|"hud_x","hud_y"|"hud_keep_shown"}
+ *                   {"cmd":"cluster"|"hud","on":"0"|"1"}, {"cmd":"hud","hud_width_pct"|"hud_crop_width_pct"|
+ *                    "hud_x","hud_y"|"hud_keep_shown"}
  *                    the map's settings (patchd saves them)
  *     tool -> app   {"ev":"status","state":"idle"|"starting"|"showing"|"frozen"|"error"|"unsupported",
  *                    "target","page","reason","hide_bmw_guidance","guide_disabled","cluster","hud",
- *                    "hud_state","hud_width_pct","hud_x","hud_y","hud_keep_shown"}
+ *                    "hud_state","hud_width_pct","hud_crop_width_pct","hud_x","hud_y","hud_keep_shown"}
  *                   (hud_keep_shown 0|1, absent from a tool before it)
  *                   (unsupported: the head unit refuses the tool, which stays idle)
  *                   (idle's reason: why a live stream shows no map; hide_bmw_guidance 0|1,
@@ -108,6 +109,12 @@ const SAFE = '504x368+286+72';
  * whole), HUD_SIZE_STEPS of them. Standard (0) counts as HUD_STANDARD_PCT, about what the fitted box is. */
 const HUD_MIN_PCT = 30, HUD_MAX_PCT = 85, HUD_STEP_PCT = 5, HUD_STANDARD_PCT = 57;
 const HUD_SIZE_STEPS = (HUD_MAX_PCT - HUD_MIN_PCT) / HUD_STEP_PCT;
+/* How much of the HUD map's width it shows: HUD_CROP_STEP_PCT steps from
+ * HUD_CROP_MIN_PCT to HUD_CROP_MAX_PCT, HUD_CROP_DEFAULT_PCT (100 %) the
+ * whole of it, exactly as it was before the setting. The native crop is
+ * centred, the height and the pixel scale kept (hud_crop.h). */
+const HUD_CROP_MIN_PCT = 20, HUD_CROP_MAX_PCT = 100, HUD_CROP_STEP_PCT = 5, HUD_CROP_DEFAULT_PCT = 100;
+const HUD_CROP_STEPS = (HUD_CROP_MAX_PCT - HUD_CROP_MIN_PCT) / HUD_CROP_STEP_PCT;
 /* Where the map can show, the choices in their order on the page. */
 const SHOWN_ON = ['cluster', 'hud', 'both', 'off'];
 /* The HUD map moved from its centre, HUD_MOVE_PX a press, within +-HUD_MOVE_MAX; the render holds it inside the
@@ -323,6 +330,7 @@ class WazeClusterControl extends EventEmitter {
             this.renderStatus = null;
             this._askedShownOn = null;
             this._clearAskedHud();
+            this._clearAskedHudCrop();
             this.emit('change');
         };
         this.render.on('connect', reset);
@@ -342,6 +350,7 @@ class WazeClusterControl extends EventEmitter {
         clearTimeout(this._askedPosTimer);
         this._askedPos = null;
         this._clearAskedHud();
+        this._clearAskedHudCrop();
         this.render.close();
         this.patch.close();
         this.renderStatus = null;
@@ -518,6 +527,59 @@ class WazeClusterControl extends EventEmitter {
     _clearAskedHud() {
         clearTimeout(this._askedHudTimer);
         this._askedHud = null;
+    }
+
+    /* ---- how much of the HUD map's width it shows ---- */
+    hudCropWidth() {
+        if (this._askedHudCrop != null) {
+            return this._askedHudCrop;
+        }
+        const s = this.renderStatus;
+        if (!s) {
+            return null;
+        }
+        /* a render before the setting shows the whole of it */
+        const v = s.hud_crop_width_pct;
+        return typeof v === 'number' && v >= HUD_CROP_MIN_PCT ? v : HUD_CROP_DEFAULT_PCT;
+    }
+
+    hudCropText() {
+        const w = this.hudCropWidth();
+        return t('Width: {0}', w == null ? '—' : t('{0} %', w));
+    }
+
+    /* The share as a slider position, 0 (HUD_CROP_MIN_PCT) to HUD_CROP_STEPS
+     * (HUD_CROP_MAX_PCT). Null while the render has not said. */
+    hudCropStep() {
+        const w = this.hudCropWidth();
+        if (w == null) {
+            return null;
+        }
+        const pct = Math.max(HUD_CROP_MIN_PCT, Math.min(HUD_CROP_MAX_PCT, w));
+        return Math.floor((pct - HUD_CROP_MIN_PCT) / HUD_CROP_STEP_PCT);
+    }
+
+    /* The HUD map at a slider position: the render at once, patchd saves it.
+     * The height, the vertical scale and the place do not change. */
+    setHudCropStep(step) {
+        if (!Number.isInteger(step) || step < 0 || step > HUD_CROP_STEPS || !this.canChangeHudSize() || step === this.hudCropStep()) {
+            return;
+        }
+        const pct = HUD_CROP_MIN_PCT + step * HUD_CROP_STEP_PCT;
+        this._askedHudCrop = pct;
+        clearTimeout(this._askedHudCropTimer);
+        this._askedHudCropTimer = setTimeout(() => {
+            this._askedHudCrop = null;
+            this.emit('change');
+        }, HUD_ASKED_MS);
+        this.render.send({ cmd: 'hud', hud_crop_width_pct: String(pct) });
+        this.patch.send({ cmd: 'hud-crop-width', hud_crop_width_pct: pct });
+        this.emit('change');
+    }
+
+    _clearAskedHudCrop() {
+        clearTimeout(this._askedHudCropTimer);
+        this._askedHudCrop = null;
     }
 
     /* ---- where the HUD map is: moved from its centre, in HUD pixels ---- */
@@ -1117,6 +1179,9 @@ class WazeClusterControl extends EventEmitter {
             if (this._askedHud != null && msg.hud_width_pct === this._askedHud) {
                 this._clearAskedHud();
             }
+            if (this._askedHudCrop != null && msg.hud_crop_width_pct === this._askedHudCrop) {
+                this._clearAskedHudCrop();
+            }
             if (this._askedPos && msg.hud_x === this._askedPos[0] && msg.hud_y === this._askedPos[1]) {
                 this._askedPos = null;
             }
@@ -1137,7 +1202,7 @@ class WazeClusterControl extends EventEmitter {
             this._noteCardAsked(msg);
             this._wake();
             this.emit('change');
-        } else if (/^(cluster|hud|hud-size|hud-pos|hud-keep-shown)-reply$/.test(msg.ev)) {
+        } else if (/^(cluster|hud|hud-size|hud-crop-width|hud-pos|hud-keep-shown)-reply$/.test(msg.ev)) {
             if (!msg.ok) {
                 this._log.info(`patchd did not save the setting: ${msg.reason || 'refused'}`);
             }
@@ -1162,5 +1227,6 @@ class WazeClusterControl extends EventEmitter {
 module.exports = {
     WazeClusterControl, LineSocket,
     RENDER_PATH, PATCH_PATH, PENDING_PATH, AA_PENDING_PATH, BOOT_ID_PATH,
-    SIZE, SAFE, ZOOM_STEP, RESTART_FAILED, SHOWN_ON, HUD_SIZE_STEPS
+    SIZE, SAFE, ZOOM_STEP, RESTART_FAILED, SHOWN_ON, HUD_SIZE_STEPS,
+    HUD_CROP_MIN_PCT, HUD_CROP_MAX_PCT, HUD_CROP_STEP_PCT, HUD_CROP_DEFAULT_PCT, HUD_CROP_STEPS
 };

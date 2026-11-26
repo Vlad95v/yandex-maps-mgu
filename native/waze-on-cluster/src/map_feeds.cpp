@@ -14,6 +14,7 @@ MapFeeds::MapFeeds(const FeedConfig &base, bool cluster, bool hud, unsigned hud_
     base_.target = "map";
     if (base_.hud_width_pct > kHudMaxPct)
         base_.hud_width_pct = kHudMaxPct;
+    base_.hud_crop_width_pct = hud_crop_pct(base_.hud_crop_width_pct);
     follow();
 }
 
@@ -84,6 +85,13 @@ void MapFeeds::set_hud_width(unsigned pct)
     base_.hud_width_pct = pct;
     if (hud_)
         hud_->set_hud_width(pct);
+}
+
+void MapFeeds::set_hud_crop_width(unsigned pct)
+{
+    base_.hud_crop_width_pct = hud_crop_pct(pct);
+    if (hud_)
+        hud_->set_hud_crop_width(base_.hud_crop_width_pct);
 }
 
 void MapFeeds::set_hud_offset(int dx, int dy)
@@ -216,6 +224,7 @@ FeedStatus MapFeeds::status(const std::string &decode, const std::string &stream
         }
     }
     s.hud_width_pct = base_.hud_width_pct;
+    s.hud_crop_width_pct = base_.hud_crop_width_pct;
     s.hud_keep_shown = base_.hud_keep_shown;
     s.hud_offset_x = hud_ ? hud_->hud_offset_x() : base_.hud_offset_x;
     s.hud_offset_y = hud_ ? hud_->hud_offset_y() : base_.hud_offset_y;
