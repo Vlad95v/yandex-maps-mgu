@@ -303,6 +303,48 @@
             }
           ]
         },
+        "108": {
+          "type": "slider",
+          "name": "wocHudCropWidth",
+          "properties": {
+            "Visible": {
+              "value": 1,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "TextDescription": {
+                "value": "Width: —",
+                "type": "Text"
+              },
+              "TextDescriptionVisible": {
+                "value": true,
+                "type": "Bool"
+              },
+              "MiddleIndicatorVisible": {
+                "value": false,
+                "type": "Bool"
+              },
+              "MinValue": {
+                "value": 0,
+                "type": "SInt"
+              },
+              "MaxValue": {
+                "value": 16,
+                "type": "SInt"
+              },
+              "NumberOfSteps": {
+                "value": 16,
+                "type": "SInt"
+              }
+            }
+          ]
+        },
         "55": {
           "type": "label",
           "name": "wocHudPos",
