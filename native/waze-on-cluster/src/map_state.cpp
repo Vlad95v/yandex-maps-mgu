@@ -38,7 +38,7 @@ bool valid(const std::string &key, const std::string &value)
     if (key == "hud_width_pct")
         return v == 0 || (v >= 20 && v <= 100);
     if (key == "hud_crop_width_pct")
-        return v >= kHudCropMinPct && v <= kHudCropMaxPct;
+        return v >= (long)kHudCropMinPct && v <= (long)kHudCropMaxPct;
     if (key == "hud_offset_x" || key == "hud_offset_y")
         return v >= -800 && v <= 800;
     if (key == "cluster_offset_x")

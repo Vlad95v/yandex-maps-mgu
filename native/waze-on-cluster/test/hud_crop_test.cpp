@@ -111,15 +111,16 @@ int main()
     }
 
     /* 6. the crop narrows the box, not squeezes the picture: the pixel scale
-     * stays the whole region's (0.5 % rounding; the pre-existing difference
-     * between the frame's shape and the region's is not this setting's) */
+     * stays the whole region's (1.5 %, the boxes being multiples of 4; the
+     * pre-existing difference between the frame's shape and the region's is
+     * not this setting's) */
     {
         bool uniform = true;
         const double base = (double)wide.box_w / 1088;
         for (unsigned pct = 20; pct <= 100; pct += 5) {
             const HudGeometry g = hud_geometry(wide.frame_w, wide.frame_h, wide.box_w, wide.box_h, pct);
             const double scale = (double)g.box.w / g.crop.w;
-            uniform = uniform && scale > base * 0.995 && scale < base * 1.005;
+            uniform = uniform && scale > base * 0.985 && scale < base * 1.015;
         }
         ok("20-100 %: the horizontal pixel scale as the whole region's", uniform);
     }

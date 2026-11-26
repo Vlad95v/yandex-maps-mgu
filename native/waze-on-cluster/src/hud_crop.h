@@ -87,17 +87,22 @@ inline HudGeometry hud_geometry(uint32_t frame_w, uint32_t frame_h, uint32_t box
         return g;
     }
     const unsigned share = hud_crop_pct(pct);
-    /* the box: that share of the width, to the nearest multiple of 4 (the
-     * renderer's videos are, and a truncated box would squeeze the map
-     * sideways a little) */
+    /* the box: that share of the width the Size setting made, to the nearest
+     * multiple of 4 (the renderer's videos are, and a truncated box would
+     * squeeze the map sideways a little) */
     uint32_t dw = (uint32_t)(((uint64_t)box_w * share + 50) / 100 + 2) & ~3u;
     if (dw > box_w)
         dw = box_w & ~3u;
-    if (dw < kHudBoxMinW && share < kHudCropMaxPct)
-        dw = kHudBoxMinW;   /* the renderer's narrowest; the crop follows below */
-    /* the crop: what fills that box at the pixel scale the whole region had
-     * (box_w of src.w), centred, its width even and its X even */
-    uint32_t cw = (uint32_t)(((uint64_t)g.src.w * dw + box_w / 2) / box_w + 1) & ~1u;
+    /* the crop: the same share of the region, its width even; the pixel scale
+     * stays the whole region's (box_w of src.w), so 100 % is the region
+     * itself in the box the Size setting made. */
+    uint32_t cw = (uint32_t)(((uint64_t)g.src.w * share + 50) / 100 + 1) & ~1u;
+    if (dw < kHudBoxMinW && share < kHudCropMaxPct) {
+        /* the renderer's narrowest video: the crop the box can show at the
+         * region's scale, so that the map is never scaled unevenly */
+        dw = kHudBoxMinW;
+        cw = (uint32_t)(((uint64_t)g.src.w * dw + box_w / 2) / box_w + 1) & ~1u;
+    }
     const uint32_t most = g.src.w & ~1u;
     if (cw > most)
         cw = most;

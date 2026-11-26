@@ -337,6 +337,7 @@ crk::QuadRect MapFeed::quad(uint32_t tw, uint32_t th) const
         (cfg_.scale_down || (cfg_.video.w == kCarplayWideWidth && cfg_.video.h == kCarplayWideHeight))) {
         const HudGeometry g = hud_geometry(cfg_.video.w, cfg_.video.h, q.w, q.h, cfg_.hud_crop_width_pct);
         hud_crop_ = g.crop;
+        crop_x_ = (int)g.crop.x;   /* the HUD's own crop, never the cluster's */
         if (g.box.w != q.w || g.box.h != q.h) {
             q.x += (q.w - g.box.w) / 2;   /* its centre where the box's was */
             q.w = g.box.w;
