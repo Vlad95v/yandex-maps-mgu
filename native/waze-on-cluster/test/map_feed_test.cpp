@@ -1363,6 +1363,10 @@ static void cached_frame_recrop()
                                                      r.feed->status("decode").state == "showing");
 
     const uint64_t scaled1 = r.feed->scaled_frames();
+    /* set_cluster_offset timestamps with the real clock, while this rig's pump
+     * uses simulated time; let the first recrop's real-time send interval pass
+     * before asking for the second one. */
+    usleep(100000);
     r.feed->set_cluster_offset(-50);
     ok("cached recrop: cached source rendered at crop_x=226",
        wait_for_atlas(r, "map", 1088, 720, e226));
