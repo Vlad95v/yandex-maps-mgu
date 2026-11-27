@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.6.20
+
 A new **CarPlay calibration** page, opened from the main page, for trying the
 geometry directly on the car: an arbitrary advertised width (1088-1920, even,
 in 2/10/100 px steps) with its height and physical size calculated, an

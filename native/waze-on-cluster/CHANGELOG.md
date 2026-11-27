@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.14.17
+
 CarPlay calibration: the patcher, patchd and the render accept an arbitrary
 advertised width (1088-1920, even, its 1088x480-shaped height and physical
 size calculated), kept apart from the live crop, and the render's cluster
