@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.6.21
+
 The CarPlay calibration page is compact enough for the iDrive 7 HMI: the
 stepped crop-width slider is replaced by **Crop -8 / -2 / +2 / +8** buttons
 (2 px fine, 8 px coarse), the page drops to 33 rows, and the selected
