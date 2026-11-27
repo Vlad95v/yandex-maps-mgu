@@ -52,7 +52,7 @@ VERSION := $(shell sed -n 's/^ *"version": *"\([^"]*\)".*/\1/p' component.json)
 # The capture, decode and map feed (own files), the kit's atlas, packing and
 # geometry, and the shared renderer's client.
 WOC_SRC = src/main.cpp src/refused.cpp src/video_producer.cpp src/freeze_watch.cpp src/alt_screen.cpp src/map_feed.cpp src/map_feeds.cpp src/atlas_scale.cpp src/control.cpp src/h264_source.cpp \
-          src/guide_setting.cpp src/map_state.cpp src/frame_dump.cpp src/opt_in.cpp \
+          src/guide_setting.cpp src/map_state.cpp src/frame_dump.cpp src/opt_in.cpp src/config_keys.cpp \
           src/udp_source.cpp src/avb_source.cpp src/framing_probe.cpp src/rtp_h264.cpp src/sps_info.cpp \
           src/decoder_msdk.cpp src/nal_reader.cpp src/stream_health.cpp $(KIT)/map_geometry.cpp $(KIT)/yuv_atlas.cpp \
           $(KIT)/block_pack.cpp
@@ -67,7 +67,8 @@ CPP_TESTS = $(BUILD)/host/nal_reader_test $(BUILD)/host/rtp_h264_test $(BUILD)/h
 		$(BUILD)/host/stream_health_test $(BUILD)/host/source_crop_test \
 		$(BUILD)/host/map_rect_test $(BUILD)/host/guide_setting_test $(BUILD)/host/decoder_test \
 		$(BUILD)/host/map_state_test $(BUILD)/host/opt_in_test $(BUILD)/host/atlas_scale_test $(BUILD)/host/sps_info_test \
-		$(BUILD)/host/map_size_test $(BUILD)/host/picture_pace_test $(BUILD)/host/hud_crop_test $(BUILD)/host/frame_dump_test
+		$(BUILD)/host/map_size_test $(BUILD)/host/picture_pace_test $(BUILD)/host/hud_crop_test $(BUILD)/host/frame_dump_test \
+		$(BUILD)/host/config_keys_test
 # The control socket (accept4) and the producer (pipe2) are Linux's: built and run on Linux only
 # (make test-x86).
 LINUX_TESTS = $(if $(filter Linux,$(shell uname -s)),$(BUILD)/host/refused_test $(BUILD)/host/video_producer_test)
@@ -250,6 +251,12 @@ $(BUILD)/host/guide_setting_test: test/guide_setting_test.cpp src/guide_setting.
 $(BUILD)/host/map_state_test: test/map_state_test.cpp src/map_state.cpp src/map_state.h $(CR)/src/config.cpp $(CR)/src/log.cpp
 	mkdir -p $(@D)
 	$(CXX) $(CXXFLAGS) -Isrc -I$(CR)/src -o $@ test/map_state_test.cpp src/map_state.cpp $(CR)/src/config.cpp $(CR)/src/log.cpp -lpthread
+
+# The tool's own configuration keys: the shipped waze-on-cluster.conf loads
+# whole, crop defaults and custom values read through config_keys.cpp.
+$(BUILD)/host/config_keys_test: test/config_keys_test.cpp src/config_keys.cpp src/config_keys.h $(CR)/src/config.cpp
+	mkdir -p $(@D)
+	$(CXX) $(CXXFLAGS) -Isrc -I$(CR)/src -o $@ test/config_keys_test.cpp src/config_keys.cpp $(CR)/src/config.cpp
 
 $(BUILD)/host/map_size_test: test/map_size_test.cpp src/map_size.h src/map_feed.h $(KIT)/map_geometry.cpp $(KIT)/map_geometry.h
 	mkdir -p $(@D)
