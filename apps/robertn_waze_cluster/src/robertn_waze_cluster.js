@@ -341,7 +341,10 @@ class WazeClusterApp extends OnlineApp {
         /* The calibration page: the width steps, Apply, the crop's slider and
          * fine/coarse steps, Centre and Reset, the frame capture and Save
          * logs (its own socket is open while the page shows). */
-        this._bind(CALIBRATION_NAME, () => this._openPage(CAL_STATE));
+        this._bind(CALIBRATION_NAME, () => {
+            logger.info(`calibration button: opening ${CAL_STATE}`);
+            this._openPage(CAL_STATE);
+        });
         [[CAL_WIDTH_MINUS_100, -100], [CAL_WIDTH_MINUS_10, -10], [CAL_WIDTH_MINUS_2, -2],
             [CAL_WIDTH_PLUS_2, 2], [CAL_WIDTH_PLUS_10, 10], [CAL_WIDTH_PLUS_100, 100]]
             .forEach(([name, step]) => this._bind(name, () => this._control.adjustResolutionWidth(step)));
@@ -395,7 +398,13 @@ class WazeClusterApp extends OnlineApp {
         this._logsState.on('visible', (event) => this._pageVisible('logs', isTrue(event && event.visible)));
         this._calState.on('visible', (event) => this._pageVisible('calibration', isTrue(event && event.visible)));
         this._removeStaleQr();
-        return Promise.all([this._state.updateResources(), this._logsState.updateResources()]).then(() => {
+        logger.info('RHMI resources: main, logs and calibration');
+        return Promise.all([
+            this._state.updateResources(),
+            this._logsState.updateResources(),
+            this._calState.updateResources()
+        ]).then(() => {
+            logger.info('RHMI resources: main, logs and calibration updated');
             logger.info(`page ready: ${names.length} components found`);
             this._render();
             this._renderLogs();
@@ -432,8 +441,14 @@ class WazeClusterApp extends OnlineApp {
     /* Opens one of the app's other pages (Logs, Calibration), a child of the
      * main page; a failure is logged, the page stays where it is. */
     _openPage(stateName) {
+        logger.info(`openState ${stateName}: requested`);
         return Promise.resolve(this.rhmiApplication.openState(stateName))
-            .catch((err) => logger.warn(`openState ${stateName} failed: ${err && err.message}`));
+            .then((result) => {
+                logger.info(`openState ${stateName}: resolved`);
+                return result;
+            }, (err) => {
+                logger.warn(`openState ${stateName} failed: ${err && err.message}`);
+            });
     }
 
     _bind(name, handler) {        const comp = this._components[name];
@@ -501,13 +516,16 @@ class WazeClusterApp extends OnlineApp {
     }
 
     /* ---- visibility ---- */
-    /* One page shown or hidden. The logs socket follows the Logs page; the
-     * app counts as hidden once neither page has shown for HIDE_SETTLE_MS. */
+    /* One page shown or hidden. The logs socket follows the Logs or Calibration
+     * page; the app counts as hidden only once none of the three has shown for
+     * HIDE_SETTLE_MS. */
     _pageVisible(page, visible) {
         if (this._shutdownPromise) {
             return;
         }
         this._pages[page] = visible;
+        logger.info(`RHMI page ${page}: ${visible ? 'visible' : 'hidden'} (main=${this._pages.main ? 1 : 0}, ` +
+            `logs=${this._pages.logs ? 1 : 0}, calibration=${this._pages.calibration ? 1 : 0})`);
         if (visible) {
             this._shownPage = page;
         }
@@ -520,20 +538,27 @@ class WazeClusterApp extends OnlineApp {
                 this._logs.close();
             }
         }
+        if (this._hideTimer) {
+            logger.info('RHMI hide timer: cancelled');
+        }
         clearTimeout(this._hideTimer);
         this._hideTimer = null;
         if (visible) {
             this._sawForeground = true;
             this._setVisible(true);
-        } else if (!this._pages.main && !this._pages.logs) {
+        } else if (!this._pages.main && !this._pages.logs && !this._pages.calibration) {
+            logger.info(`RHMI hide timer: scheduled ${HIDE_SETTLE_MS} ms (main 0, logs 0, calibration 0)`);
             this._hideTimer = setTimeout(() => {
                 this._hideTimer = null;
+                logger.info('RHMI hide timer: fired');
                 this._setVisible(false);
             }, HIDE_SETTLE_MS);
         }
     }
 
     _setVisible(visible) {
+        logger.info(`_setVisible(${visible}) (main=${this._pages.main ? 1 : 0}, logs=${this._pages.logs ? 1 : 0}, ` +
+            `calibration=${this._pages.calibration ? 1 : 0})`);
         if (!visible) {
             this._pages = { main: false, logs: false, calibration: false };
             this._logs.close();
