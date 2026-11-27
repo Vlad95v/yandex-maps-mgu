@@ -100,6 +100,7 @@ var locator = require('./carplay_locate.js');
 var headUnit = require('./head_unit.js');
 var record = require('./patch_record.js');
 var fileMode = require('./file_mode.js');
+var resolution = require('./resolution.js');
 
 function latin1(s) { return Buffer.from(s, 'latin1').toString('hex'); }
 
@@ -262,18 +263,34 @@ function readRes(buf, r) {
 
 /* This tool's geometry has its physical size, the view area at (0,0) and a
  * safe area inside the frame; a stock one has another physical size and a
- * safe area inside the frame. */
-function resState(buf, r) {
-    if (!r.ok) return { state: 'unknown', reason: r.reason };
-    var g = readRes(buf, r);
+ * safe area inside the frame. A calibration size (1088..1920 wide, its height
+ * the one that keeps the 1088x480 shape, its physical size the linear
+ * interpolation, resolution.js) counts as ours too. A size an older release
+ * wrote with the default 138x61 mm physical size is kept recognized. */
+function ourGeometry(g) {
+    var inside = g.w > 0 && g.h > 0 && g.safew > 0 && g.safeh > 0 && g.safex + g.safew <= g.w && g.safey + g.safeh <= g.h;
+    if (!inside || g.viewx !== 0 || g.viewy !== 0)
+        return false;
+    var cal = resolution.geometryForWidth(g.w);
+    if (cal && g.mmw === cal.mmw && g.mmh === cal.mmh)
+        return true;
+    return (g.mmw === RES_DEFAULT.mmw && g.mmh === RES_DEFAULT.mmh) ||
+           (g.mmw === RES_WIDE.mmw && g.mmh === RES_WIDE.mmh);
+}
+
+function geometryState(g) {
     var inside = g.w > 0 && g.h > 0 && g.safew > 0 && g.safeh > 0 && g.safex + g.safew <= g.w && g.safey + g.safeh <= g.h;
     /* Both geometries this tool writes count as ours: the 1088x480 cluster
-     * map and the wider 1440x636 source the cluster crops its offset from. */
-    var ours = (g.mmw === RES_DEFAULT.mmw && g.mmh === RES_DEFAULT.mmh) ||
-               (g.mmw === RES_WIDE.mmw && g.mmh === RES_WIDE.mmh);
-    if (inside && !ours && g.mmw > 0 && g.mmh > 0) return { state: 'original', res: g };
-    if (inside && ours && g.viewx === 0 && g.viewy === 0) return { state: 'patched', res: g };
+     * map, the wider 1440x636 source the cluster crops its offset from, and
+     * any calibration width between them or above. */
+    if (inside && !ourGeometry(g) && g.mmw > 0 && g.mmh > 0) return { state: 'original', res: g };
+    if (inside && ourGeometry(g)) return { state: 'patched', res: g };
     return { state: 'unknown', reason: 'resolution: geometry not recognised', res: g };
+}
+
+function resState(buf, r) {
+    if (!r.ok) return { state: 'unknown', reason: r.reason };
+    return geometryState(readRes(buf, r));
 }
 
 function writeRes(buf, r, g) {
@@ -368,7 +385,8 @@ function describe(name, s) {
     if (name === 'res') {
         if (s.state === 'original') return 'ORIGINAL (IC_HIGH advertises ' + s.res.w + 'x' + s.res.h + ')';
         const isWide = s.res.w === 1440 && s.res.h === 636 && s.res.mmw === 183 && s.res.mmh === 81;
-        return 'PATCHED (IC_HIGH advertises ' + geomText(s.res) + (isWide ? ' [WIDE for cluster offset]' : '') + ')';
+        const isCal = !isWide && resolution.geometryForWidth(s.res.w) !== null;
+        return 'PATCHED (IC_HIGH advertises ' + geomText(s.res) + (isWide ? ' [WIDE for cluster offset]' : isCal ? ' [CALIBRATION]' : '') + ')';
     }
     return s.state === 'original' ? 'ORIGINAL (IC_HIGH advertises ' + s.res.w + 'x' + s.res.h + ')' : 'PATCHED (IC_HIGH advertises ' + geomText(s.res) + ')';
 }
@@ -464,19 +482,28 @@ function resFor(panel, res, safe) {
     if (res === 'wide') {
         base = RES_WIDE;
     }
-    var w = base.w, h = base.h;
+    var w = base.w, h = base.h, mmw = base.mmw, mmh = base.mmh;
     if (res !== undefined && res !== 'wide') {
         var m = /^([0-9]+)x([0-9]+)$/.exec(res || '');
-        if (!m) die('--res needs WxH (e.g. 1088x480), "wide", or "stock"');
+        if (!m) die('--res needs WxH (e.g. 1088x480 or 1200x530), "wide", or "stock"');
         w = parseInt(m[1], 10); h = parseInt(m[2], 10);
         if (w < 16 || w > 1920 || h < 16 || h > 1080 || (w % 2) !== 0 || (h % 2) !== 0)
             die('--res ' + res + ' out of range: width 16..1920, height 16..1080, both even (H.264)');
+        /* The calibration widths advertise the physical size the two known
+         * sizes interpolate to (1088 -> 138x61 mm, 1440 -> 183x81 mm, and on
+         * above 1440); a smaller legacy size keeps the default physical
+         * size. The app never advertises a smaller one. */
+        var mm = resolution.geometryForWidth(w);
+        if (mm) {
+            mmw = mm.mmw;
+            mmh = mm.mmh;
+        }
     }
     /* The default safe area's edges, scaled from the default size. */
     var d = SAFE_DEFAULT, dw = RES_DEFAULT.w, dh = RES_DEFAULT.h;
     var x0 = Math.round(d.x * w / dw), x1 = Math.round((d.x + d.w) * w / dw);
     var y0 = Math.round(d.y * h / dh), y1 = Math.round((d.y + d.h) * h / dh);
-    var g = { w: w, h: h, mmw: base.mmw, mmh: base.mmh, safew: x1 - x0, safeh: y1 - y0, safex: x0, safey: y0 };
+    var g = { w: w, h: h, mmw: mmw, mmh: mmh, safew: x1 - x0, safeh: y1 - y0, safex: x0, safey: y0 };
     if (safe === 'full') {
         g.safew = w; g.safeh = h; g.safex = 0; g.safey = 0;
     } else if (safe !== undefined) {
@@ -954,6 +981,6 @@ function foreignIn(target) {
 /* edited, classify, resFor and sinkUrlFor: the image an earlier release's
  * apply wrote, for the tests' fixtures. */
 module.exports = { trustedBackup: trustedBackup, SHIPPED: SHIPPED, parsePlan: parsePlan, overlay: overlay, againstPlan: againstPlan, planOf: planOf,
-    foreignIn: foreignIn, edited: edited, classify: classify, resFor: resFor, sinkUrlFor: sinkUrlFor };
+    foreignIn: foreignIn, edited: edited, classify: classify, resFor: resFor, sinkUrlFor: sinkUrlFor, geometryState: geometryState };
 
 if (require.main === module) main();

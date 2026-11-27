@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+CarPlay calibration: the patcher, patchd and the render accept an arbitrary
+advertised width (1088-1920, even, its 1088x480-shaped height and physical
+size calculated), kept apart from the live crop, and the render's cluster
+crop is now a variable rectangle of the 1440x636 source (816-1440 wide, any
+even X/Y) scaled to the fixed 1088x480: narrower crops are upscaled with
+bilinear interpolation, wider ones downscaled with the box filter, in the
+existing ScaleWorker, live, with no second decoder or stream. The full-frame
+dump's `.json` now carries the selected and active resolutions, the patch
+state, the incoming SPS size, the normalized atlas, the crop, the output and
+the zoom. `--res` takes any width 1088-1920 (not only `wide`), and a
+calibration geometry reads as patched.
+
 ## 0.14.16
 
 The Logs page can keep one full CarPlay picture, before the map is cropped and

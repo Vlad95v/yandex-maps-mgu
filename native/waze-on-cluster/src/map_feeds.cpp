@@ -117,6 +117,16 @@ void MapFeeds::set_cluster_offset(int dx)
         cluster_->set_cluster_offset(dx);
 }
 
+void MapFeeds::set_cluster_crop(int x, int y, uint32_t w, uint32_t h)
+{
+    base_.cluster_crop_x = x;
+    base_.cluster_crop_y = y;
+    base_.cluster_crop_w = w;
+    base_.cluster_crop_h = h;
+    if (cluster_)
+        cluster_->set_cluster_crop(x, y, w, h);
+}
+
 void MapFeeds::set_guide_hold(bool hold)
 {
     base_.guide_hold = hold;

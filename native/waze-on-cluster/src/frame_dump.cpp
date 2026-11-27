@@ -98,6 +98,23 @@ std::string utc_now(int64_t ms)
     return b;
 }
 
+/* A metadata string as JSON holds it: only letters, digits and a few safe
+ * punctuation marks, at most 64 of them (the app can send nothing else; this
+ * keeps a stray quote out of the file). */
+std::string safe(const std::string &s)
+{
+    std::string o;
+    for (char c : s) {
+        const bool ok = (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') ||
+                        c == '.' || c == '_' || c == '-' || c == ':' || c == '/' || c == '+' || c == ' ';
+        if (ok)
+            o.push_back(c);
+        if (o.size() >= 64)
+            break;
+    }
+    return o;
+}
+
 }  // namespace
 
 FrameDump::FrameDump(std::string dir) : dir_(std::move(dir)) {}
@@ -117,6 +134,13 @@ void FrameDump::request(int64_t now_ms)
     utc_.clear();
     w_ = h_ = 0;
     captured_ms_ = 0;
+    captured_cal_ = Calibration();
+}
+
+void FrameDump::set_calibration(const Calibration &c)
+{
+    std::lock_guard<std::mutex> lock(mu_);
+    cal_ = c;
 }
 
 bool FrameDump::waiting() const
@@ -150,6 +174,9 @@ void FrameDump::offer(const uint8_t *atlas, size_t bytes, uint32_t w, uint32_t h
     frame_.assign(atlas, atlas + bytes);
     w_ = w;
     h_ = h;
+    captured_cal_ = cal_;
+    captured_cal_.normalized_w = w;
+    captured_cal_.normalized_h = h;
     captured_ms_ = now_ms;
     utc_ = utc_now(now_ms);
     state_ = State::Captured;
@@ -193,12 +220,24 @@ bool FrameDump::write(const std::vector<uint8_t> &atlas, uint32_t w, uint32_t h,
     const std::string json_path = dir_ + "/" + kJsonName;
     if (!write_atomic(atlas_path, atlas.data(), atlas.size(), why))
         return false;
-    char json[512];
+    char json[2048];
     const int n = std::snprintf(
         json, sizeof json,
         "{\"width\":%u,\"height\":%u,\"format\":\"yuv420p_atlas\",\"atlas_height\":%u,\"size\":%zu,"
-        "\"captured_utc\":\"%s\",\"source\":\"carplay\",\"full_frame\":true}\n",
-        w, h, h + h / 2, atlas.size(), utc_now(ms).c_str());
+        "\"captured_utc\":\"%s\",\"source\":\"carplay\",\"full_frame\":true,"
+        /* the calibration: advertised (selected and active), the incoming
+         * SPS, the normalized atlas, the cluster crop and output, the zoom */
+        "\"selected\":\"%s\",\"active\":\"%s\",\"patch\":\"%s\","
+        "\"sps_width\":%u,\"sps_height\":%u,"
+        "\"normalized_width\":%u,\"normalized_height\":%u,"
+        "\"crop_x\":%d,\"crop_y\":%d,\"crop_w\":%u,\"crop_h\":%u,"
+        "\"output_width\":%u,\"output_height\":%u,\"zoom\":%.1f}\n",
+        w, h, h + h / 2, atlas.size(), utc_now(ms).c_str(),
+        safe(captured_cal_.selected).c_str(), safe(captured_cal_.active).c_str(), safe(captured_cal_.patch).c_str(),
+        captured_cal_.sps_w, captured_cal_.sps_h,
+        captured_cal_.normalized_w, captured_cal_.normalized_h,
+        captured_cal_.crop_x, captured_cal_.crop_y, captured_cal_.crop_w, captured_cal_.crop_h,
+        captured_cal_.output_w, captured_cal_.output_h, captured_cal_.zoom);
     if (n <= 0 || (size_t)n >= sizeof json) {
         *why = "the metadata does not fit";
         ::unlink(atlas_path.c_str());

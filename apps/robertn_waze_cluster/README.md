@@ -93,6 +93,37 @@ The app is in the head unit's display language.
 **Restart head unit** shows when a change needs a restart. Press it to
 apply the change.
 
+## CarPlay calibration (experimental)
+
+For trying the cluster map's geometry on the car. Open **CarPlay
+calibration** from the main page.
+
+- **CarPlay resolution:** **Width -100 / -10 / -2 / +2 / +10 / +100** pick an
+  advertised width from 1088 to 1920 (always even; 1920 is the patcher's
+  limit, not a tested maximum of the car or the iPhone). **Height** and
+  **Physical** show the height that keeps the 1088x480 shape and the
+  physical size the patcher advertises. The choice is only saved until
+  **Apply**; **Selected** is what the next apply writes, **Active** is what
+  CarPlay advertises now, and **Resolution** says **Applied**, **Apply
+  needed** or **Pending restart**. A new size takes effect with a new
+  CarPlay session (carplay restarts where the head unit allows it, otherwise
+  at the next head-unit start; the row says which).
+- **Cluster crop:** **Crop width** (the slider, or **Crop -8 / +8**) picks
+  the part of the 1440x636 source shown on the cluster, 816 to 1440 wide;
+  its height follows the 1088x480 shape. **X -10 / -2 / +2 / +10** and
+  **Y -10 / -2 / +2 / +10** move it, **Centre** centres it and **Reset**
+  goes back to 1088x480 at X 176, Y 0 (100 %). It changes while CarPlay
+  runs: no reconnect. A crop narrower than 1088 is upscaled to the fixed
+  1088x480 output, a wider one downscaled.
+- **Diagnostics:** **Capture full CarPlay frame** and **Save logs** work as
+  on the Logs page; the frame's JSON also records the selected and active
+  resolutions, the incoming SPS size, the decoded atlas, the crop, the
+  output and the zoom.
+
+The page has no text-entry field: the iDrive 7 UI description this app uses
+declares no editable numeric control, so the width is changed in steps with
+the exact value shown, never from a fixed list of presets.
+
 ## If the map doesn't show
 
 | If you see | Do this |
@@ -234,6 +265,8 @@ node tools/test_control.js           # the socket client against fake sockets
 node tools/test_page.js              # the page against a fake SDK and HMI
 node tools/test_profiles.js          # the driver profiles against fake sockets and SessionManager
 node tools/test_i18n.js              # every language: its words, placeholders, RHMI text files
+node tools/test_calibration.js       # the calibration geometry, against the patcher's copy
+node tools/test_text_encoding.js     # the diagnostic encoding repair; every locale is clean
 node tools/build.js                  # robertn_waze_cluster@<version>.src.tgz
 node tools/build.js --sdk <donor>    # also robertn_waze_cluster@<version>.tgz
 ```

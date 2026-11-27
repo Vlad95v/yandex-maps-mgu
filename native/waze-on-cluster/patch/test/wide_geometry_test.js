@@ -21,8 +21,9 @@ const conf = fs.readFileSync(path.join(HERE, 'waze-on-cluster.conf'), 'utf8');
 assert(/^tex_size = 1440x636$/m.test(conf), 'waze-on-cluster.conf tex_size is the wide source');
 
 const patchd = fs.readFileSync(path.join(P, 'patchd.js'), 'utf8');
-assert(/if \(panel === 'high'\) args\.push\('--res', 'wide'\);/.test(patchd),
-    'patchd planArgs passes --res wide for the high panel');
+assert(/if \(panel === 'high'\) args\.push\('--res', res \|\| 'wide'\);/.test(patchd),
+    'patchd planArgs passes --res wide by default, the calibration selection otherwise');
+assert(/require\('\.\/resolution\.js'\)/.test(patchd), 'patchd uses the shared calibration geometry');
 
 const feed = fs.readFileSync(path.join(HERE, 'src', 'map_feed.h'), 'utf8');
 assert(/kCarplayWideWidth = 1440/.test(feed) && /kCarplayWideHeight = 636/.test(feed),

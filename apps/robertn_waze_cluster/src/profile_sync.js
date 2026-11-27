@@ -319,7 +319,8 @@ class ProfileSync extends EventEmitter {
     /* The render to the settings in effect: a display turned on first, so a
      * switch from one display to the other never passes through neither,
      * then the HUD's size, place and whether it stays shown over BMW's
-     * pop-ups (from a patchd that has it), then the cluster map's offset. */
+     * pop-ups (from a patchd that has it), then the cluster crop and its
+     * offset. */
     _toRender(s) {
         const on = (v) => (v ? '1' : '0');
         const shows = ['cluster', 'hud'].sort((a, b) => s[b] - s[a]);
@@ -332,9 +333,16 @@ class ProfileSync extends EventEmitter {
             hud.hud_keep_shown = on(s.hud_keep_shown);
         }
         const cmds = shows.map((d) => ({ cmd: d, on: on(s[d]) })).concat([hud]);
-        /* a patchd before the cluster offset has no value to send */
-        if (typeof s.cluster_offset_x === 'number') {
-            cmds.push({ cmd: 'cluster', cluster_x: String(s.cluster_offset_x) });
+        /* a patchd before the cluster crop (or offset) has no value to send */
+        if (typeof s.cluster_offset_x === 'number' || typeof s.cluster_crop_w === 'number') {
+            const c = { cmd: 'cluster', cluster_x: String(s.cluster_offset_x || 0) };
+            if (typeof s.cluster_crop_w === 'number') {
+                c.crop_w = String(s.cluster_crop_w);
+            }
+            if (typeof s.cluster_crop_y === 'number') {
+                c.crop_y = String(s.cluster_crop_y);
+            }
+            cmds.push(c);
         }
         const c = this._control;
         if (c && c.render && c.render.connected()) {

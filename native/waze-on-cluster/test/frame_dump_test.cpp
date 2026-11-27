@@ -66,6 +66,24 @@ int main()
     dump.request(1000);
     ok("asked: waiting", dump.state() == FrameDump::State::Waiting && std::strcmp(dump.state_word(), "waiting") == 0);
 
+    /* The calibration the app sent with the request: the selected and
+     * active advertised resolutions and the patch state, plus this process's
+     * own SPS, crop and output. */
+    FrameDump::Calibration cal;
+    cal.selected = "1200x530";
+    cal.active = "1440x636";
+    cal.patch = "patched";
+    cal.sps_w = 1200;
+    cal.sps_h = 530;
+    cal.crop_x = 176;
+    cal.crop_y = 0;
+    cal.crop_w = 1088;
+    cal.crop_h = 480;
+    cal.output_w = 1088;
+    cal.output_h = 480;
+    cal.zoom = 100.0;
+    dump.set_calibration(cal);
+
     /* A part, another size, a short atlas: none is taken, and the reason says
      * which; the request still stands. */
     dump.offer(atlas.data(), bytes, 1440, 636, /*part=*/true, 1001);
@@ -110,6 +128,20 @@ int main()
                                     json_text.find("\"source\":\"carplay\"") != std::string::npos &&
                                     json_text.find("\"full_frame\":true") != std::string::npos &&
                                     json_text.find("\"captured_utc\":\"") != std::string::npos);
+    ok("the calibration metadata is there", json_text.find("\"selected\":\"1200x530\"") != std::string::npos &&
+                                               json_text.find("\"active\":\"1440x636\"") != std::string::npos &&
+                                               json_text.find("\"patch\":\"patched\"") != std::string::npos &&
+                                               json_text.find("\"sps_width\":1200") != std::string::npos &&
+                                               json_text.find("\"sps_height\":530") != std::string::npos &&
+                                               json_text.find("\"normalized_width\":1440") != std::string::npos &&
+                                               json_text.find("\"normalized_height\":636") != std::string::npos &&
+                                               json_text.find("\"crop_x\":176") != std::string::npos &&
+                                               json_text.find("\"crop_y\":0") != std::string::npos &&
+                                               json_text.find("\"crop_w\":1088") != std::string::npos &&
+                                               json_text.find("\"crop_h\":480") != std::string::npos &&
+                                               json_text.find("\"output_width\":1088") != std::string::npos &&
+                                               json_text.find("\"output_height\":480") != std::string::npos &&
+                                               json_text.find("\"zoom\":100.0") != std::string::npos);
     struct stat st;
     ok("the file is readable by the logs service (0644)",
        ::stat((dir + "/" + FrameDump::kAtlasName).c_str(), &st) == 0 && (st.st_mode & 0777) == 0644);

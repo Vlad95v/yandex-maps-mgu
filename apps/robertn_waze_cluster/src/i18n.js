@@ -15,6 +15,7 @@
  * an invalid value or none.
  */
 const LOCALES = require('./locales.js');
+const { repairMojibake } = require('./text_encoding.js');
 
 let current = null;
 
@@ -39,7 +40,10 @@ function language() {
 function t(key, ...args) {
     const words = current && current.words;
     const text = words && Object.prototype.hasOwnProperty.call(words, key) && typeof words[key] === 'string' ? words[key] : key;
-    return text.replace(/\{(\d+)\}/g, (match, i) => (Number(i) < args.length ? String(args[i]) : match));
+    /* A word that was translated from UTF-8 read as Windows-1251 (the
+     * frame-dump strings once were) is shown readable; correct text is
+     * returned as it is. */
+    return repairMojibake(text.replace(/\{(\d+)\}/g, (match, i) => (Number(i) < args.length ? String(args[i]) : match)));
 }
 
 module.exports = { codes, setHmiLanguage, language, t };

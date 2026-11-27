@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+A new **CarPlay calibration** page, opened from the main page, for trying the
+geometry directly on the car: an arbitrary advertised width (1088-1920, even,
+in 2/10/100 px steps) with its height and physical size calculated, an
+explicit **Apply**, and the selected and active resolutions shown apart; the
+cluster crop's width (816-1440), its X and Y (fine and coarse), its zoom, a
+**Centre** and a **Reset** to the 1088x480 baseline, applied live; and the
+diagnostics the full-frame capture records (the incoming SPS size, the
+decoded atlas, the crop and the selected/active resolution), with Save logs
+beside it. The Logs page's corrupted Russian (and other languages') frame
+text is readable again, and diagnostic text that arrived as bytes is read as
+UTF-8 or Windows-1251 instead of showing mojibake.
+
 ## 0.6.19
 
 A "Capture full CarPlay frame" button on the Logs page keeps one full CarPlay
