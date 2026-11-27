@@ -1344,51 +1344,7 @@
           "rows": [
             {
               "Text": {
-                "value": "Selected: 1440x636",
-                "type": "Text"
-              }
-            }
-          ]
-        },
-        "123": {
-          "type": "label",
-          "name": "wocCalHeight",
-          "properties": {
-            "Visible": {
-              "value": 1,
-              "type": "UInt"
-            },
-            "Focusable": {
-              "value": 0,
-              "type": "UInt"
-            }
-          },
-          "rows": [
-            {
-              "Text": {
-                "value": "Height: 636",
-                "type": "Text"
-              }
-            }
-          ]
-        },
-        "124": {
-          "type": "label",
-          "name": "wocCalPhysical",
-          "properties": {
-            "Visible": {
-              "value": 1,
-              "type": "UInt"
-            },
-            "Focusable": {
-              "value": 0,
-              "type": "UInt"
-            }
-          },
-          "rows": [
-            {
-              "Text": {
-                "value": "Physical: 183x81 mm",
+                "value": "Selected: 1440x636 · Height: 636",
                 "type": "Text"
               }
             }
@@ -1564,29 +1520,7 @@
           "rows": [
             {
               "Text": {
-                "value": "Active: —",
-                "type": "Text"
-              }
-            }
-          ]
-        },
-        "133": {
-          "type": "label",
-          "name": "wocCalStatus",
-          "properties": {
-            "Visible": {
-              "value": 1,
-              "type": "UInt"
-            },
-            "Focusable": {
-              "value": 0,
-              "type": "UInt"
-            }
-          },
-          "rows": [
-            {
-              "Text": {
-                "value": "Resolution: Unavailable",
+                "value": "Active: 1440x636 · Resolution: Applied",
                 "type": "Text"
               }
             }
@@ -1630,50 +1564,8 @@
           "rows": [
             {
               "Text": {
-                "value": "Crop: 1088x480  X 176  Y 0",
+                "value": "Crop: 1088x480  X 176  Y 0 · Zoom: 100 %",
                 "type": "Text"
-              }
-            }
-          ]
-        },
-        "136": {
-          "type": "slider",
-          "name": "wocCalCropWidth",
-          "properties": {
-            "Visible": {
-              "value": 1,
-              "type": "UInt"
-            },
-            "Focusable": {
-              "value": 3,
-              "type": "UInt"
-            }
-          },
-          "rows": [
-            {
-              "TextDescription": {
-                "value": "Crop width: 1088",
-                "type": "Text"
-              },
-              "TextDescriptionVisible": {
-                "value": true,
-                "type": "Bool"
-              },
-              "MiddleIndicatorVisible": {
-                "value": false,
-                "type": "Bool"
-              },
-              "MinValue": {
-                "value": 0,
-                "type": "SInt"
-              },
-              "MaxValue": {
-                "value": 312,
-                "type": "SInt"
-              },
-              "NumberOfSteps": {
-                "value": 312,
-                "type": "SInt"
               }
             }
           ]
@@ -1717,50 +1609,6 @@
             {
               "Text": {
                 "value": "Crop +8",
-                "type": "Text"
-              }
-            }
-          ]
-        },
-        "139": {
-          "type": "label",
-          "name": "wocCalZoom",
-          "properties": {
-            "Visible": {
-              "value": 1,
-              "type": "UInt"
-            },
-            "Focusable": {
-              "value": 0,
-              "type": "UInt"
-            }
-          },
-          "rows": [
-            {
-              "Text": {
-                "value": "Zoom: 100 %",
-                "type": "Text"
-              }
-            }
-          ]
-        },
-        "140": {
-          "type": "label",
-          "name": "wocCalX",
-          "properties": {
-            "Visible": {
-              "value": 1,
-              "type": "UInt"
-            },
-            "Focusable": {
-              "value": 0,
-              "type": "UInt"
-            }
-          },
-          "rows": [
-            {
-              "Text": {
-                "value": "X: 176",
                 "type": "Text"
               }
             }
@@ -1849,28 +1697,6 @@
             {
               "Text": {
                 "value": "X +10",
-                "type": "Text"
-              }
-            }
-          ]
-        },
-        "145": {
-          "type": "label",
-          "name": "wocCalY",
-          "properties": {
-            "Visible": {
-              "value": 1,
-              "type": "UInt"
-            },
-            "Focusable": {
-              "value": 0,
-              "type": "UInt"
-            }
-          },
-          "rows": [
-            {
-              "Text": {
-                "value": "Y: 0",
                 "type": "Text"
               }
             }
@@ -2008,28 +1834,6 @@
             }
           ]
         },
-        "152": {
-          "type": "label",
-          "name": "wocCalHeadDiagnostics",
-          "properties": {
-            "Visible": {
-              "value": 1,
-              "type": "UInt"
-            },
-            "Focusable": {
-              "value": 0,
-              "type": "UInt"
-            }
-          },
-          "rows": [
-            {
-              "Text": {
-                "value": "Diagnostics",
-                "type": "Text"
-              }
-            }
-          ]
-        },
         "153": {
           "type": "label",
           "name": "wocCalSps",
@@ -2046,29 +1850,7 @@
           "rows": [
             {
               "Text": {
-                "value": "Incoming SPS: —",
-                "type": "Text"
-              }
-            }
-          ]
-        },
-        "154": {
-          "type": "label",
-          "name": "wocCalAtlas",
-          "properties": {
-            "Visible": {
-              "value": 1,
-              "type": "UInt"
-            },
-            "Focusable": {
-              "value": 0,
-              "type": "UInt"
-            }
-          },
-          "rows": [
-            {
-              "Text": {
-                "value": "Decoded: —",
+                "value": "Incoming SPS: 1440x636 · Decoded: 1440x636",
                 "type": "Text"
               }
             }
@@ -2118,28 +1900,6 @@
             }
           ]
         },
-        "157": {
-          "type": "label",
-          "name": "wocCalFrameNote",
-          "properties": {
-            "Visible": {
-              "value": 1,
-              "type": "UInt"
-            },
-            "Focusable": {
-              "value": 0,
-              "type": "UInt"
-            }
-          },
-          "rows": [
-            {
-              "Text": {
-                "value": "The frame is not scrubbed: the archive may contain the map, addresses, your location and route.",
-                "type": "Text"
-              }
-            }
-          ]
-        },
         "158": {
           "type": "button",
           "name": "wocCalLogs",
@@ -2162,9 +1922,9 @@
             }
           ]
         },
-        "159": {
+        "161": {
           "type": "button",
-          "name": "wocCalSaveLogs",
+          "name": "wocCalCropMinus2",
           "properties": {
             "Visible": {
               "value": 1,
@@ -2178,15 +1938,37 @@
           "rows": [
             {
               "Text": {
-                "value": "Save logs",
+                "value": "Crop -2",
                 "type": "Text"
               }
             }
           ]
         },
-        "160": {
+        "162": {
+          "type": "button",
+          "name": "wocCalCropPlus2",
+          "properties": {
+            "Visible": {
+              "value": 1,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text": {
+                "value": "Crop +2",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "140": {
           "type": "label",
-          "name": "wocCalSavedLogs",
+          "name": "wocCalX",
           "properties": {
             "Visible": {
               "value": 1,
@@ -2200,7 +1982,29 @@
           "rows": [
             {
               "Text": {
-                "value": "Saved logs: —",
+                "value": "X: 176 · Y: 0",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "124": {
+          "type": "label",
+          "name": "wocCalPhysical",
+          "properties": {
+            "Visible": {
+              "value": 1,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 0,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text": {
+                "value": "Physical: 183x81 mm",
                 "type": "Text"
               }
             }

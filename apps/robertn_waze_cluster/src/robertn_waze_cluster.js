@@ -59,7 +59,7 @@ const OnlineApp = require('oap-sdk/src/core/OnlineApp.js');
 const logging = require('oap-sdk/src/logging/logging');
 const someipBuilders = require('oap-sdk/src/someip/someipBuilders');
 const i18n = require('./i18n.js');
-const { WazeClusterControl, ZOOM_STEP, SHOWN_ON, CROP_WIDTH_STEP, CROP_BUTTON_STEP } = require('./waze_cluster_control.js');
+const { WazeClusterControl, ZOOM_STEP, SHOWN_ON, CROP_BUTTON_STEP } = require('./waze_cluster_control.js');
 const { LogsControl, ROWS: LOGS_ROWS } = require('./logs_control.js');
 const { qrPng } = require('./qr.js');
 const { ProfileSync, sessionReader } = require('./profile_sync.js');
@@ -116,7 +116,6 @@ const CAL_STATE = 'ST_OnlineApps_WazeClusterCalibration';
 const CAL_TITLE = 'wocCalTitle';
 const CAL_HEAD_RES = 'wocCalHeadResolution';
 const CAL_SELECTED = 'wocCalSelected';
-const CAL_HEIGHT = 'wocCalHeight';
 const CAL_PHYSICAL = 'wocCalPhysical';
 const CAL_WIDTH_MINUS_100 = 'wocCalWidthMinus100';
 const CAL_WIDTH_MINUS_10 = 'wocCalWidthMinus10';
@@ -126,40 +125,33 @@ const CAL_WIDTH_PLUS_10 = 'wocCalWidthPlus10';
 const CAL_WIDTH_PLUS_100 = 'wocCalWidthPlus100';
 const CAL_APPLY = 'wocCalApply';
 const CAL_ACTIVE = 'wocCalActive';
-const CAL_STATUS = 'wocCalStatus';
 const CAL_HEAD_CROP = 'wocCalHeadCrop';
 const CAL_CROP = 'wocCalCrop';
-const CAL_CROP_SLIDER = 'wocCalCropWidth';
+const CAL_CROP_MINUS_2 = 'wocCalCropMinus2';
+const CAL_CROP_PLUS_2 = 'wocCalCropPlus2';
 const CAL_CROP_MINUS = 'wocCalCropMinus';
 const CAL_CROP_PLUS = 'wocCalCropPlus';
-const CAL_ZOOM = 'wocCalZoom';
 const CAL_X = 'wocCalX';
 const CAL_X_MINUS_10 = 'wocCalXMinus10';
 const CAL_X_MINUS_2 = 'wocCalXMinus2';
 const CAL_X_PLUS_2 = 'wocCalXPlus2';
 const CAL_X_PLUS_10 = 'wocCalXPlus10';
-const CAL_Y = 'wocCalY';
 const CAL_Y_MINUS_10 = 'wocCalYMinus10';
 const CAL_Y_MINUS_2 = 'wocCalYMinus2';
 const CAL_Y_PLUS_2 = 'wocCalYPlus2';
 const CAL_Y_PLUS_10 = 'wocCalYPlus10';
 const CAL_CENTRE = 'wocCalCentre';
 const CAL_RESET = 'wocCalReset';
-const CAL_HEAD_DIAG = 'wocCalHeadDiagnostics';
 const CAL_SPS = 'wocCalSps';
-const CAL_ATLAS = 'wocCalAtlas';
 const CAL_CAPTURE_FRAME = 'wocCalCaptureFrame';
 const CAL_FRAME_STATUS = 'wocCalFrameStatus';
-const CAL_FRAME_NOTE = 'wocCalFrameNote';
 const CAL_LOGS = 'wocCalLogs';
-const CAL_SAVE_LOGS = 'wocCalSaveLogs';
-const CAL_SAVED_LOGS = 'wocCalSavedLogs';
-const CALIBRATION_NAMES = [CALIBRATION_NAME, CAL_TITLE, CAL_HEAD_RES, CAL_SELECTED, CAL_HEIGHT, CAL_PHYSICAL,
+const CALIBRATION_NAMES = [CALIBRATION_NAME, CAL_TITLE, CAL_HEAD_RES, CAL_SELECTED, CAL_PHYSICAL,
     CAL_WIDTH_MINUS_100, CAL_WIDTH_MINUS_10, CAL_WIDTH_MINUS_2, CAL_WIDTH_PLUS_2, CAL_WIDTH_PLUS_10, CAL_WIDTH_PLUS_100,
-    CAL_APPLY, CAL_ACTIVE, CAL_STATUS, CAL_HEAD_CROP, CAL_CROP, CAL_CROP_SLIDER, CAL_CROP_MINUS, CAL_CROP_PLUS, CAL_ZOOM,
-    CAL_X, CAL_X_MINUS_10, CAL_X_MINUS_2, CAL_X_PLUS_2, CAL_X_PLUS_10, CAL_Y, CAL_Y_MINUS_10, CAL_Y_MINUS_2, CAL_Y_PLUS_2,
-    CAL_Y_PLUS_10, CAL_CENTRE, CAL_RESET, CAL_HEAD_DIAG, CAL_SPS, CAL_ATLAS, CAL_CAPTURE_FRAME, CAL_FRAME_STATUS,
-    CAL_FRAME_NOTE, CAL_LOGS, CAL_SAVE_LOGS, CAL_SAVED_LOGS];
+    CAL_APPLY, CAL_ACTIVE, CAL_HEAD_CROP, CAL_CROP, CAL_CROP_MINUS, CAL_CROP_MINUS_2, CAL_CROP_PLUS_2, CAL_CROP_PLUS,
+    CAL_X, CAL_X_MINUS_10, CAL_X_MINUS_2, CAL_X_PLUS_2, CAL_X_PLUS_10,
+    CAL_Y_MINUS_10, CAL_Y_MINUS_2, CAL_Y_PLUS_2, CAL_Y_PLUS_10, CAL_CENTRE, CAL_RESET, CAL_SPS,
+    CAL_CAPTURE_FRAME, CAL_FRAME_STATUS, CAL_LOGS];
 const ROW_CHARS = 90;
 const PRESS_DEDUPE_MS = 400;
 const HIDE_SETTLE_MS = 800;
@@ -354,15 +346,9 @@ class WazeClusterApp extends OnlineApp {
             [CAL_WIDTH_PLUS_2, 2], [CAL_WIDTH_PLUS_10, 10], [CAL_WIDTH_PLUS_100, 100]]
             .forEach(([name, step]) => this._bind(name, () => this._control.adjustResolutionWidth(step)));
         this._bind(CAL_APPLY, () => this._control.applyResolution());
-        this._components[CAL_CROP_SLIDER].on('changed', (step) => {
-            if (step !== this._written[`cell:${CAL_CROP_SLIDER}:0:Value`]) {
-                logger.info(`SLIDER ${CAL_CROP_SLIDER} ${step}`);
-                delete this._written[`cell:${CAL_CROP_SLIDER}:0:Value`];
-                this._control.setCropWidth(816 + Number(step) * CROP_WIDTH_STEP);
-                setImmediate(() => this._renderCalibration());
-            }
-        });
         this._bind(CAL_CROP_MINUS, () => this._control.adjustCropWidth(-CROP_BUTTON_STEP));
+        this._bind(CAL_CROP_MINUS_2, () => this._control.adjustCropWidth(-2));
+        this._bind(CAL_CROP_PLUS_2, () => this._control.adjustCropWidth(2));
         this._bind(CAL_CROP_PLUS, () => this._control.adjustCropWidth(CROP_BUTTON_STEP));
         [[CAL_X_MINUS_10, 'moveCropX', -1], [CAL_X_MINUS_2, 'moveCropX', -1], [CAL_X_PLUS_2, 'moveCropX', 1],
             [CAL_X_PLUS_10, 'moveCropX', 1], [CAL_Y_MINUS_10, 'moveCropY', -1], [CAL_Y_MINUS_2, 'moveCropY', -1],
@@ -374,7 +360,6 @@ class WazeClusterApp extends OnlineApp {
         this._bind(CAL_CENTRE, () => this._control.centreCrop());
         this._bind(CAL_RESET, () => this._control.resetCrop());
         this._bind(CAL_CAPTURE_FRAME, () => this._control.captureFrame());
-        this._bind(CAL_SAVE_LOGS, () => this._logs.save());
         this._bind(CAL_LOGS, () => this._openPage(LOGS_STATE));
         // Presses also arrive as the application's raw 'userEvent'; both paths
         // land in _press, which keeps a press delivered twice to one.
@@ -728,8 +713,7 @@ class WazeClusterApp extends OnlineApp {
         const c = this._control;
         this._write(CAL_TITLE, t('CarPlay calibration'));
         this._write(CAL_HEAD_RES, t('CarPlay resolution'));
-        this._write(CAL_SELECTED, t('Selected: {0}', c.selectedResText()));
-        this._write(CAL_HEIGHT, t('Height: {0}', c.selectedHeight()));
+        this._write(CAL_SELECTED, t('Selected: {0}', `${c.selectedResText()} · ${t('Height: {0}', c.selectedHeight())}`));
         this._write(CAL_PHYSICAL, t('Physical: {0}', c.selectedMmText()));
         [[CAL_WIDTH_MINUS_100, '-100'], [CAL_WIDTH_MINUS_10, '-10'], [CAL_WIDTH_MINUS_2, '-2'],
             [CAL_WIDTH_PLUS_2, '+2'], [CAL_WIDTH_PLUS_10, '+10'], [CAL_WIDTH_PLUS_100, '+100']]
@@ -739,24 +723,17 @@ class WazeClusterApp extends OnlineApp {
             });
         this._write(CAL_APPLY, t('Apply'));
         this._setEnabled(CAL_APPLY, c.canApplyResolution());
-        this._write(CAL_ACTIVE, t('Active: {0}', c.activeResText()));
-        this._write(CAL_STATUS, c.widthError() ? t('Resolution: {0}', t('Error'))
-            : t('Resolution: {0}', this._calStatusText()));
+        this._write(CAL_ACTIVE, t('Active: {0}', `${c.activeResText()} · ${t('Resolution: {0}', c.widthError() ? t('Error') : this._calStatusText())}`));
 
         this._write(CAL_HEAD_CROP, t('Cluster crop'));
-        this._write(CAL_CROP, t('Crop: {0}', c.cropText()));
-        this._writeCell(CAL_CROP_SLIDER, 'TextDescription', t('Crop width: {0}', c.cropWidth()), 'Text', 0);
-        if (c.cropWidth()) {
-            this._writeCell(CAL_CROP_SLIDER, 'Value', Math.max(0, Math.round((c.cropWidth() - 816) / CROP_WIDTH_STEP)), 'SInt', 0);
-        }        const canCrop = c.canChangeCrop();
-        this._setEnabled(CAL_CROP_SLIDER, canCrop);
+        this._write(CAL_CROP, t('Crop: {0}', `${c.cropText()} · ${t('Zoom: {0}', c.cropZoomText())}`));
+        const canCrop = c.canChangeCrop();
         this._write(CAL_CROP_MINUS, t('Crop {0}', '-8'));
+        this._write(CAL_CROP_MINUS_2, t('Crop {0}', '-2'));
+        this._write(CAL_CROP_PLUS_2, t('Crop {0}', '+2'));
         this._write(CAL_CROP_PLUS, t('Crop {0}', '+8'));
-        this._setEnabled(CAL_CROP_MINUS, canCrop);
-        this._setEnabled(CAL_CROP_PLUS, canCrop);
-        this._write(CAL_ZOOM, t('Zoom: {0}', c.cropZoomText()));
-        this._write(CAL_X, t('X: {0}', c.cropX()));
-        this._write(CAL_Y, t('Y: {0}', c.cropY()));
+        [CAL_CROP_MINUS, CAL_CROP_MINUS_2, CAL_CROP_PLUS_2, CAL_CROP_PLUS].forEach((name) => this._setEnabled(name, canCrop));
+        this._write(CAL_X, `${t('X: {0}', c.cropX())} · ${t('Y: {0}', c.cropY())}`);
         [[CAL_X_MINUS_10, '-10'], [CAL_X_MINUS_2, '-2'], [CAL_X_PLUS_2, '+2'], [CAL_X_PLUS_10, '+10']]
             .forEach(([name, step]) => { this._write(name, t('X {0}', step)); this._setEnabled(name, canCrop); });
         [[CAL_Y_MINUS_10, '-10'], [CAL_Y_MINUS_2, '-2'], [CAL_Y_PLUS_2, '+2'], [CAL_Y_PLUS_10, '+10']]
@@ -766,18 +743,11 @@ class WazeClusterApp extends OnlineApp {
         this._write(CAL_RESET, t('Reset'));
         this._setEnabled(CAL_RESET, c.canResetCrop());
 
-        this._write(CAL_HEAD_DIAG, t('Diagnostics'));
-        this._write(CAL_SPS, t('Incoming SPS: {0}', c.incomingSpsText()));
-        this._write(CAL_ATLAS, t('Decoded: {0}', c.normalizedText()));
+        this._write(CAL_SPS, t('Incoming SPS: {0}', `${c.incomingSpsText()} · ${t('Decoded: {0}', c.normalizedText())}`));
         this._write(CAL_CAPTURE_FRAME, t('Capture full CarPlay frame'));
         this._setEnabled(CAL_CAPTURE_FRAME, c.canCaptureFrame());
         this._write(CAL_FRAME_STATUS, c.frameDumpText());
-        this._write(CAL_FRAME_NOTE,
-            t('The frame is not scrubbed: the archive may contain the map, addresses, your location and route.'));
         this._write(CAL_LOGS, t('Logs'));
-        this._write(CAL_SAVE_LOGS, t('Save logs'));
-        this._setEnabled(CAL_SAVE_LOGS, this._logs.canSave());
-        this._write(CAL_SAVED_LOGS, this._logs.statusText());
     }
 
     /* The resolution's state in the calibration page's words. */

@@ -108,13 +108,13 @@ calibration** from the main page.
   needed** or **Pending restart**. A new size takes effect with a new
   CarPlay session (carplay restarts where the head unit allows it, otherwise
   at the next head-unit start; the row says which).
-- **Cluster crop:** **Crop width** (the slider, or **Crop -8 / +8**) picks
-  the part of the 1440x636 source shown on the cluster, 816 to 1440 wide;
-  its height follows the 1088x480 shape. **X -10 / -2 / +2 / +10** and
-  **Y -10 / -2 / +2 / +10** move it, **Centre** centres it and **Reset**
-  goes back to 1088x480 at X 176, Y 0 (100 %). It changes while CarPlay
-  runs: no reconnect. A crop narrower than 1088 is upscaled to the fixed
-  1088x480 output, a wider one downscaled.
+- **Cluster crop:** **Crop -8 / -2 / +2 / +8** pick the part of the
+  1440x636 source shown on the cluster, 816 to 1440 wide; its height follows
+  the 1088x480 shape. **X -10 / -2 / +2 / +10** and **Y -10 / -2 / +2 /
+  +10** move it, **Centre** centres it and **Reset** goes back to 1088x480
+  at X 176, Y 0 (100 %). It changes while CarPlay runs: no reconnect. A
+  crop narrower than 1088 is upscaled to the fixed 1088x480 output, a wider
+  one downscaled.
 - **Diagnostics:** **Capture full CarPlay frame** and **Save logs** work as
   on the Logs page; the frame's JSON also records the selected and active
   resolutions, the incoming SPS size, the decoded atlas, the crop, the
