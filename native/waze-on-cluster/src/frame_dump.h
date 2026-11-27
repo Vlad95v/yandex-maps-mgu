@@ -40,6 +40,21 @@ public:
      * for the archive; failed: the write failed, why in reason(). */
     enum class State { Off, Waiting, Captured, Saved, Failed };
 
+    /* The calibration the frame is taken under, written beside it: what the
+     * app selected and what carplay advertises (its patch state), the
+     * incoming H.264 SPS's own size, the normalized decoded atlas, the
+     * cluster crop and output, and the effective zoom. 0/empty when not
+     * known (a capture from an older app). */
+    struct Calibration {
+        std::string selected, active, patch;
+        uint32_t sps_w = 0, sps_h = 0;
+        uint32_t normalized_w = 0, normalized_h = 0;
+        int crop_x = 0, crop_y = 0;
+        uint32_t crop_w = 0, crop_h = 0;
+        uint32_t output_w = 0, output_h = 0;
+        double zoom = 0.0;
+    };
+
     /* The frame the dump saves: the CarPlay cluster source (1440x636). */
     static const uint32_t kW = 1440, kH = 636;
     /* The atlas the frame is (yuv_atlas.h, 4:2:0: w x (h + h/2)). */
@@ -54,6 +69,9 @@ public:
     /* The next full CarPlay frame, once. Nothing while one waits or one is
      * saved and not yet archived: one file, never two. */
     void request(int64_t now_ms);
+    /* The calibration metadata the next captured frame is written with; a
+     * request keeps the app's fields as given, offer() fills the frame's. */
+    void set_calibration(const Calibration &c);
     /* The request still stands. */
     bool waiting() const;
     /* The newest picture, from the main loop: taken when the request stands
@@ -91,6 +109,8 @@ private:
     std::vector<uint8_t> frame_;   /* the captured atlas, until written */
     uint32_t w_ = 0, h_ = 0;
     int64_t captured_ms_ = 0;
+    Calibration cal_;             /* what the app set for the next capture */
+    Calibration captured_cal_;    /* the captured frame's, frozen at offer() */
     std::string reason_;
     std::string path_;
     std::string utc_;

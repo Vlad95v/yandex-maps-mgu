@@ -25,12 +25,17 @@
  *
  * Protocol (newline-delimited JSON, one object per line):
  *   app -> patchd  {"cmd":"status"}
- *                  {"cmd":"apply","panel":"high"|"mid","mode":"fifo"|"udp"|"avb"}
+ *                  {"cmd":"apply","panel":"high"|"mid","mode":"fifo"|"udp"|"avb",
+ *                   "res":"WxH"}   the resolution the calibration page selected
+ *                    (an even width 1088..1920 with its computed height; the
+ *                    selected one when omitted, the wide default before any);
  *                    all modes apply the variant gate + self-start; they differ
  *                    only in the sink. avb = stock avb:// sink (the mode the app
  *                    applies; the render joins the media bus); udp = udp://
  *                    stream sink (the bridge accepts a stream where it rejects a
  *                    file); fifo = file:// FIFO sink
+ *                  {"cmd":"carplay-res-select","width":W}  saves the resolution
+ *                    for the next apply; no patch, no restart
  *                  {"cmd":"revert"}
  *                  {"cmd":"aa-apply"} | {"cmd":"aa-revert"}   the Android Auto patch
  *                  {"cmd":"aa-density","value":n} | {"cmd":"aa-card","value":"shown"|"hidden"}
@@ -49,7 +54,9 @@
  *                                   (root:systemd-journal, 0660: Save logs)
  *                                   takes this command alone, one a connection,
  *                                   and answers with the lines and health only
- *                  {"cmd":"cluster","on":0|1,"cluster_x":-176..176}   (even integers only)
+ *                  {"cmd":"cluster","on":0|1,"cluster_x":-max..max,
+ *                   "crop_w":816..1440,"crop_y":0..636,"crop_x":0..1440}
+ *                    (even integers; max is (1440-crop_w)/2)
  *                  {"cmd":"hud","on":0|1}
  *                  {"cmd":"hud-size","hud_width_pct":0|20..100}   (over 85 saved as 85)
  *                  {"cmd":"hud-crop-width","hud_crop_width_pct":20..100}
@@ -96,6 +103,10 @@
  *                    mode (when patched): fifo | udp | avb
  *                    res, safe (when the IC_HIGH geometry is patched): the
  *                    advertised size "WxH" and its safe area "WxH+X+Y", else null
+ *                    res_selected, res_selected_w/h, res_selected_mm: the
+ *                    calibration page's saved choice, apart from the live crop
+ *                    res_active: res as advertised now; res_pending: the
+ *                    selected size is not the active one
  *                    carplay (after an apply/revert that changed the binary):
  *                    restarted | deferred (takes effect at the next head-unit
  *                    start; state is unknown with that reason until then)
@@ -171,6 +182,7 @@ var headUnit = require('./head_unit.js');
 var record = require('./patch_record.js');
 var wifiBand = require('./wifi_band.js');
 var inmem = require('./inmem.js');
+var resolution = require('./resolution.js');
 
 var HERE = __dirname;
 var PATCHER = path.join(HERE, 'carplay_patch.js');
@@ -205,6 +217,12 @@ var AA_CARD_FILE = path.join(STATE_DIR, 'aa-card');
  * shipped waze-on-cluster.conf holds the crop for the card shown. */
 var AA_CROP_ENV = path.join(STATE_DIR, 'aa-crop.env');
 var REBOOTS_FILE = path.join(STATE_DIR, 'reboots.json');
+/* The CarPlay resolution the calibration page selected, kept apart from the
+ * live crop state (map.state.conf): "width = W" and "height = H". Its default
+ * is the wide geometry the app has always applied; changing it is the
+ * calibration mode's own step and takes effect with an apply. */
+var CARPLAY_RES_FILE = path.join(STATE_DIR, 'carplay-res.conf');
+var DEFAULT_RES = { w: 1440, h: 636 };
 /* The targets the HIGH F reset is done with (highfReset): { carplay, aa },
  * each "applied", "left" or "user". */
 var HIGHF_MARKER = path.join(STATE_DIR, 'highf-repatched');
@@ -261,7 +279,8 @@ var LOCAL_CONF = process.env.WOC_LOCAL_CONF || '/var/opt/waze-on-cluster/waze-on
  * configuration. Not in LOCAL_CONF, which waze-on-cluster 0.8 refuses to
  * start with any of MAP_KEYS in. */
 var MAP_STATE = path.join(STATE_DIR, 'map.state.conf');
-var MAP_KEYS = ['cluster', 'hud', 'hud_width_pct', 'hud_crop_width_pct', 'hud_offset_x', 'hud_offset_y', 'hud_keep_shown', 'cluster_offset_x'];
+var MAP_KEYS = ['cluster', 'hud', 'hud_width_pct', 'hud_crop_width_pct', 'hud_offset_x', 'hud_offset_y', 'hud_keep_shown',
+    'cluster_offset_x', 'cluster_crop_w', 'cluster_crop_y'];
 /* The opt-in settings: the render reads this file (its features_file) over
  * its configuration. Not in LOCAL_CONF, which every release up to 0.10.7
  * refuses to start with any of FEATURE_KEYS in; no release before 0.10.9
@@ -301,7 +320,12 @@ function mapValueOk(k, v) {
     var n = Number(v);
     return /^-?\d+$/.test(v) && (k === 'hud_width_pct' ? n === 0 || (n >= 20 && n <= 100)
         : k === 'hud_crop_width_pct' ? n >= HUD_CROP_MIN_PCT && n <= HUD_CROP_MAX_PCT
-        : k === 'cluster_offset_x' ? n >= -176 && n <= 176 && n % 2 === 0
+        /* the cluster's crop width (816..1440, the 1440x636 source), its Y
+         * (inside 636 with the crop's height) and the offset from its centre:
+         * at most half the source less the crop, as the render clamps it. */
+        : k === 'cluster_crop_w' ? n >= resolution.CROP_MIN_WIDTH && n <= resolution.CROP_MAX_WIDTH && n % 2 === 0
+        : k === 'cluster_crop_y' ? n >= 0 && n <= 636 && n % 2 === 0
+        : k === 'cluster_offset_x' ? n >= -312 && n <= 312
         : /^hud_offset_/.test(k) ? n >= -800 && n <= 800 : n === 0 || n === 1);
 }
 
@@ -435,7 +459,8 @@ function saveLater(settings, withProfiles) {
 var PROFILES_FILE = path.join(STATE_DIR, 'profiles.json');
 var PROFILE_ID = /^[A-Za-z0-9][A-Za-z0-9._:@+={}-]{0,127}$/;
 var MAX_OWN = 16;
-var MAP_DEFAULTS = { cluster: 1, hud: 0, hud_width_pct: 0, hud_crop_width_pct: 100, hud_offset_x: 0, hud_offset_y: 0, hud_keep_shown: 0, cluster_offset_x: 0 };
+var MAP_DEFAULTS = { cluster: 1, hud: 0, hud_width_pct: 0, hud_crop_width_pct: 100, hud_offset_x: 0, hud_offset_y: 0, hud_keep_shown: 0,
+    cluster_offset_x: 0, cluster_crop_w: 1088, cluster_crop_y: 0 };
 var profiles = null;          /* PROFILES_FILE as read at the start, and changed since */
 var currentProfile;           /* the profile the app last told (null: none; undefined: not told since the start) */
 var restored = false;         /* MAP_STATE written from PROFILES_FILE at the start, not yet told to the app */
@@ -450,18 +475,24 @@ function profilesKept(p) { return profilesInUse(p) || !!p.shared; }
 /* The settings in effect as PROFILES_FILE keeps them. */
 function profileEntry(p) { return p.active ? p.own[p.active] : p.shared; }
 /* Settings as PROFILES_FILE holds them, or null when any key is missing or
- * out of range; hud_keep_shown, cluster_offset_x and hud_crop_width_pct
- * missing (a set saved before each) are their defaults. */
+ * out of range; hud_keep_shown, cluster_offset_x, hud_crop_width_pct,
+ * cluster_crop_w and cluster_crop_y missing (a set saved before each) are
+ * their defaults. */
 function profileSettings(o) {
     if (!o || typeof o !== 'object') return null;
     var s = {};
     for (var i = 0; i < MAP_KEYS.length; i++) {
         var k = MAP_KEYS[i];
         var v = typeof o[k] === 'number' ? String(o[k])
-            : (k === 'hud_keep_shown' || k === 'cluster_offset_x' || k === 'hud_crop_width_pct') && !(k in o) ? String(MAP_DEFAULTS[k]) : null;
+            : (k === 'hud_keep_shown' || k === 'cluster_offset_x' || k === 'hud_crop_width_pct' ||
+               k === 'cluster_crop_w' || k === 'cluster_crop_y') && !(k in o) ? String(MAP_DEFAULTS[k]) : null;
         if (v === null || !mapValueOk(k, v)) return null;
         s[k] = Number(v);
     }
+    /* The offset belongs to the crop: a set saved for another crop is held
+     * to its range rather than dropped. */
+    var max = (resolution.SOURCE_WIDTH - s.cluster_crop_w) / 2;
+    s.cluster_offset_x = Math.max(-max, Math.min(max, s.cluster_offset_x));
     return s;
 }
 /* The settings MAP_STATE holds and what waits to be written there, the
@@ -470,9 +501,41 @@ function mapSettingsNow() {
     var c = readConf(MAP_STATE), s = {};
     MAP_KEYS.forEach(function (k) { s[k] = k in c && mapValueOk(k, c[k]) ? Number(c[k]) : MAP_DEFAULTS[k]; });
     if (mapSave) MAP_KEYS.forEach(function (k) { if (k in mapSave.settings) s[k] = mapSave.settings[k]; });
+    var max = (resolution.SOURCE_WIDTH - s.cluster_crop_w) / 2;
+    s.cluster_offset_x = Math.max(-max, Math.min(max, s.cluster_offset_x));
     return s;
 }
 function sameSettings(a, b) { return MAP_KEYS.every(function (k) { return a[k] === b[k]; }); }
+
+/* The CarPlay resolution the calibration page selected: { w, h, geometry },
+ * the default wide geometry when the file is missing or does not read as a
+ * calibration width. Never the live crop state. */
+function selectedRes() {
+    var c = readConf(CARPLAY_RES_FILE);
+    var w = /^-?\d+$/.test(String(c.width || '')) ? Number(c.width) : NaN;
+    var g = resolution.geometryForWidth(w);
+    return g ? { w: g.w, h: g.h, geometry: g } : { w: DEFAULT_RES.w, h: DEFAULT_RES.h, geometry: resolution.geometryForWidth(DEFAULT_RES.w) };
+}
+
+/* The selected resolution as the patcher's --res value ("WxH"). */
+function selectedResText() {
+    var r = selectedRes();
+    return r.w + 'x' + r.h;
+}
+
+/* Saves a width as the selected resolution, when it is a calibration width;
+ * false otherwise. */
+function saveSelectedRes(w) {
+    var g = resolution.geometryForWidth(Number(w));
+    if (!g) return false;
+    try {
+        saveFile(CARPLAY_RES_FILE, 'width = ' + g.w + '\nheight = ' + g.h + '\n');
+    } catch (e) {
+        log('saving the selected CarPlay resolution failed: ' + e.message);
+        return false;
+    }
+    return true;
+}
 function readProfiles() {
     var p = { shared: null, own: Object.create(null), active: null }, j = null;
     try { j = JSON.parse(fs.readFileSync(PROFILES_FILE, 'utf8')); } catch (e) {
@@ -1081,7 +1144,15 @@ function status(extra, aaExtra) {
     readState(function (st) {
         readAaState(function (aa) {
             var cpBusy = busy === 'carplay';
+            var sel = selectedRes(), selText = sel.w + 'x' + sel.h;
             var msg = { ev: 'status', state: cpBusy ? 'busy' : st.state, panel: st.panel, mode: st.mode, res: st.res, safe: st.safe, mapurl: st.mapurl,
+                        /* the calibration page's choice, apart from the geometry
+                         * the binary advertises now (res) and the live crop:
+                         * selected is what the next apply writes, active is what
+                         * carplay advertises, pending that they differ. */
+                        res_selected: selText, res_selected_w: sel.w, res_selected_h: sel.h,
+                        res_selected_mm: sel.geometry.mmw + 'x' + sel.geometry.mmh,
+                        res_active: st.res || null, res_pending: !!(st.res && st.res !== selText),
                         removable: !!(st.restorable || st.removable), busy: busy || (rebooting ? 'restart' : null), restart: restartMsg() };
             if (!cpBusy && st.reason) msg.reason = st.reason;
             if (!cpBusy && st.carplay) msg.carplay = st.carplay;
@@ -1761,11 +1832,13 @@ function revert(noRestart, dropBackup, done) { revertFile(CP, noRestart, dropBac
 
 /* The plan's arguments for the patcher: the panel, the sink of the mode
  * (avb: the stock sink; udp: the stream sink this tool receives; fifo: the
- * file:// FIFO) and, for CarPlay's Patch button, --unproven (planned on a
- * car coded otherwise too, never on trial there). */
-function planArgs(panel, mode, unproven) {
+ * file:// FIFO), the resolution the calibration page selected (an arbitrary
+ * even width 1088..1920, its height computed; "wide" when none) and, for
+ * CarPlay's Patch button, --unproven (planned on a car coded otherwise too,
+ * never on trial there). */
+function planArgs(panel, mode, unproven, res) {
     var args = ['--panel', panel, '--coding', CODING].concat(unproven ? ['--unproven'] : []);
-    if (panel === 'high') args.push('--res', 'wide');
+    if (panel === 'high') args.push('--res', res || 'wide');
     if (mode === 'udp') args.push('--sink', 'udp://127.0.0.1:' + UDP_PORT + '?mime_type=video/H264');
     else if (mode !== 'avb') args.push('--capture', FIFO);
     return args;
@@ -2026,7 +2099,7 @@ function inmemHook(which, cb) {
          * whose sites the patcher finds and verifies is planned, on trial
          * until it ran healthy on this car. */
         var keep = rec && rec.enabled === true && Array.isArray(rec.args) && rec.args.length ? rec.args : null;
-        inmemApply(CP, keep ? withCurrentRes(keep) : planArgs('high', 'avb', !!st.backup), true, function (err, roErr, activation, conflict2, why) {
+        inmemApply(CP, keep ? withCurrentRes(keep) : planArgs('high', 'avb', !!st.backup, selectedResText()), true, function (err, roErr, activation, conflict2, why) {
             if (roErr) log('WARNING: ' + roErr.message + ' — the next head-unit start mounts / read-only again');
             if (conflict2) { out(0, 'carplay left as it is: ' + conflict2, conflict2); return; }
             if (err) { out(1, 'applying the map patch failed: ' + err.message); return; }
@@ -2379,13 +2452,43 @@ function handle(line, sock) {
             if (msg.on !== 0 && msg.on !== 1) { reply(sock, { ev: 'cluster-reply', ok: false, reason: 'on must be 0 or 1' }); return; }
             set.cluster = msg.on;
         }
-        if (msg.cluster_x !== undefined) {
-            var cx = Number(msg.cluster_x);
-            if (!Number.isInteger(cx) || cx < -176 || cx > 176 || cx % 2 !== 0) {
-                reply(sock, { ev: 'cluster-reply', ok: false, reason: 'cluster_x must be an even integer from -176 to 176' });
+        if (msg.crop_w !== undefined) {
+            var cw = Number(msg.crop_w);
+            if (!resolution.validCropWidth(cw)) {
+                reply(sock, { ev: 'cluster-reply', ok: false, reason: 'crop_w must be an even integer from 816 to 1440' });
                 return;
             }
-            set.cluster_offset_x = cx;
+            set.cluster_crop_w = cw;
+        }
+        if (msg.crop_y !== undefined) {
+            var cy = Number(msg.crop_y);
+            var ch = resolution.cropHeightForWidth(msg.crop_w !== undefined ? Number(msg.crop_w) : mapSettingsNow().cluster_crop_w);
+            if (!Number.isInteger(cy) || cy < 0 || cy + ch > resolution.SOURCE_HEIGHT || cy % 2 !== 0) {
+                reply(sock, { ev: 'cluster-reply', ok: false, reason: 'crop_y must be an even integer that keeps the crop inside the 1440x636 source' });
+                return;
+            }
+            set.cluster_crop_y = cy;
+        }
+        if (msg.crop_x !== undefined) {
+            var cx = Number(msg.crop_x);
+            var cwid = msg.crop_w !== undefined ? Number(msg.crop_w) : mapSettingsNow().cluster_crop_w;
+            var cropH = resolution.cropHeightForWidth(cwid);
+            if (!Number.isInteger(cx) || cx < 0 || cx + cwid > resolution.SOURCE_WIDTH || cx % 2 !== 0) {
+                reply(sock, { ev: 'cluster-reply', ok: false, reason: 'crop_x must be an even integer that keeps the crop inside the 1440x636 source' });
+                return;
+            }
+            void cropH;
+            set.cluster_offset_x = resolution.offsetForCropX(cwid, cx);
+        }
+        if (msg.cluster_x !== undefined) {
+            var offset = Number(msg.cluster_x);
+            var offCw = msg.crop_w !== undefined ? Number(msg.crop_w) : (mapSettingsNow().cluster_crop_w || 1088);
+            var maxOff = (resolution.SOURCE_WIDTH - offCw) / 2;
+            if (!Number.isInteger(offset) || offset < -maxOff || offset > maxOff) {
+                reply(sock, { ev: 'cluster-reply', ok: false, reason: 'cluster_x must be an integer from -' + maxOff + ' to ' + maxOff });
+                return;
+            }
+            set.cluster_offset_x = offset;
         }
         if (Object.keys(set).length) {
             saveMapSettings(sock, 'cluster-reply', set, 'cluster map settings');
@@ -2432,6 +2535,24 @@ function handle(line, sock) {
     }
     /* The driver profile and its own settings: not operations on carplay either. */
     if (msg.cmd === 'profile' || msg.cmd === 'profile-own') { profileCmd(msg, sock); return; }
+    /* The calibration page's resolution choice: saved for the next apply, no
+     * patch, no restart, not held back by an operation. */
+    if (msg.cmd === 'carplay-res-select') {
+        var gw = resolution.geometryForWidth(Number(msg.width));
+        if (!gw) {
+            reply(sock, { ev: 'carplay-res-reply', ok: false, reason: 'width must be an even integer from 1088 to 1920' });
+            return;
+        }
+        if (!saveSelectedRes(gw.w)) {
+            reply(sock, { ev: 'carplay-res-reply', ok: false, reason: 'the selection could not be saved' });
+            return;
+        }
+        log('CarPlay resolution selected: ' + gw.w + 'x' + gw.h + ' at ' + gw.mmw + 'x' + gw.mmh + ' mm (applied by the next apply)');
+        reply(sock, { ev: 'carplay-res-reply', ok: true, width: gw.w, height: gw.h, mmw: gw.mmw, mmh: gw.mmh,
+                      selected: gw.w + 'x' + gw.h, safe: gw.safew + 'x' + gw.safeh + '+' + gw.safex + '+' + gw.safey });
+        status();
+        return;
+    }
     if (msg.cmd === 'reboot') { rebootCmd(sock); return; }
 
     /* A command not taken changes no state: only the asker hears why. */
@@ -2448,10 +2569,20 @@ function handle(line, sock) {
     if (msg.cmd === 'apply' || msg.cmd === 'revert') {
         var panel = msg.panel;
         var mode = (msg.mode === 'avb' || msg.mode === 'udp') ? msg.mode : 'fifo';   /* capture mode; default fifo */
+        /* The resolution: the calibration page's selection, or the one the
+         * app sent with this apply; only a width whose height is the computed
+         * one is taken. A revert needs none. */
+        var res = msg.res !== undefined ? String(msg.res) : selectedResText();
+        var resGeom = resolution.parseRes(res);
+        if (msg.cmd === 'apply' && panel === 'high') {
+            if (!resGeom) { refuse('resolution must be an even width 1088..1920 with its computed height'); return; }
+            if (msg.res !== undefined) saveSelectedRes(resGeom.w);
+        }
         operate('carplay', msg.cmd === 'apply' ? 'applying' : 'reverting',
             msg.cmd === 'apply' ? function (cb) {
                 if (panel !== 'high' && panel !== 'mid') { cb(new Error('panel must be high or mid')); return; }
-                inmemApply(CP, planArgs(panel, mode, true), false, function (e, r, a, conflict, why) { cb(e || (conflict || why ? new Error(conflict || why) : null), r, a); });
+                inmemApply(CP, planArgs(panel, mode, true, panel === 'high' ? resGeom.w + 'x' + resGeom.h : undefined),
+                    false, function (e, r, a, conflict, why) { cb(e || (conflict || why ? new Error(conflict || why) : null), r, a); });
             } : function (cb) { inmemRevert(CP, false, false, cb); });
     } else if (msg.cmd === 'aa-apply') {
         operate('aa', 'applying', aaEnable);

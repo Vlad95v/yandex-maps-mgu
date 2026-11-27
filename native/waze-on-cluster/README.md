@@ -172,6 +172,19 @@ panel. For wide CarPlay the patch advertises 1440x636 at 183x81 mm
 (`--res wide`), so `tex_size` is 1440x636 and MapFeed crops the 1088x480 view
 from it at `crop_x = 176 - cluster_offset_x`. With a non-wide patch
 `tex_size` is 1088x480, the map texture itself.
+
+The crop is a calibration rectangle of the 1440x636 source, not only the
+centred 1088x480: `cluster_crop_w` (816-1440, even), `cluster_crop_y`, and
+`cluster_offset_x` (which moves it horizontally) are saved in
+`map_state_file` and changed live by a control `{"cmd":"cluster",...}`. The
+rectangle is scaled to the fixed 1088x480 output in the existing
+`ScaleWorker`: wider than 1088 is the area-average box filter, narrower is
+bilinear upscaling, Y/U/V on their own. The advertised resolution is
+separate: `--res WxH` for any even width 1088-1920 with the 1088x480 shape's
+height, its physical size interpolated from the two known sizes; patchd
+keeps the selected width in `/var/opt/waze-on-cluster/carplay-res.conf`,
+apart from the live crop.
+
 `src_crop` takes part of a picture of one size and scales it to `tex_size`
 (Android Auto's 1280x720 stream has its map in the top 1280x564).
 `map_rect` draws the map stretched into a rect of the map slot.
@@ -302,8 +315,11 @@ sources are left out.
   written to `carplay-frame-1440x636.yuva` in `frame_dump_dir`
   (`/var/opt/waze-on-cluster/state`, 1,373,760 bytes: the map's 4:2:0 atlas,
   `native/cluster-render/kit/yuv_atlas.h`) with `carplay-frame-1440x636.json`
-  beside it (size, capture time, that it is a full frame), atomically: a
-  temporary file, then a rename, world-readable for the logs service. A frame
+  beside it (size, capture time, that it is a full frame, and the
+  calibration: the selected and active advertised resolutions, the patch
+  state, the incoming SPS size, the normalized atlas, the cluster crop and
+  output, and the zoom), atomically: a temporary file, then a rename,
+  world-readable for the logs service. A frame
   that is a part (`hosted_vpp_scale`), another size, a repeat, or nothing
   while no map shows is not taken, and the status says why
   (`frame_dump`, `frame_dump_reason`). `collect-logs.sh` adds the two files

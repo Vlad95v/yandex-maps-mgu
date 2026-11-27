@@ -68,6 +68,14 @@ namespace {
  * This version does not read it. */
 const char kUnreadLocalConf[] = "/var/opt/waze-on-cluster/waze-on-cluster.local.conf";
 
+/* A zoom as JSON: 1088 / crop_w * 100, one decimal. */
+std::string zoom_text(double z)
+{
+    char b[32];
+    std::snprintf(b, sizeof b, "%.1f", z);
+    return b;
+}
+
 std::string status_line(const FeedStatus &s, const FrameDump &dump)
 {
     return "{\"ev\":\"status\",\"state\":" + json_escape(s.state) + ",\"target\":" + json_escape(s.target) +
@@ -85,6 +93,12 @@ std::string status_line(const FeedStatus &s, const FrameDump &dump)
            ",\"cluster_x\":" + std::to_string(s.cluster_offset_x) +
            ",\"cluster_x_actual\":" + std::to_string(s.cluster_offset_x_actual) +
            ",\"cluster_crop_x\":" + std::to_string(s.cluster_crop_x) +
+           ",\"cluster_crop_y\":" + std::to_string(s.cluster_crop_y) +
+           ",\"cluster_crop_w\":" + std::to_string(s.cluster_crop_w) +
+           ",\"cluster_crop_h\":" + std::to_string(s.cluster_crop_h) +
+           ",\"cluster_zoom\":" + zoom_text(s.cluster_zoom) +
+           ",\"cluster_upscaled\":" + (s.cluster_upscaled ? "1" : "0") +
+           ",\"sps_w\":" + std::to_string(s.sps_w) + ",\"sps_h\":" + std::to_string(s.sps_h) +
            ",\"source_w\":" + std::to_string(s.source_w) + ",\"source_h\":" + std::to_string(s.source_h) +
            ",\"output_w\":" + std::to_string(s.output_w) + ",\"output_h\":" + std::to_string(s.output_h) +
            /* the full CarPlay frame the app's Logs page asked for, once */
@@ -96,7 +110,8 @@ std::string status_line(const FeedStatus &s, const FrameDump &dump)
 
 class Server : public Control::Handler {
 public:
-    Server(MapFeeds *feeds, GuideSetting *guide, FrameDump *dump) : feeds_(feeds), guide_(guide), dump_(dump) {}
+    Server(MapFeeds *feeds, GuideSetting *guide, FrameDump *dump, VideoProducer *producer)
+        : feeds_(feeds), guide_(guide), dump_(dump), producer_(producer) {}
     void set_control(Control *c) { control_ = c; }
 
     /* cluster and hud turn the map on each off or on ("on"), hud also sizes
@@ -113,6 +128,24 @@ public:
         auto hx = msg.find("hud_x"), hy = msg.find("hud_y"), on = msg.find("on");
         auto keep = msg.find("hud_keep_shown");
         if (cmd == "frame-dump") {
+            /* The calibration metadata travels with the request: what the
+             * app selected and what carplay advertises (its patch state), and
+             * this process's own SPS, atlas and crop. */
+            FrameDump::Calibration cal;
+            auto sel = msg.find("selected"), act = msg.find("active"), pat = msg.find("patch");
+            if (sel != msg.end()) cal.selected = sel->second;
+            if (act != msg.end()) cal.active = act->second;
+            if (pat != msg.end()) cal.patch = pat->second;
+            cal.sps_w = producer_->sps_width();
+            cal.sps_h = producer_->sps_height();
+            cal.crop_x = feeds_->cluster_crop_x();
+            cal.crop_y = feeds_->cluster_crop_y();
+            cal.crop_w = feeds_->cluster_crop_w();
+            cal.crop_h = feeds_->cluster_crop_h();
+            cal.output_w = crk::kMapAreaWidth;
+            cal.output_h = crk::kMapAreaHeight;
+            cal.zoom = feeds_->cluster_zoom();
+            dump_->set_calibration(cal);
             dump_->request(cld::now_ms());
             log_info("frame dump: the next full CarPlay frame asked for (%s)", dump_->state_word());
         } else if (cmd == "guide" && hide != msg.end() && guide_->set(hide->second)) {
@@ -166,18 +199,60 @@ public:
                 else
                     log_warn("hud: hud_keep_shown must be 0 or 1, not %s", keep->second.c_str());
             }
-        } else if (cmd == "cluster" && (msg.find("cluster_x") != msg.end())) {
-            /* cluster_x: the cluster map's horizontal offset in cluster scene pixels
-             * (+x right), held inside the 1088x480 scene. Range -176..176, step 2. */
-            const auto cx = msg.find("cluster_x");
-            if (cx != msg.end()) {
-                const long x = std::strtol(cx->second.c_str(), nullptr, 10);
-                if (x >= -176 && x <= 176 && (x % 2 == 0)) {
-                    log_info("cluster: map moved %+ld horizontally", x);
-                    feeds_->set_cluster_offset((int)x);
+        } else if (cmd == "cluster" && (msg.find("cluster_x") != msg.end() || msg.find("crop_w") != msg.end() ||
+                                        msg.find("crop_y") != msg.end() || msg.find("crop_x") != msg.end())) {
+            /* The calibration crop: crop_w 816..1440 (even, its height the
+             * 1088x480 shape's), crop_y and crop_x even and inside the
+             * 1440x636 source; cluster_x is the offset from the centre and
+             * moves crop_x. All at once, live. */
+            uint32_t cw = feeds_->cluster_crop_w(), ch = feeds_->cluster_crop_h();
+            int cx = feeds_->cluster_crop_x(), cy = feeds_->cluster_crop_y();
+            bool bad = false;
+            if (msg.find("crop_w") != msg.end()) {
+                const long v = std::strtol(msg.at("crop_w").c_str(), nullptr, 10);
+                if (v % 2 == 0 && v >= 816 && v <= 1440) {
+                    cw = (uint32_t)v;
+                    ch = 2 * ((cw * 15 + 34) / 68);
+                    log_info("cluster: crop %ux%u (zoom %.1f%%)", cw, ch, cw ? 1088.0 * 100.0 / cw : 100.0);
                 } else {
-                    log_warn("cluster: offset %ld out of range (-176..176, step 2)", x);
+                    log_warn("cluster: crop_w %ld out of range (even 816-1440)", v);
+                    bad = true;
                 }
+            }
+            if (!bad && msg.find("crop_x") != msg.end()) {
+                const long v = std::strtol(msg.at("crop_x").c_str(), nullptr, 10);
+                if (v >= 0 && v % 2 == 0 && (uint32_t)v + cw <= kCarplayWideWidth)
+                    cx = (int)v;
+                else {
+                    log_warn("cluster: crop_x %ld out of range (even, inside %u with the crop)", v, kCarplayWideWidth);
+                    bad = true;
+                }
+            }
+            if (!bad && msg.find("crop_y") != msg.end()) {
+                const long v = std::strtol(msg.at("crop_y").c_str(), nullptr, 10);
+                if (v >= 0 && v % 2 == 0 && (uint32_t)v + ch <= kCarplayWideHeight)
+                    cy = (int)v;
+                else {
+                    log_warn("cluster: crop_y %ld out of range (even, inside %u with the crop)", v, kCarplayWideHeight);
+                    bad = true;
+                }
+            }
+            if (!bad && msg.find("cluster_x") != msg.end()) {
+                const long v = std::strtol(msg.at("cluster_x").c_str(), nullptr, 10);
+                const long max = (long)(kCarplayWideWidth - cw) / 2;
+                if (v >= -max && v <= max)
+                    cx = (int)((long)(kCarplayWideWidth - cw) / 2 - v);
+                else {
+                    log_warn("cluster: offset %ld out of range (-%ld..%ld)", v, max, max);
+                    bad = true;
+                }
+            }
+            if (!bad) {
+                cx = std::max(0, std::min(cx, (int)(kCarplayWideWidth - cw)));
+                cy = std::max(0, std::min(cy, (int)(kCarplayWideHeight - ch)));
+                if (msg.find("crop_w") != msg.end() || msg.find("crop_x") != msg.end() ||
+                    msg.find("crop_y") != msg.end() || msg.find("cluster_x") != msg.end())
+                    feeds_->set_cluster_crop(cx, cy, cw, ch);
             }
         } else {
             log_warn("control: unknown or malformed command %s", cmd.c_str());
@@ -210,6 +285,7 @@ private:
     MapFeeds *feeds_;
     GuideSetting *guide_;
     FrameDump *dump_;
+    VideoProducer *producer_;
     Control *control_ = nullptr;
     uint64_t log_seq_ = 0;
     std::string last_;
@@ -248,7 +324,8 @@ int serve(Config cfg)
         {"cluster", 0, 1},          {"hud", 0, 1},                   {"hud_fps", 1, 30},
         {"hud_width_pct", 0, 100},  {"hud_crop_width_pct", (long)kHudCropMinPct, (long)kHudCropMaxPct},
         {"hud_offset_x", -800, 800},     {"hud_offset_y", -800, 800},
-        {"cluster_offset_x", -176, 176},
+        {"cluster_offset_x", -312, 312},
+        {"cluster_crop_w", 816, 1440},   {"cluster_crop_y", 0, 636},
         {"hud_scale_down", 0, 1},   {"hud_round_corners", 0, 1},     {"hud_black_background", 0, 1},
         {"hud_keep_shown", 0, 1},
         {"freeze_ms", 0, 600000},   {"freeze_min_fps", 1, 60},       {"alt_screen_port", 0, 65535},
@@ -302,6 +379,35 @@ int serve(Config cfg)
     fc.hud_offset_x = (int)cfg.num("hud_offset_x");
     fc.hud_offset_y = (int)cfg.num("hud_offset_y");
     fc.cluster_offset_x = (int)cfg.num("cluster_offset_x");
+    /* The calibration crop: w even 816..1440, its height the 1088x480 shape's,
+     * x/y even and inside 1440x636. A bad value is repaired to the baseline
+     * with a warning, never left out of bounds. */
+    {
+        uint32_t cw = (uint32_t)cfg.num("cluster_crop_w");
+        uint32_t ch = 2 * ((cw * 15 + 34) / 68);
+        if (cw == 0) {
+            cw = 1088;
+            ch = 480;
+        }
+        if (cw % 2 || cw < 816 || cw > 1440) {
+            log_warn("cluster_crop_w %u: an even 816-1440 instead", cw);
+            cw = 1088;
+            ch = 480;
+        }
+        /* The horizontal position is the offset from the centre, as the
+         * offset's own key (and the app's Move buttons) hold it. */
+        int cx = (int)(kCarplayWideWidth - cw) / 2 - fc.cluster_offset_x;
+        int cy = (int)cfg.num("cluster_crop_y");
+        if (cx < 0 || cy < 0 || (uint32_t)cx + cw > kCarplayWideWidth || (uint32_t)cy + ch > kCarplayWideHeight) {
+            log_warn("cluster crop %d,%d %ux%u is outside 1440x636; the centred baseline instead", cx, cy, cw, ch);
+            cx = (int)(kCarplayWideWidth - cw) / 2;
+            cy = 0;
+        }
+        fc.cluster_crop_x = cx;
+        fc.cluster_crop_y = cy;
+        fc.cluster_crop_w = cw;
+        fc.cluster_crop_h = ch;
+    }
     fc.hud_keep_shown = cfg.num("hud_keep_shown") != 0;
     fc.scale_down = cfg.num("hud_scale_down") != 0;
     fc.hud_round_corners = cfg.num("hud_round_corners") != 0;
@@ -339,7 +445,7 @@ int serve(Config cfg)
     VideoProducer producer(vc);
     MapFeeds feed(fc, cfg.num("cluster") == 1, cfg.num("hud") == 1, (unsigned)cfg.num("hud_fps"));
     FrameDump dump(cfg.str("frame_dump_dir"));
-    Server server(&feed, &guide, &dump);
+    Server server(&feed, &guide, &dump, &producer);
     Control control(&server);
     server.set_control(&control);
     if (!control.listen(cfg.str("socket_path"), (unsigned)std::strtoul(cfg.str("socket_mode").c_str(), nullptr, 8),
@@ -435,7 +541,10 @@ int serve(Config cfg)
             producer.set_part(feed.part());
         producer.retry_sources(now);
         const FeedStatus fs = feed.status(producer.decode_status(), producer.stream_reason());
-        const std::string status = status_line(fs, dump);
+        FeedStatus fs2 = fs;
+        fs2.sps_w = producer.sps_width();
+        fs2.sps_h = producer.sps_height();
+        const std::string status = status_line(fs2, dump);
         /* The frame rate changes the status every second; the log keeps
          * to its state, reason and target, so the app's last lines are not
          * all status. */

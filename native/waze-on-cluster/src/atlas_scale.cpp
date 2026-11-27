@@ -48,6 +48,45 @@ void AtlasScaler::Axis::build(uint32_t src, uint32_t dst)
     }
 }
 
+/* Upscaling: output pixel i's centre in source pixels is
+ * (i + 0.5) * src / dst - 0.5, interpolated between the two source pixels
+ * around it (edge-clamped). In units of 1/(2*dst) the centre is
+ * (2i + 1)*src - dst, which keeps the arithmetic integral. Every weight pair
+ * sums to kOne; a clamped edge pixel takes all of it. */
+void AtlasScaler::Axis::build_linear(uint32_t src, uint32_t dst)
+{
+    first.assign(dst, 0);
+    count.assign(dst, 0);
+    offset.assign(dst, 0);
+    weight.clear();
+    const int64_t den = (int64_t)2 * dst;
+    for (uint32_t i = 0; i < dst; i++) {
+        const int64_t pos = (int64_t)(2 * (uint64_t)i + 1) * src - dst;
+        int64_t x0 = pos >= 0 ? pos / den : -(((-pos) + den - 1) / den);
+        if (x0 < 0)
+            x0 = 0;
+        if (x0 >= (int64_t)src)
+            x0 = (int64_t)src - 1;
+        int64_t frac = pos - x0 * den;
+        if (frac < 0)
+            frac = 0;
+        const uint32_t x1 = (uint32_t)(x0 + 1 < (int64_t)src ? x0 + 1 : (int64_t)src - 1);
+        first[i] = (uint32_t)x0;
+        offset[i] = (uint32_t)weight.size();
+        if (x1 == (uint32_t)x0 || frac == 0) {
+            count[i] = 1;
+            weight.push_back((uint16_t)kOne);
+            continue;
+        }
+        uint32_t w1 = (uint32_t)((frac * kOne + den / 2) / den);
+        if (w1 > kOne)
+            w1 = kOne;
+        count[i] = 2;
+        weight.push_back((uint16_t)(kOne - w1));
+        weight.push_back((uint16_t)w1);
+    }
+}
+
 bool AtlasScaler::configure(uint32_t w, uint32_t h, uint32_t dw, uint32_t dh, unsigned level_bits, uint32_t crop_x,
                             uint32_t crop_y, uint32_t crop_w, uint32_t crop_h)
 {
@@ -57,7 +96,7 @@ bool AtlasScaler::configure(uint32_t w, uint32_t h, uint32_t dw, uint32_t dh, un
         crop_h = h;
     }
     if (!w || !h || !dw || !dh || w % 2 || h % 2 || dw % 2 || dh % 2 || !crop_h || (crop_x | crop_y | crop_w | crop_h) % 2 ||
-        (uint64_t)crop_x + crop_w > w || (uint64_t)crop_y + crop_h > h || dw > crop_w || dh > crop_h || level_bits > 3) {
+        (uint64_t)crop_x + crop_w > w || (uint64_t)crop_y + crop_h > h || level_bits > 3) {
         dw_ = dh_ = 0;
         return false;
     }
@@ -73,10 +112,23 @@ bool AtlasScaler::configure(uint32_t w, uint32_t h, uint32_t dw, uint32_t dh, un
     crop_w_ = crop_w;
     crop_h_ = crop_h;
     bits_ = level_bits;
-    yx_.build(crop_w, dw);
-    yy_.build(crop_h, dh);
-    cx_.build(crop_w / 2, dw / 2);
-    cy_.build(crop_h / 2, dh / 2);
+    /* Downscaling along an axis: the box average; upscaling: bilinear. */
+    if (dw > crop_w)
+        yx_.build_linear(crop_w, dw);
+    else
+        yx_.build(crop_w, dw);
+    if (dh > crop_h)
+        yy_.build_linear(crop_h, dh);
+    else
+        yy_.build(crop_h, dh);
+    if (dw / 2 > crop_w / 2)
+        cx_.build_linear(crop_w / 2, dw / 2);
+    else
+        cx_.build(crop_w / 2, dw / 2);
+    if (dh / 2 > crop_h / 2)
+        cy_.build_linear(crop_h / 2, dh / 2);
+    else
+        cy_.build(crop_h / 2, dh / 2);
     return true;
 }
 
@@ -274,7 +326,8 @@ ScaleWorker::~ScaleWorker()
 
 bool ScaleWorker::submit(std::vector<uint8_t> *atlas, uint64_t id, const ScaleShape &shape)
 {
-    if (!idle() || shape.dw > (shape.crop_w ? shape.crop_w : shape.w) || shape.dh > (shape.crop_w ? shape.crop_h : shape.h) ||
+    /* Up or down: the scaler takes either (bilinear up, box down). */
+    if (!idle() || !shape.dw || !shape.dh ||
         atlas->size() != (size_t)shape.w * (shape.h + shape.h / 2))
         return false;
     s_->in.swap(*atlas);

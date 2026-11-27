@@ -14,9 +14,9 @@
 
 namespace woc {
 
-const char *const kMapStateKeys[8] = {"cluster",           "hud",            "hud_width_pct",
-                                      "hud_crop_width_pct", "hud_offset_x",   "hud_offset_y",
-                                      "hud_keep_shown",    "cluster_offset_x"};
+const char *const kMapStateKeys[10] = {"cluster",           "hud",           "hud_width_pct",
+                                       "hud_crop_width_pct", "hud_offset_x",   "hud_offset_y",
+                                       "hud_keep_shown",    "cluster_offset_x", "cluster_crop_w", "cluster_crop_y"};
 
 namespace {
 
@@ -28,7 +28,9 @@ std::string trim(const std::string &s)
 
 /* A whole number in the key's range: the map on (1) or off (0), 0 or 20-100 %
  * wide, 20-100 % of its width shown, -800..800 px from the centre,
- * -176..176 px cluster offset (step 2), kept shown (1) or not (0). */
+ * -312..312 px cluster offset (a signed displacement; crop_x and crop_y stay
+ * even), the cluster crop 816..1440 wide (step 2, the 1440x636 source), its
+ * top 0..636 (step 2), kept shown (1) or not (0). */
 bool valid(const std::string &key, const std::string &value)
 {
     char *end = nullptr;
@@ -42,7 +44,11 @@ bool valid(const std::string &key, const std::string &value)
     if (key == "hud_offset_x" || key == "hud_offset_y")
         return v >= -800 && v <= 800;
     if (key == "cluster_offset_x")
-        return v >= -176 && v <= 176 && v % 2 == 0;
+        return v >= -312 && v <= 312;
+    if (key == "cluster_crop_w")
+        return v >= 816 && v <= 1440 && v % 2 == 0;
+    if (key == "cluster_crop_y")
+        return v >= 0 && v <= 636 && v % 2 == 0;
     return v == 0 || v == 1;
 }
 

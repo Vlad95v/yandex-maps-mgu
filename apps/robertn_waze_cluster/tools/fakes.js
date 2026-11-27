@@ -35,6 +35,7 @@
 const EventEmitter = require('events');
 const fs = require('fs');
 const net = require('net');
+const calibration = require('../src/calibration.js');
 
 const STEP_MS = 40;
 const BACKLOG = 60;
@@ -136,6 +137,13 @@ class FakeRender extends LineServer {
         /* the full CarPlay frame (null: a tool before the feature) */
         this.frameDump = 'off';
         this.frameDumpReason = '';
+        /* the cluster crop and the incoming stream's own size, as the render
+         * reports them */
+        this.cropW = 1088;
+        this.cropX = 176;
+        this.cropY = 0;
+        this.spsW = 1440;
+        this.spsH = 636;
         this._showTimer = null;
     }
 
@@ -172,6 +180,21 @@ class FakeRender extends LineServer {
             s.hide_bmw_guidance = this.hide;
             s.guide_disabled = this.guideDisabled;
         }
+        if (this.cluster !== null) {
+            const cropH = 2 * Math.round(this.cropW * 15 / 68);
+            s.cluster_crop_x = this.cropX;
+            s.cluster_crop_y = this.cropY;
+            s.cluster_crop_w = this.cropW;
+            s.cluster_crop_h = cropH;
+            s.cluster_zoom = Math.round(1088 * 1000 / this.cropW) / 10;
+            s.cluster_upscaled = this.cropW < 1088 ? 1 : 0;
+            s.sps_w = this.spsW;
+            s.sps_h = this.spsH;
+            s.source_w = 1440;
+            s.source_h = 636;
+            s.output_w = 1088;
+            s.output_h = 480;
+        }
         return s;
     }
 
@@ -202,6 +225,19 @@ class FakeRender extends LineServer {
         }
         if (msg.cmd === 'cluster' && msg.on !== undefined) {
             this.cluster = Number(msg.on);
+            this._broadcast(this._status());
+        }
+        if (msg.cmd === 'cluster' && (msg.crop_w !== undefined || msg.crop_y !== undefined ||
+            msg.cluster_x !== undefined || msg.crop_x !== undefined)) {
+            /* as MapFeed: the crop, held inside the 1440x636 source; the
+             * offset from the centre moves crop_x */
+            if (msg.crop_w !== undefined) this.cropW = Number(msg.crop_w);
+            if (msg.crop_y !== undefined) this.cropY = Number(msg.crop_y);
+            if (msg.crop_x !== undefined) this.cropX = Number(msg.crop_x);
+            if (msg.cluster_x !== undefined) this.cropX = (1440 - this.cropW) / 2 - Number(msg.cluster_x);
+            const cropH = 2 * Math.round(this.cropW * 15 / 68);
+            this.cropX = Math.max(0, Math.min(1440 - this.cropW, this.cropX));
+            this.cropY = Math.max(0, Math.min(636 - cropH, this.cropY));
             this._broadcast(this._status());
         }
         if (msg.cmd === 'hud') {
@@ -252,6 +288,9 @@ class FakePatch extends LineServer {
         this.panel = null;
         this.res = null;    /* the advertised geometry patchd reports: "WxH" */
         this.safe = null;   /* and its safe area: "WxH+X+Y" */
+        /* The calibration page's selected resolution, as patchd keeps it:
+         * the wide default. */
+        this.resSelected = 1440;
         this.mapurl = undefined;   /* the map URL edit: 'eta' | 'no-eta' | 'off' | null; undefined: a daemon that does not send it */
         this.carplay = null;  /* 'deferred' once a patch is written but not active */
         this.pending = null;  /* 'apply' | 'revert': the change waiting for a head-unit start */
@@ -286,9 +325,17 @@ class FakePatch extends LineServer {
         this._broadcast(this._status());
     }
 
+    _selectedGeometry() {
+        return calibration.geometryForWidth(this.resSelected) || calibration.geometryForWidth(1440);
+    }
+
     _status() {
+        const g = this._selectedGeometry();
+        const sel = `${g.w}x${g.h}`;
         return { ev: 'status', state: this.busy ? 'busy' : this.state, panel: this.panel,
             res: this.res, safe: this.safe, mapurl: this.mapurl, carplay: this.carplay, reason: this.reason,
+            res_selected: sel, res_selected_w: g.w, res_selected_h: g.h, res_selected_mm: `${g.mmw}x${g.mmh}`,
+            res_active: this.res || null, res_pending: !!(this.res && this.res !== sel),
             pending: this.pending, conflict: this.conflict, recovered: this.recovered, aa: this.aa,
             removable: this.removable !== null ? this.removable : this.pending === 'apply' || (!this.pending && ['patched', 'unknown', 'error'].includes(this.state)),
             busy: this.busy ? 'carplay' : this.aa.state === 'busy' ? 'aa' : this._rebooting ? 'restart' : null,
@@ -344,6 +391,17 @@ class FakePatch extends LineServer {
         }
         if (msg.cmd === 'profile' || msg.cmd === 'profile-own') {
             if (!this.profileMute) this._profile(msg, socket);
+            return;
+        }
+        if (msg.cmd === 'carplay-res-select') {
+            const g = calibration.geometryForWidth(Number(msg.width));
+            if (!g) {
+                this._send(socket, { ev: 'carplay-res-reply', ok: false, reason: 'width must be an even integer from 1088 to 1920' });
+                return;
+            }
+            this.resSelected = g.w;
+            this._send(socket, { ev: 'carplay-res-reply', ok: true, width: g.w, height: g.h, selected: `${g.w}x${g.h}` });
+            this._broadcast(this._status());
             return;
         }
         const MAP = { cluster: ['cluster'], hud: ['hud'], 'hud-size': ['hud_width_pct'], 'hud-crop-width': ['hud_crop_width_pct'],
@@ -403,10 +461,19 @@ class FakePatch extends LineServer {
                 this.busy = false;
                 this.state = 'patched';
                 this.panel = msg.panel;
-                /* The geometry the patcher writes: the high panel's size and
-                 * safe area; the mid panel keeps the stock geometry. */
-                this.res = msg.panel === 'high' ? '1088x480' : null;
-                this.safe = msg.panel === 'high' ? '504x368+286+72' : null;
+                /* The geometry the patcher writes: the resolution the app
+                 * sent (its height, safe area and physical size from that
+                 * width); the mid panel keeps the stock geometry. The wide
+                 * default when an older app sends none. */
+                const g = msg.panel === 'high' ? (calibration.parseRes(msg.res) || calibration.geometryForWidth(1440)) : null;
+                if (g) {
+                    const s = calibration.safeFor(g.w, g.h);
+                    this.res = `${g.w}x${g.h}`;
+                    this.safe = `${s.w}x${s.h}+${s.x}+${s.y}`;
+                } else {
+                    this.res = null;
+                    this.safe = null;
+                }
                 if (this.mapurl !== undefined) this.mapurl = 'eta';
                 this.reason = 'restarted';
                 this.log('apply done');

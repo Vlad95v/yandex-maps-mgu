@@ -70,6 +70,15 @@ public:
     /* The cluster map's horizontal offset, kept for a cluster feed made later. */
     void set_cluster_offset(int dx);
     int cluster_offset_x() const { return base_.cluster_offset_x; }
+    /* The cluster's calibration crop of the 1440x636 source, at once, kept for
+     * a cluster feed made later. */
+    void set_cluster_crop(int x, int y, uint32_t w, uint32_t h);
+    int cluster_crop_x() const { return cluster_ ? cluster_->cluster_crop_x() : base_.cluster_crop_x; }
+    int cluster_crop_y() const { return cluster_ ? cluster_->cluster_crop_y() : base_.cluster_crop_y; }
+    uint32_t cluster_crop_w() const { return cluster_ ? cluster_->cluster_crop_w() : base_.cluster_crop_w; }
+    uint32_t cluster_crop_h() const { return cluster_ ? cluster_->cluster_crop_h() : base_.cluster_crop_h; }
+    double cluster_zoom() const { return cluster_ ? cluster_->cluster_zoom() : 100.0; }
+    bool cluster_upscaled() const { return cluster_ ? cluster_->cluster_upscaled() : false; }
     /* The cluster map layer's guide_hold. */
     void set_guide_hold(bool hold);
 
