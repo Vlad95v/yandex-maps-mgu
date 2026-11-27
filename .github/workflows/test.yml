@@ -157,6 +157,8 @@ jobs:
       - run: node apps/robertn_waze_cluster/tools/test_page.js
       - run: node apps/robertn_waze_cluster/tools/test_profiles.js
       - run: node apps/robertn_waze_cluster/tools/test_i18n.js
+      - run: node apps/robertn_waze_cluster/tools/test_calibration.js
+      - run: node apps/robertn_waze_cluster/tools/test_text_encoding.js
 
   waze-on-cluster-x86:
     needs: changes

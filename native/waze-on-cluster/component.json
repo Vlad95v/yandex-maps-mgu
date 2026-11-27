@@ -44,6 +44,11 @@
       "mode": "0644"
     },
     {
+      "path": "resolution.js",
+      "from": "patch/resolution.js",
+      "mode": "0644"
+    },
+    {
       "path": "carplay_locate.js",
       "from": "patch/carplay_locate.js",
       "mode": "0644"
