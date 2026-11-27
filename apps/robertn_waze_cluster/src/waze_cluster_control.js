@@ -113,9 +113,10 @@ const DEFAULT_RES_WIDTH = 1440;
 /* The safe area CarPlay's Patch button writes: where the phone keeps its guidance UI,
  * inside the part of the map the gauges leave visible. */
 const SAFE = '504x368+286+72';
-/* The HUD map's size: HUD_STEP_PCT steps from HUD_MIN_PCT to HUD_MAX_PCT (85 %, the widest the HUD shows
- * whole), HUD_SIZE_STEPS of them. Standard (0) counts as HUD_STANDARD_PCT, about what the fitted box is. */
-const HUD_MIN_PCT = 30, HUD_MAX_PCT = 85, HUD_STEP_PCT = 5, HUD_STANDARD_PCT = 57;
+/* The HUD map's size: HUD_STEP_PCT steps from HUD_MIN_PCT to HUD_MAX_PCT (100 %,
+ * the whole width), HUD_SIZE_STEPS of them. Standard (0) counts as
+ * HUD_STANDARD_PCT, about what the fitted box is. */
+const HUD_MIN_PCT = 30, HUD_MAX_PCT = 100, HUD_STEP_PCT = 5, HUD_STANDARD_PCT = 57;
 const HUD_SIZE_STEPS = (HUD_MAX_PCT - HUD_MIN_PCT) / HUD_STEP_PCT;
 /* How much of the HUD map's width it shows: HUD_CROP_STEP_PCT steps from
  * HUD_CROP_MIN_PCT to HUD_CROP_MAX_PCT, HUD_CROP_DEFAULT_PCT (100 %) the

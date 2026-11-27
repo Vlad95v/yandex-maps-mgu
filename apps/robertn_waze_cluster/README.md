@@ -71,7 +71,8 @@ The app is in the head unit's display language.
 - **Keep HUD map over BMW's pop-ups:** unticked (the default), the map steps
   aside while BMW's media and list pop-ups show on the HUD. Ticked, it
   stays.
-- **Size:** how wide the map is on the HUD.
+- **Size:** how wide the map is on the HUD, 30 % to 100 % in 5 % steps
+  (**Standard** is about 57 %, what the fitted box is).
 - **Width:** how much of the map's width the HUD shows, 20 % to 100 %
   (100 % the whole of it, as before). The map keeps its height and the size
   of its roads, labels and arrows: the HUD shows a narrower, centred part of

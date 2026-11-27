@@ -109,6 +109,7 @@ class FakeComponent extends EventEmitter {
         this.text = null;
         this.cells = {};
         this.enabled = null;
+        this.resourcesUpdated = 0;
         this.visible = (desc && desc.properties && desc.properties.Visible) ? desc.properties.Visible.value === 1 : null;
         this.enabledSeen = new Set();
         this.ticks = [];
@@ -174,7 +175,7 @@ class FakeComponent extends EventEmitter {
     turn(dir) { this.emit('action', { row: 0, subType: dir > 0 ? 4 : 5 }); }
     setEnabled(enabled) { this.enabled = enabled; this.enabledSeen.add(enabled); return Promise.resolve(); }
     setVisible(visible) { this.visible = visible; shownOrHidden.add(this.desc.name); return Promise.resolve(); }
-    updateResources() { return Promise.resolve(); }
+    updateResources() { this.resourcesUpdated += 1; return Promise.resolve(); }
 }
 
 const shownOrHidden = new Set();
@@ -321,6 +322,8 @@ async function main() {
     assert.deepStrictEqual(components['62'].rows.map((r) => r.ItemText.value), ['Cluster', 'HUD (experimental)', 'Cluster and HUD (experimental)', 'Off']);
     assert.deepStrictEqual(['MinValue', 'MaxValue', 'NumberOfSteps'].map((k) => components['52'].rows[0][k].value), [0, HUD_SIZE_STEPS, HUD_SIZE_STEPS],
         'the size slider: one step for each 5 %');
+    assert.strictEqual(HUD_SIZE_STEPS, 14, 'the size slider: 30 % to 100 % in 5 % steps');
+    assert.strictEqual(30 + HUD_SIZE_STEPS * 5, 100, 'the last size step is 100 %');
     assert.deepStrictEqual(['MinValue', 'MaxValue', 'NumberOfSteps'].map((k) => components['108'].rows[0][k].value),
         [0, HUD_CROP_STEPS, HUD_CROP_STEPS], 'the width slider: one step for each 5 %, 20-100 %');
     assert.strictEqual(components['108'].name, 'wocHudCropWidth');
@@ -390,6 +393,11 @@ async function main() {
         const status = byName.wocStatus;
         await until('page shows the map', () => byName.wocMap.text === `Cluster map: Showing ${RENDER_PAGE} — ${RENDER_FPS}` && status.text === 'Status: Patched');
         assert(!logs.some((l) => /^error/.test(l)), logs.filter((l) => /^error/.test(l)).join('\n'));
+        assert.deepStrictEqual([byName.ST_OnlineApps_WazeCluster, byName.ST_OnlineApps_WazeClusterLogs,
+            byName.ST_OnlineApps_WazeClusterCalibration].map((s) => s.resourcesUpdated), [1, 1, 1],
+        'main, Logs and Calibration resources updated before the page is ready');
+        assert(logs.some((l) => l === 'info: RHMI resources: main, logs and calibration updated'),
+            'the resource update is in the application log');
         const bound = logs.filter((l) => l.startsWith('info: BIND OK: ')).map((l) => l.split(' ')[3]).sort();
         assert.deepStrictEqual(bound, ['wocAaCard', 'wocAaDisable', 'wocAaEnable', 'wocAaZoomIn', 'wocAaZoomOut',
             'wocCalApply', 'wocCalCaptureFrame', 'wocCalCentre', 'wocCalCropMinus', 'wocCalCropMinus2',
@@ -507,6 +515,11 @@ async function main() {
         size.turn(-1);
         size.turn(-1);
         await until('smaller', () => size.text === 'Size: 50 %' && render.hudWidth === 50);
+        size.setStepValue(HUD_SIZE_STEPS - 1);
+        await until('95 %', () => size.text === 'Size: 95 %' && render.hudWidth === 95 && size.cells['0:Value'] === HUD_SIZE_STEPS - 1);
+        size.turn(1);
+        await until('100 %', () => size.text === 'Size: 100 %' && render.hudWidth === 100 && size.cells['0:Value'] === HUD_SIZE_STEPS);
+        await until('100 % saved', () => patch.received.some((m) => m.cmd === 'hud-size' && m.hud_width_pct === 100));
         /* the width slider: how much of the HUD map's width it shows, the
          * render at once, patchd saving it; 100 % (the last step) the whole */
         crop.turn(-1);
@@ -514,6 +527,10 @@ async function main() {
         await until('saved', () => patch.received.some((m) => m.cmd === 'hud-crop-width' && m.hud_crop_width_pct === 95));
         crop.turn(1);
         await until('full width again', () => crop.text === 'Width: 100 %' && render.hudCrop === 100);
+        /* a saved 85 % is a valid step on the wider slider */
+        render.hudWidth = 85;
+        render.announce(render.state, render.reason);
+        await until('saved 85 % still valid', () => size.text === 'Size: 85 %' && size.cells['0:Value'] === 11);
         byName.wocHudLeft.emit('action');
         await until('moved', () => byName.wocHudPos.text === 'Position: 10 px left' && byName.wocHudCentre.enabled === true);
         /* the HUD map over BMW's pop-ups: gives way by default; a press keeps it shown, the render's answer ticks it, patchd saves it */
@@ -859,10 +876,18 @@ async function main() {
         await until('calibration patched', () => byName.wocCalActive.text === 'Active: 1440x636 · Resolution: Applied');
         byName.wocCalibration.emit('action');
         await until('Calibration opened', () => rhmi.opened.indexOf('ST_OnlineApps_WazeClusterCalibration') >= 0);
+        assert(logs.some((l) => l === 'info: calibration button: opening ST_OnlineApps_WazeClusterCalibration'),
+            'the calibration button action is logged');
+        assert(logs.some((l) => l === 'info: openState ST_OnlineApps_WazeClusterCalibration: requested'),
+            'the openState request is logged');
+        await until('openState resolved in the log', () => logs.some((l) =>
+            l === 'info: openState ST_OnlineApps_WazeClusterCalibration: resolved'));
         main.emit('visible', { visible: false });
         calState.emit('visible', { visible: true });
         await until('calibration shown', () => byName.wocCalSelected.text === 'Selected: 1440x636 · Height: 636' &&
             byName.wocCalPhysical.text === 'Physical: 183x81 mm');
+        assert(logs.some((l) => l === 'info: RHMI page calibration: visible (main=0, logs=0, calibration=1)'),
+            'the Calibration visibility event and all three values are logged');
         assert.strictEqual(byName.wocCalActive.text, 'Active: 1440x636 · Resolution: Applied');
         assert.strictEqual(byName.wocCalCrop.text, 'Crop: 1088x480  X 176  Y 0 · Zoom: 100 %');
         assert.strictEqual(byName.wocCalX.text, 'X: 176 · Y: 0');
@@ -908,9 +933,84 @@ async function main() {
         render.frameCaptured(true);
         await until('frame captured', () => byName.wocCalFrameStatus.text === 'CarPlay frame: Frame captured. Ready to save logs');
         console.log('ok   the Calibration page: the frame capture; Save logs stays on the Logs page');
+
+        /* The real BMW order: Calibration becomes visible before the main page
+         * hides. The app must stay visible, with its sockets open. */
         calState.emit('visible', { visible: false });
         main.emit('visible', { visible: true });
-        await sleep(100);
+        await until('main back for the reverse-order test', () => OnlineApp.instance._pages.main === true &&
+            OnlineApp.instance._visible === true && render._clients.size === 1 && patch._clients.size === 1);
+        const inactiveBeforeReverse = inactiveReports;
+        const reverseLog = logs.length;
+        calState.emit('visible', { visible: true });
+        main.emit('visible', { visible: false });
+        await sleep(1100);
+        assert.strictEqual(OnlineApp.instance._visible, true, 'Calibration visible first: the app stays visible');
+        assert.deepStrictEqual(OnlineApp.instance._pages, { main: false, logs: false, calibration: true },
+            'Calibration visible first: only the main page hid');
+        assert.strictEqual(OnlineApp.instance._hideTimer, null, 'no hide timer while Calibration is visible');
+        assert.strictEqual(render._clients.size, 1, 'the render socket stays open');
+        assert.strictEqual(patch._clients.size, 1, 'the patch socket stays open');
+        assert.strictEqual(inactiveReports, inactiveBeforeReverse, 'the app did not report itself inactive');
+        assert(!logs.slice(reverseLog).some((l) => /hide timer: scheduled|page hidden/.test(l)),
+            'no hide was scheduled or fired');
+        byName.wocCalCropPlus2.emit('action');
+        await until('Calibration still works after the hidden main page', () =>
+            byName.wocCalCrop.text === 'Crop: 1090x480  X 176  Y 0 · Zoom: 99.8 %');
+        byName.wocCalReset.emit('action');
+        await until('Calibration reset after the reverse-order test', () =>
+            byName.wocCalCrop.text === 'Crop: 1088x480  X 176  Y 0 · Zoom: 100 %');
+        console.log('ok   Calibration visible before main hides: visible, sockets open, page works, no hide timer');
+
+        /* Only when main, Logs and Calibration are all hidden does the timer
+         * hide the app and close its connections. */
+        const hideLog = logs.length;
+        calState.emit('visible', { visible: false });
+        await sleep(1100);
+        assert.strictEqual(OnlineApp.instance._visible, false, 'all three hidden: the app hides');
+        assert.deepStrictEqual(OnlineApp.instance._pages, { main: false, logs: false, calibration: false },
+            'all three hidden: every page is marked hidden');
+        assert.strictEqual(render._clients.size, 0, 'all three hidden: the render socket closes');
+        assert.strictEqual(patch._clients.size, 0, 'all three hidden: the patch socket closes');
+        assert(inactiveReports > inactiveBeforeReverse, 'all three hidden: the app reports itself inactive');
+        assert(logs.slice(hideLog).some((l) => l.indexOf('hide timer: fired') >= 0),
+            'the hide timer fired after all three pages hid');
+        main.emit('visible', { visible: true });
+        await until('main back after the all-hidden test', () => OnlineApp.instance._visible === true &&
+            render._clients.size === 1 && patch._clients.size === 1);
+        console.log('ok   all three pages hidden: the timer hides the app and closes its sockets; main brings it back');
+
+        /* Calibration -> Logs, an overlay and back, then Calibration -> main. */
+        calState.emit('visible', { visible: true });
+        main.emit('visible', { visible: false });
+        logsState.emit('visible', { visible: true });
+        calState.emit('visible', { visible: false });
+        await until('Calibration left for Logs', () => OnlineApp.instance._visible === true &&
+            OnlineApp.instance._pages.main === false && OnlineApp.instance._pages.logs === true &&
+            OnlineApp.instance._pages.calibration === false && lserver._clients.size === 1);
+        assert.strictEqual(OnlineApp.instance._hideTimer, null, 'Calibration -> Logs: no hide timer');
+        console.log('ok   Calibration -> Logs: the app stays visible, the logs socket moves to Logs');
+
+        /* an overlay takes the screen and gives it back on the Logs page */
+        rhmi.emit('applicationStackChanged', { OVERLAY: 1 });
+        await until('overlay hides the app', () => OnlineApp.instance._visible === false && lserver._clients.size === 0);
+        rhmi.emit('applicationStackChanged', { ROOT_APP: 1 });
+        await until('back on Logs from the overlay', () => OnlineApp.instance._visible === true &&
+            OnlineApp.instance._pages.logs === true && lserver._clients.size === 1);
+        console.log('ok   back from an overlay on Logs: visible, the logs socket open again');
+
+        /* Logs -> main, then Calibration -> main */
+        main.emit('visible', { visible: true });
+        logsState.emit('visible', { visible: false });
+        await until('Logs -> main', () => OnlineApp.instance._pages.main === true && lserver._clients.size === 0 &&
+            render._clients.size === 1 && patch._clients.size === 1);
+        calState.emit('visible', { visible: true });
+        main.emit('visible', { visible: false });
+        main.emit('visible', { visible: true });
+        calState.emit('visible', { visible: false });
+        await until('Calibration -> main', () => OnlineApp.instance._visible === true &&
+            OnlineApp.instance._pages.main === true && OnlineApp.instance._pages.calibration === false && lserver._clients.size === 0);
+        console.log('ok   Logs -> main and Calibration -> main: visible, the logs socket closed, both control sockets open');
 
         /* left from the Logs page, launched again from the tile: the main
          * page, no logs socket (which would start the page server) */
