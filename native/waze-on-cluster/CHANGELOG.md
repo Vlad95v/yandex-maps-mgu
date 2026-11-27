@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+Fix: waze-on-cluster 0.14.17 did not start on the car — its configuration
+reader did not know `cluster_crop_w` and `cluster_crop_y` from
+`waze-on-cluster.conf`. Both are registered with their 1088x480 baseline
+defaults now, and loading the shipped configuration whole is a host
+regression test.
+
 ## 0.14.17
 
 CarPlay calibration: the patcher, patchd and the render accept an arbitrary
