@@ -364,13 +364,12 @@ async function main() {
         'wocCalWidthPlus100', 'wocCalApply', 'wocCalActive', 'wocCalHeadCrop', 'wocCalCrop',
         'wocCalCropMinus', 'wocCalCropMinus2', 'wocCalCropPlus2', 'wocCalCropPlus', 'wocCalX', 'wocCalXMinus10',
         'wocCalXMinus2', 'wocCalXPlus2', 'wocCalXPlus10', 'wocCalYMinus10', 'wocCalYMinus2',
-        'wocCalYPlus2', 'wocCalYPlus10', 'wocCalCentre', 'wocCalReset', 'wocCalHeadDiagnostics', 'wocCalSps',
-        'wocCalCaptureFrame', 'wocCalFrameStatus', 'wocCalFrameNote', 'wocCalLogs', 'wocCalSaveLogs',
-        'wocCalSavedLogs']);
-    assert.strictEqual(Object.keys(calPage.components).length, 37, 'a page inside the main page\'s row count');
+        'wocCalYPlus2', 'wocCalYPlus10', 'wocCalCentre', 'wocCalReset', 'wocCalSps',
+        'wocCalCaptureFrame', 'wocCalFrameStatus', 'wocCalLogs']);
+    assert.strictEqual(Object.keys(calPage.components).length, 33, 'a page inside the main page\'s visible row count');
     assert(!xmlIds('3').some(([, type]) => type === 'slider'), 'no stepped slider on the calibration page');
-    assert.deepStrictEqual(xmlIds('3').filter(([id]) => /^(121|134|152)$/.test(id)).map(([, , w]) => w),
-        Array(3).fill('LT_Label_Header_1Row'), 'the calibration sections are header rows');
+    assert.deepStrictEqual(xmlIds('3').filter(([id]) => /^(121|134)$/.test(id)).map(([, , w]) => w),
+        Array(2).fill('LT_Label_Header_1Row'), 'the calibration sections are header rows');
     console.log('ok   the Calibration page: resolution, crop and diagnostics sections; the width and crop controls, ' +
         'Apply, Centre, Reset and the frame capture; a child of the main page');
 
@@ -395,7 +394,7 @@ async function main() {
         assert.deepStrictEqual(bound, ['wocAaCard', 'wocAaDisable', 'wocAaEnable', 'wocAaZoomIn', 'wocAaZoomOut',
             'wocCalApply', 'wocCalCaptureFrame', 'wocCalCentre', 'wocCalCropMinus', 'wocCalCropMinus2',
             'wocCalCropPlus', 'wocCalCropPlus2', 'wocCalLogs',
-            'wocCalReset', 'wocCalSaveLogs', 'wocCalWidthMinus10', 'wocCalWidthMinus100', 'wocCalWidthMinus2',
+            'wocCalReset', 'wocCalWidthMinus10', 'wocCalWidthMinus100', 'wocCalWidthMinus2',
             'wocCalWidthPlus10', 'wocCalWidthPlus100', 'wocCalWidthPlus2', 'wocCalXMinus10', 'wocCalXMinus2',
             'wocCalXPlus10', 'wocCalXPlus2', 'wocCalYMinus10', 'wocCalYMinus2', 'wocCalYPlus10', 'wocCalYPlus2',
             'wocCalibration', 'wocCapture',
@@ -900,18 +899,15 @@ async function main() {
         await until('baseline crop', () => byName.wocCalCrop.text === 'Crop: 1088x480  X 176  Y 0 · Zoom: 100 %');
         console.log('ok   the Calibration page: the 2 px and 8 px crop steps, X/Y, Centre and Reset');
 
-        /* Diagnostics: the frame capture and the saved logs. */
+        /* Diagnostics: the frame capture and the Logs page's Save logs. */
         assert.strictEqual(byName.wocCalCaptureFrame.text, 'Capture full CarPlay frame');
-        assert(/^Saved logs: /.test(byName.wocCalSavedLogs.text));
         render.received.length = 0;
         byName.wocCalCaptureFrame.emit('action');
         await until('frame asked from the Calibration page', () => render.received.some((m) => m.cmd === 'frame-dump'));
-        assert.strictEqual(byName.wocCalFrameNote.text,
-            'The frame is not scrubbed: the archive may contain the map, addresses, your location and route.');
         await until('frame status', () => byName.wocCalFrameStatus.text === 'CarPlay frame: Waiting for CarPlay frame');
         render.frameCaptured(true);
         await until('frame captured', () => byName.wocCalFrameStatus.text === 'CarPlay frame: Frame captured. Ready to save logs');
-        console.log('ok   the Calibration page: the frame capture and its privacy note, the saved logs row');
+        console.log('ok   the Calibration page: the frame capture; Save logs stays on the Logs page');
         calState.emit('visible', { visible: false });
         main.emit('visible', { visible: true });
         await sleep(100);

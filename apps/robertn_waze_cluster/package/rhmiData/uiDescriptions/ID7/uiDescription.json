@@ -1834,28 +1834,6 @@
             }
           ]
         },
-        "152": {
-          "type": "label",
-          "name": "wocCalHeadDiagnostics",
-          "properties": {
-            "Visible": {
-              "value": 1,
-              "type": "UInt"
-            },
-            "Focusable": {
-              "value": 0,
-              "type": "UInt"
-            }
-          },
-          "rows": [
-            {
-              "Text": {
-                "value": "Diagnostics",
-                "type": "Text"
-              }
-            }
-          ]
-        },
         "153": {
           "type": "label",
           "name": "wocCalSps",
@@ -1922,28 +1900,6 @@
             }
           ]
         },
-        "157": {
-          "type": "label",
-          "name": "wocCalFrameNote",
-          "properties": {
-            "Visible": {
-              "value": 1,
-              "type": "UInt"
-            },
-            "Focusable": {
-              "value": 0,
-              "type": "UInt"
-            }
-          },
-          "rows": [
-            {
-              "Text": {
-                "value": "The frame is not scrubbed: the archive may contain the map, addresses, your location and route.",
-                "type": "Text"
-              }
-            }
-          ]
-        },
         "158": {
           "type": "button",
           "name": "wocCalLogs",
@@ -1961,50 +1917,6 @@
             {
               "Text": {
                 "value": "Logs",
-                "type": "Text"
-              }
-            }
-          ]
-        },
-        "159": {
-          "type": "button",
-          "name": "wocCalSaveLogs",
-          "properties": {
-            "Visible": {
-              "value": 1,
-              "type": "UInt"
-            },
-            "Focusable": {
-              "value": 3,
-              "type": "UInt"
-            }
-          },
-          "rows": [
-            {
-              "Text": {
-                "value": "Save logs",
-                "type": "Text"
-              }
-            }
-          ]
-        },
-        "160": {
-          "type": "label",
-          "name": "wocCalSavedLogs",
-          "properties": {
-            "Visible": {
-              "value": 1,
-              "type": "UInt"
-            },
-            "Focusable": {
-              "value": 0,
-              "type": "UInt"
-            }
-          },
-          "rows": [
-            {
-              "Text": {
-                "value": "Saved logs: —",
                 "type": "Text"
               }
             }

@@ -142,20 +142,16 @@ const CAL_Y_PLUS_2 = 'wocCalYPlus2';
 const CAL_Y_PLUS_10 = 'wocCalYPlus10';
 const CAL_CENTRE = 'wocCalCentre';
 const CAL_RESET = 'wocCalReset';
-const CAL_HEAD_DIAG = 'wocCalHeadDiagnostics';
 const CAL_SPS = 'wocCalSps';
 const CAL_CAPTURE_FRAME = 'wocCalCaptureFrame';
 const CAL_FRAME_STATUS = 'wocCalFrameStatus';
-const CAL_FRAME_NOTE = 'wocCalFrameNote';
 const CAL_LOGS = 'wocCalLogs';
-const CAL_SAVE_LOGS = 'wocCalSaveLogs';
-const CAL_SAVED_LOGS = 'wocCalSavedLogs';
 const CALIBRATION_NAMES = [CALIBRATION_NAME, CAL_TITLE, CAL_HEAD_RES, CAL_SELECTED, CAL_PHYSICAL,
     CAL_WIDTH_MINUS_100, CAL_WIDTH_MINUS_10, CAL_WIDTH_MINUS_2, CAL_WIDTH_PLUS_2, CAL_WIDTH_PLUS_10, CAL_WIDTH_PLUS_100,
     CAL_APPLY, CAL_ACTIVE, CAL_HEAD_CROP, CAL_CROP, CAL_CROP_MINUS, CAL_CROP_MINUS_2, CAL_CROP_PLUS_2, CAL_CROP_PLUS,
     CAL_X, CAL_X_MINUS_10, CAL_X_MINUS_2, CAL_X_PLUS_2, CAL_X_PLUS_10,
-    CAL_Y_MINUS_10, CAL_Y_MINUS_2, CAL_Y_PLUS_2, CAL_Y_PLUS_10, CAL_CENTRE, CAL_RESET, CAL_HEAD_DIAG, CAL_SPS,
-    CAL_CAPTURE_FRAME, CAL_FRAME_STATUS, CAL_FRAME_NOTE, CAL_LOGS, CAL_SAVE_LOGS, CAL_SAVED_LOGS];
+    CAL_Y_MINUS_10, CAL_Y_MINUS_2, CAL_Y_PLUS_2, CAL_Y_PLUS_10, CAL_CENTRE, CAL_RESET, CAL_SPS,
+    CAL_CAPTURE_FRAME, CAL_FRAME_STATUS, CAL_LOGS];
 const ROW_CHARS = 90;
 const PRESS_DEDUPE_MS = 400;
 const HIDE_SETTLE_MS = 800;
@@ -364,7 +360,6 @@ class WazeClusterApp extends OnlineApp {
         this._bind(CAL_CENTRE, () => this._control.centreCrop());
         this._bind(CAL_RESET, () => this._control.resetCrop());
         this._bind(CAL_CAPTURE_FRAME, () => this._control.captureFrame());
-        this._bind(CAL_SAVE_LOGS, () => this._logs.save());
         this._bind(CAL_LOGS, () => this._openPage(LOGS_STATE));
         // Presses also arrive as the application's raw 'userEvent'; both paths
         // land in _press, which keeps a press delivered twice to one.
@@ -748,17 +743,11 @@ class WazeClusterApp extends OnlineApp {
         this._write(CAL_RESET, t('Reset'));
         this._setEnabled(CAL_RESET, c.canResetCrop());
 
-        this._write(CAL_HEAD_DIAG, t('Diagnostics'));
         this._write(CAL_SPS, t('Incoming SPS: {0}', `${c.incomingSpsText()} · ${t('Decoded: {0}', c.normalizedText())}`));
         this._write(CAL_CAPTURE_FRAME, t('Capture full CarPlay frame'));
         this._setEnabled(CAL_CAPTURE_FRAME, c.canCaptureFrame());
         this._write(CAL_FRAME_STATUS, c.frameDumpText());
-        this._write(CAL_FRAME_NOTE,
-            t('The frame is not scrubbed: the archive may contain the map, addresses, your location and route.'));
         this._write(CAL_LOGS, t('Logs'));
-        this._write(CAL_SAVE_LOGS, t('Save logs'));
-        this._setEnabled(CAL_SAVE_LOGS, this._logs.canSave());
-        this._write(CAL_SAVED_LOGS, this._logs.statusText());
     }
 
     /* The resolution's state in the calibration page's words. */
