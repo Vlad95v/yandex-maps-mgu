@@ -72,7 +72,7 @@ int main()
     c.define("target", "map");
     load_map_state(&c, path);
     ok("out of range, another key or a line that does not read: left out, the rest taken",
-       settings(c) == "1 1 60 100 0 -20 0 0 1088 0" && c.str("hud_fps") == "10" && c.str("target") == "map");
+       settings(c) == "1 1 60 100 0 -20 0 5 1088 0" && c.str("hud_fps") == "10" && c.str("target") == "map");
     std::ofstream(path) << "hud_width_pct = 0\nhud_offset_x = 1x\nhud_offset_y = \ncluster =1\n";
     c = conf();
     load_map_state(&c, path);
