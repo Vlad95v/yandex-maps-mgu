@@ -322,6 +322,8 @@ async function main() {
     assert.deepStrictEqual(components['62'].rows.map((r) => r.ItemText.value), ['Cluster', 'HUD (experimental)', 'Cluster and HUD (experimental)', 'Off']);
     assert.deepStrictEqual(['MinValue', 'MaxValue', 'NumberOfSteps'].map((k) => components['52'].rows[0][k].value), [0, HUD_SIZE_STEPS, HUD_SIZE_STEPS],
         'the size slider: one step for each 5 %');
+    assert.strictEqual(HUD_SIZE_STEPS, 14, 'the size slider: 30 % to 100 % in 5 % steps');
+    assert.strictEqual(30 + HUD_SIZE_STEPS * 5, 100, 'the last size step is 100 %');
     assert.deepStrictEqual(['MinValue', 'MaxValue', 'NumberOfSteps'].map((k) => components['108'].rows[0][k].value),
         [0, HUD_CROP_STEPS, HUD_CROP_STEPS], 'the width slider: one step for each 5 %, 20-100 %');
     assert.strictEqual(components['108'].name, 'wocHudCropWidth');
@@ -513,6 +515,11 @@ async function main() {
         size.turn(-1);
         size.turn(-1);
         await until('smaller', () => size.text === 'Size: 50 %' && render.hudWidth === 50);
+        size.setStepValue(HUD_SIZE_STEPS - 1);
+        await until('95 %', () => size.text === 'Size: 95 %' && render.hudWidth === 95 && size.cells['0:Value'] === HUD_SIZE_STEPS - 1);
+        size.turn(1);
+        await until('100 %', () => size.text === 'Size: 100 %' && render.hudWidth === 100 && size.cells['0:Value'] === HUD_SIZE_STEPS);
+        await until('100 % saved', () => patch.received.some((m) => m.cmd === 'hud-size' && m.hud_width_pct === 100));
         /* the width slider: how much of the HUD map's width it shows, the
          * render at once, patchd saving it; 100 % (the last step) the whole */
         crop.turn(-1);
@@ -520,6 +527,10 @@ async function main() {
         await until('saved', () => patch.received.some((m) => m.cmd === 'hud-crop-width' && m.hud_crop_width_pct === 95));
         crop.turn(1);
         await until('full width again', () => crop.text === 'Width: 100 %' && render.hudCrop === 100);
+        /* a saved 85 % is a valid step on the wider slider */
+        render.hudWidth = 85;
+        render.announce(render.state, render.reason);
+        await until('saved 85 % still valid', () => size.text === 'Size: 85 %' && size.cells['0:Value'] === 11);
         byName.wocHudLeft.emit('action');
         await until('moved', () => byName.wocHudPos.text === 'Position: 10 px left' && byName.wocHudCentre.enabled === true);
         /* the HUD map over BMW's pop-ups: gives way by default; a press keeps it shown, the render's answer ticks it, patchd saves it */

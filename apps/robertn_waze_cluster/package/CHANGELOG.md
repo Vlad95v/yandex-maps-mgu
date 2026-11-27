@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+The CarPlay calibration page no longer goes black when the HMI reports it
+visible before the main page hides: the app's hide timer now waits for the
+Calibration page as well as the main and Logs pages, so it keeps its control
+connections and does not report itself inactive. The Calibration page's RHMI
+resources are initialized with the main and Logs pages before the page is
+ready, and the app logs the calibration button, `openState` request/resolve,
+every page visibility event, the hide timer and `_setVisible` calls.
+
+The HUD **Size** slider goes to **100 %**: 30 % to 100 % in 5 % steps
+(**Standard** remains about 57 %). An existing saved 85 % stays valid; the
+new 100 % is available through the slider, not written over the saved value.
+
 ## 0.6.21
 
 The CarPlay calibration page is compact enough for the iDrive 7 HMI: the
