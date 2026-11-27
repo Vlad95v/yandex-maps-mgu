@@ -53,7 +53,7 @@
  * launch after leaving on the Logs page opens none. The Calibration page
  * (a child of the main page, opened from its own button): the selected and
  * active resolution, the computed height and physical size, the width steps
- * and Apply, the crop slider and X/Y steps, Centre and Reset, and the frame
+ * and Apply, the crop buttons and X/Y steps, Centre and Reset, and the frame
  * capture with its privacy note. The display language,
  * from HMIContext: a change writes the rows of both pages again in its
  * words, English for a word it lacks, and English again after.
@@ -359,16 +359,16 @@ async function main() {
     assert.deepStrictEqual(xmlIds('3').map(([id, type]) => `${id} ${type}`).sort(),
         Object.entries(calPage.components).map(([id, d]) => `${id} ${d.type}`).sort(), 'application.xml and uiDescription agree on the Calibration page');
     assert.deepStrictEqual(xmlIds('3').map(([id]) => calPage.components[id].name), [
-        'wocCalTitle', 'wocCalHeadResolution', 'wocCalSelected', 'wocCalHeight', 'wocCalPhysical',
+        'wocCalTitle', 'wocCalHeadResolution', 'wocCalSelected', 'wocCalPhysical',
         'wocCalWidthMinus100', 'wocCalWidthMinus10', 'wocCalWidthMinus2', 'wocCalWidthPlus2', 'wocCalWidthPlus10',
-        'wocCalWidthPlus100', 'wocCalApply', 'wocCalActive', 'wocCalStatus', 'wocCalHeadCrop', 'wocCalCrop',
-        'wocCalCropWidth', 'wocCalCropMinus', 'wocCalCropPlus', 'wocCalZoom', 'wocCalX', 'wocCalXMinus10',
-        'wocCalXMinus2', 'wocCalXPlus2', 'wocCalXPlus10', 'wocCalY', 'wocCalYMinus10', 'wocCalYMinus2',
+        'wocCalWidthPlus100', 'wocCalApply', 'wocCalActive', 'wocCalHeadCrop', 'wocCalCrop',
+        'wocCalCropMinus', 'wocCalCropMinus2', 'wocCalCropPlus2', 'wocCalCropPlus', 'wocCalX', 'wocCalXMinus10',
+        'wocCalXMinus2', 'wocCalXPlus2', 'wocCalXPlus10', 'wocCalYMinus10', 'wocCalYMinus2',
         'wocCalYPlus2', 'wocCalYPlus10', 'wocCalCentre', 'wocCalReset', 'wocCalHeadDiagnostics', 'wocCalSps',
-        'wocCalAtlas', 'wocCalCaptureFrame', 'wocCalFrameStatus', 'wocCalFrameNote', 'wocCalLogs', 'wocCalSaveLogs',
+        'wocCalCaptureFrame', 'wocCalFrameStatus', 'wocCalFrameNote', 'wocCalLogs', 'wocCalSaveLogs',
         'wocCalSavedLogs']);
-    assert.deepStrictEqual(['MinValue', 'MaxValue', 'NumberOfSteps'].map((k) => calPage.components['136'].rows[0][k].value),
-        [0, 312, 312], 'the crop width slider: 2 px a step, 816-1440');
+    assert.strictEqual(Object.keys(calPage.components).length, 37, 'a page inside the main page\'s row count');
+    assert(!xmlIds('3').some(([, type]) => type === 'slider'), 'no stepped slider on the calibration page');
     assert.deepStrictEqual(xmlIds('3').filter(([id]) => /^(121|134|152)$/.test(id)).map(([, , w]) => w),
         Array(3).fill('LT_Label_Header_1Row'), 'the calibration sections are header rows');
     console.log('ok   the Calibration page: resolution, crop and diagnostics sections; the width and crop controls, ' +
@@ -393,7 +393,8 @@ async function main() {
         assert(!logs.some((l) => /^error/.test(l)), logs.filter((l) => /^error/.test(l)).join('\n'));
         const bound = logs.filter((l) => l.startsWith('info: BIND OK: ')).map((l) => l.split(' ')[3]).sort();
         assert.deepStrictEqual(bound, ['wocAaCard', 'wocAaDisable', 'wocAaEnable', 'wocAaZoomIn', 'wocAaZoomOut',
-            'wocCalApply', 'wocCalCaptureFrame', 'wocCalCentre', 'wocCalCropMinus', 'wocCalCropPlus', 'wocCalLogs',
+            'wocCalApply', 'wocCalCaptureFrame', 'wocCalCentre', 'wocCalCropMinus', 'wocCalCropMinus2',
+            'wocCalCropPlus', 'wocCalCropPlus2', 'wocCalLogs',
             'wocCalReset', 'wocCalSaveLogs', 'wocCalWidthMinus10', 'wocCalWidthMinus100', 'wocCalWidthMinus2',
             'wocCalWidthPlus10', 'wocCalWidthPlus100', 'wocCalWidthPlus2', 'wocCalXMinus10', 'wocCalXMinus2',
             'wocCalXPlus10', 'wocCalXPlus2', 'wocCalYMinus10', 'wocCalYMinus2', 'wocCalYPlus10', 'wocCalYPlus2',
@@ -856,54 +857,48 @@ async function main() {
         patch.restart = { state: 'idle' };
         patch._rebooting = false;
         patch.announce('patched', 'high', null);
-        await until('calibration patched', () => byName.wocCalStatus.text === 'Resolution: Applied');
+        await until('calibration patched', () => byName.wocCalActive.text === 'Active: 1440x636 · Resolution: Applied');
         byName.wocCalibration.emit('action');
         await until('Calibration opened', () => rhmi.opened.indexOf('ST_OnlineApps_WazeClusterCalibration') >= 0);
         main.emit('visible', { visible: false });
         calState.emit('visible', { visible: true });
-        await until('calibration shown', () => byName.wocCalSelected.text === 'Selected: 1440x636' &&
-            byName.wocCalHeight.text === 'Height: 636' && byName.wocCalPhysical.text === 'Physical: 183x81 mm');
-        assert.strictEqual(byName.wocCalActive.text, 'Active: 1440x636');
-        assert.strictEqual(byName.wocCalStatus.text, 'Resolution: Applied');
-        assert.strictEqual(byName.wocCalCrop.text, 'Crop: 1088x480  X 176  Y 0');
-        assert.strictEqual(byName.wocCalZoom.text, 'Zoom: 100 %');
-        assert.strictEqual(byName.wocCalX.text, 'X: 176');
-        assert.strictEqual(byName.wocCalY.text, 'Y: 0');
-        assert.strictEqual(byName.wocCalSps.text, 'Incoming SPS: 1440x636');
-        assert.strictEqual(byName.wocCalAtlas.text, 'Decoded: 1440x636');
+        await until('calibration shown', () => byName.wocCalSelected.text === 'Selected: 1440x636 · Height: 636' &&
+            byName.wocCalPhysical.text === 'Physical: 183x81 mm');
+        assert.strictEqual(byName.wocCalActive.text, 'Active: 1440x636 · Resolution: Applied');
+        assert.strictEqual(byName.wocCalCrop.text, 'Crop: 1088x480  X 176  Y 0 · Zoom: 100 %');
+        assert.strictEqual(byName.wocCalX.text, 'X: 176 · Y: 0');
+        assert.strictEqual(byName.wocCalSps.text, 'Incoming SPS: 1440x636 · Decoded: 1440x636');
         assert.strictEqual(byName.wocCalWidthPlus10.text, 'Width +10');
         console.log('ok   the Calibration page: the selected and active resolution, its height and physical size, the crop, zoom and SPS');
 
         /* The width steps: +10 saves a new selection (nothing applied yet). */
         patch.received.length = 0;
         byName.wocCalWidthPlus10.emit('action');
-        await until('width 1450', () => byName.wocCalSelected.text === 'Selected: 1450x640' &&
+        await until('width 1450', () => byName.wocCalSelected.text === 'Selected: 1450x640 · Height: 640' &&
             patch.count('carplay-res-select') === 1);
         assert.deepStrictEqual(patch.received.filter((m) => m.cmd === 'carplay-res-select'), [{ cmd: 'carplay-res-select', width: 1450 }]);
-        assert.strictEqual(byName.wocCalHeight.text, 'Height: 640');
-        assert.strictEqual(byName.wocCalStatus.text, 'Resolution: Apply needed');
+        assert.strictEqual(byName.wocCalActive.text, 'Active: 1440x636 · Resolution: Apply needed');
         assert.strictEqual(patch.count('apply'), 0, 'no patch before Apply');
         byName.wocCalApply.emit('action');
         await until('applied 1450', () => patch.count('apply') === 1 && !patch.busy);
         assert.deepStrictEqual(patch.received.filter((m) => m.cmd === 'apply'), [{ cmd: 'apply', panel: 'high', mode: 'avb', res: '1450x640' }]);
-        await until('active 1450', () => byName.wocCalActive.text === 'Active: 1450x640' && byName.wocCalStatus.text === 'Resolution: Applied');
+        await until('active 1450', () => byName.wocCalActive.text === 'Active: 1450x640 · Resolution: Applied');
         console.log('ok   the Calibration page: a width step selects, Apply patches it, the active line follows');
 
-        /* The crop: the slider's coarse step, the fine buttons, Centre and Reset. */
-        const slider = byName.wocCalCropWidth;
-        slider.turn(-1);
-        await until('crop 1086', () => byName.wocCalCrop.text === 'Crop: 1086x480  X 178  Y 0' && byName.wocCalZoom.text === 'Zoom: 100.2 %');
+        /* The crop: 2 px and 8 px buttons, X/Y steps, Centre and Reset. */
+        byName.wocCalCropMinus2.emit('action');
+        await until('crop 1086', () => byName.wocCalCrop.text === 'Crop: 1086x480  X 178  Y 0 · Zoom: 100.2 %');
         byName.wocCalCropMinus.emit('action');
-        await until('crop 1078', () => byName.wocCalCrop.text === 'Crop: 1078x476  X 182  Y 0');
+        await until('crop 1078', () => byName.wocCalCrop.text === 'Crop: 1078x476  X 182  Y 0 · Zoom: 100.9 %');
         byName.wocCalXPlus2.emit('action');
-        await until('x 184', () => byName.wocCalX.text === 'X: 184');
+        await until('x 184', () => byName.wocCalX.text === 'X: 184 · Y: 0');
         byName.wocCalYPlus10.emit('action');
-        await until('y 10', () => byName.wocCalY.text === 'Y: 10');
+        await until('y 10', () => byName.wocCalX.text === 'X: 184 · Y: 10');
         byName.wocCalCentre.emit('action');
-        await until('centred', () => byName.wocCalX.text === 'X: 182');
+        await until('centred', () => byName.wocCalX.text === 'X: 182 · Y: 10');
         byName.wocCalReset.emit('action');
-        await until('baseline crop', () => byName.wocCalCrop.text === 'Crop: 1088x480  X 176  Y 0' && byName.wocCalZoom.text === 'Zoom: 100 %');
-        console.log('ok   the Calibration page: the crop slider, the fine steps, Centre and Reset');
+        await until('baseline crop', () => byName.wocCalCrop.text === 'Crop: 1088x480  X 176  Y 0 · Zoom: 100 %');
+        console.log('ok   the Calibration page: the 2 px and 8 px crop steps, X/Y, Centre and Reset');
 
         /* Diagnostics: the frame capture and the saved logs. */
         assert.strictEqual(byName.wocCalCaptureFrame.text, 'Capture full CarPlay frame');

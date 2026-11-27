@@ -134,12 +134,12 @@ const HUD_MOVE_PX = 10, HUD_MOVE_MAX = 400, HUD_ASKED_MS = 300;
  * calibration rectangle from the wide 1440x636 source, crop_x =
  * (1440 - crop_w) / 2 - cluster_offset_x. */
 const CLUSTER_MOVE_PX = 2, CLUSTER_ASKED_MS = 300;
-/* The crop width: CROP_WIDTH_STEP (2 px) a slider step, CROP_BUTTON_STEP a
- * coarse button step; X and Y move CROP_MOVE_PX a fine press (calibration.js
- * holds the ranges). crop_x and crop_y stay even; the offset from the centre
- * is a displacement, not a pixel coordinate, so a width whose centre is odd
- * (e.g. 1086) still has an even crop_x. */
-const CROP_WIDTH_STEP = 2, CROP_BUTTON_STEP = 8, CROP_MOVE_PX = 2, CROP_ASKED_MS = 300;
+/* The crop width: CROP_BUTTON_STEP (8 px) a coarse button, CROP_MOVE_PX a
+ * fine X/Y press; the calibration page's separate 2 px width buttons are its
+ * own. crop_x and crop_y stay even; the offset from the centre is a
+ * displacement, not a pixel coordinate, so a width whose centre is odd (e.g.
+ * 1086) still has an even crop_x. */
+const CROP_BUTTON_STEP = 8, CROP_MOVE_PX = 2, CROP_ASKED_MS = 300;
 /* A width the page asked for shows until patchd's status has it. */
 const RES_ASKED_MS = 500;
 const MOVES = { left: [-1, 0], right: [1, 0], up: [0, -1], down: [0, 1] };
@@ -1595,5 +1595,5 @@ module.exports = {
     RENDER_PATH, PATCH_PATH, PENDING_PATH, AA_PENDING_PATH, BOOT_ID_PATH,
     SIZE, SAFE, ZOOM_STEP, RESTART_FAILED, SHOWN_ON, HUD_SIZE_STEPS,
     HUD_CROP_MIN_PCT, HUD_CROP_MAX_PCT, HUD_CROP_STEP_PCT, HUD_CROP_DEFAULT_PCT, HUD_CROP_STEPS,
-    DEFAULT_RES_WIDTH, CLUSTER_MOVE_PX, CROP_WIDTH_STEP, CROP_BUTTON_STEP, CROP_MOVE_PX
+    DEFAULT_RES_WIDTH, CLUSTER_MOVE_PX, CROP_BUTTON_STEP, CROP_MOVE_PX
 };
