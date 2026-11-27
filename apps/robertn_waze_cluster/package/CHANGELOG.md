@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.6.22
+
 The CarPlay calibration page no longer goes black when the HMI reports it
 visible before the main page hides: the app's hide timer now waits for the
 Calibration page as well as the main and Logs pages, so it keeps its control
