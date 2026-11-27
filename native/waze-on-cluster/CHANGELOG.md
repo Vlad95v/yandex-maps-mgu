@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.14.18
+
 Fix: waze-on-cluster 0.14.17 did not start on the car — its configuration
 reader did not know `cluster_crop_w` and `cluster_crop_y` from
 `waze-on-cluster.conf`. Both are registered with their 1088x480 baseline
