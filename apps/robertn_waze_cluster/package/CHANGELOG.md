@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.6.23
+
 The Logs page shows the **full CarPlay source frame** after **Capture full
 CarPlay frame**: the uncropped 1440x636 picture becomes a 720x318 PNG on the
 page (not the cluster crop or the HUD crop), so what the phone sends can be
