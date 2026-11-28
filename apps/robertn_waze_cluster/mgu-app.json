@@ -12,6 +12,7 @@
     "src/text_encoding.js",
     "src/logs_control.js",
     "src/qr.js",
+    "src/frame_preview.js",
     "src/qrcodegen.js",
     "src/profile_sync.js"
   ],

@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+The Logs page shows the **full CarPlay source frame** after **Capture full
+CarPlay frame**: the uncropped 1440x636 picture becomes a 720x318 PNG on the
+page (not the cluster crop or the HUD crop), so what the phone sends can be
+checked without downloading the archive. It is read from the tool's frame
+dump, hidden again for a failed or new capture, and removed from the HMI's
+resources with the page.
+
 ## 0.6.22
 
 The CarPlay calibration page no longer goes black when the HMI reports it

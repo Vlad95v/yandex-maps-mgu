@@ -62,6 +62,7 @@ const i18n = require('./i18n.js');
 const { WazeClusterControl, ZOOM_STEP, SHOWN_ON, CROP_BUTTON_STEP } = require('./waze_cluster_control.js');
 const { LogsControl, ROWS: LOGS_ROWS } = require('./logs_control.js');
 const { qrPng } = require('./qr.js');
+const { previewFrom } = require('./frame_preview.js');
 const { ProfileSync, sessionReader } = require('./profile_sync.js');
 
 const logger = logging.getSDKLogger();
@@ -108,6 +109,7 @@ const LOGS_STATE = 'ST_OnlineApps_WazeClusterLogs';
 const LOGS_SAVE = 'wocLogsSave';
 const LOGS_STATUS = 'wocLogsStatus';
 const LOGS_QR = 'wocLogsQr';
+const LOGS_FRAME_PREVIEW = 'wocLogsFramePreview';
 const LOGS_URL = 'wocLogsUrl';
 const LOGS_ROW_NAMES = Array.from({ length: LOGS_ROWS }, (_, i) => `wocLogsRow${i + 1}`);
 /* The calibration page, and the button that opens it. */
@@ -159,6 +161,9 @@ const HMI_CONTEXT = ['de.bmw.infotainment.hmi.hmicontext.HMIContext', 'HMI_CID']
 const { t } = i18n;
 const QR_DIR = path.join(fs.existsSync('/dev/shm') ? '/dev/shm' : os.tmpdir(),
     `robertn_waze_cluster_qr_${typeof process.getuid === 'function' ? process.getuid() : 'x'}`);
+/* waze-on-cluster's frame dump: the full frame and its metadata. The app
+ * reads them only while the render says the frame is captured or saved. */
+const FRAME_DIR = process.env.WOC_FRAME_DIR || '/var/opt/waze-on-cluster/state';
 
 /* A line as one row: no line breaks, at most ROW_CHARS characters. */
 function oneRow(line) {
@@ -184,6 +189,7 @@ class WazeClusterApp extends OnlineApp {
         this._shownPage = 'main';   /* the page last shown, which shows again when the app does */
         this._hideTimer = null;
         this._qr = { url: undefined, file: null, chain: Promise.resolve() };
+        this._framePreview = { file: null, pending: false, chain: Promise.resolve() };
         this._sawForeground = false;
         this._shutdownPromise = null;
         this._control = new WazeClusterControl({ log: logger });
@@ -264,7 +270,7 @@ class WazeClusterApp extends OnlineApp {
             AA_ENABLE_NAME, AA_DISABLE_NAME, AA_ZOOM_NAME, AA_ZOOM_OUT_NAME, AA_ZOOM_IN_NAME, AA_CARD_NAME, RESTART_NAME, GUIDE_NAME,
             HEAD_GENERAL_NAME, HEAD_HUD_NAME, SHOW_ON_NAME, PROFILE_NAME, HUD_NAME, HUD_KEEP_NAME, HUD_SIZE_NAME, HUD_CROP_NAME, HUD_POS_NAME]
             .concat(Object.values(HUD_MOVE_NAMES), [HUD_CENTRE_NAME, CAPTURE_NAME, CAPTURE_STATUS,
-                LOGS_NAME, LOGS_SAVE, LOGS_STATUS, LOGS_QR, LOGS_URL, CAPTURE_FRAME_NAME, FRAME_STATUS_NAME,
+                LOGS_NAME, LOGS_SAVE, LOGS_STATUS, LOGS_QR, LOGS_URL, LOGS_FRAME_PREVIEW, CAPTURE_FRAME_NAME, FRAME_STATUS_NAME,
                 FRAME_NOTE_NAME], LOGS_ROW_NAMES,
                 [CLUSTER_OFFSET_NAME, CLUSTER_OFFSET_MOVE_NAMES.left, CLUSTER_OFFSET_MOVE_NAMES.right, CLUSTER_CENTRE_NAME],
                 CALIBRATION_NAMES);
@@ -807,6 +813,91 @@ class WazeClusterApp extends OnlineApp {
         const rows = this._logs.rows();
         LOGS_ROW_NAMES.forEach((name, i) => this._write(name, oneRow(rows[i])));
         this._showQr(this._logs.url());
+        this._showFramePreview();
+    }
+
+    /* The uncropped CarPlay frame, once the render has captured it: a PNG of
+     * the full 1440x636 source (frame_preview.js) shown above Save logs. */
+    _showFramePreview() {
+        const rhmi = this.rhmiApplication;
+        if (!rhmi) {
+            return;
+        }
+        const state = this._control.frameDump();
+        if (state !== 'captured' && state !== 'saved') {
+            if (this._framePreview.file) {
+                this._hideFramePreview();
+            }
+            return;
+        }
+        if (this._framePreview.file) {
+            this._setVisibleComp(LOGS_FRAME_PREVIEW, true);
+            return;
+        }
+        if (this._framePreview.pending) {
+            return;
+        }
+        this._framePreview.pending = true;
+        this._framePreview.chain = this._framePreview.chain.then(() => {
+            const state = this._control.frameDump();
+            if (state !== 'captured' && state !== 'saved') {
+                return undefined;
+            }
+            const { png } = previewFrom(FRAME_DIR);
+            try {
+                fs.mkdirSync(QR_DIR);
+            } catch (e) {
+                if (e.code !== 'EEXIST') {
+                    throw e;
+                }
+            }
+            fs.chmodSync(QR_DIR, 0o755);
+            const file = path.join(QR_DIR, `frame_${Date.now()}.png`);
+            fs.writeFileSync(file, png);
+            fs.chmodSync(file, 0o644);
+            const bundle = rhmi.getResourceBundle();
+            return Promise.resolve(bundle.createResourceHandles([file]))
+                .then(() => this._components[LOGS_FRAME_PREVIEW].setValue(0, 'Graphic', file, 'ResourceId'))
+                .then(() => rhmi.flush())
+                .then(() => {
+                    const old = this._framePreview.file;
+                    this._framePreview.file = file;
+                    this._setVisibleComp(LOGS_FRAME_PREVIEW, true);
+                    if (old) {
+                        return this._retireResource(bundle, old);
+                    }
+                    return undefined;
+                });
+        }).catch((err) => {
+            logger.warn(`frame preview failed: ${err && err.message}`);
+            this._setVisibleComp(LOGS_FRAME_PREVIEW, false);
+        }).then(() => {
+            this._framePreview.pending = false;
+        });
+    }
+
+    _hideFramePreview() {
+        this._setVisibleComp(LOGS_FRAME_PREVIEW, false);
+        const old = this._framePreview.file;
+        this._framePreview.file = null;
+        if (!old || !this.rhmiApplication) {
+            return;
+        }
+        const bundle = this.rhmiApplication.getResourceBundle();
+        this._framePreview.chain = this._framePreview.chain.then(() => this._retireResource(bundle, old));
+    }
+
+    _retireResource(bundle, file) {
+        return Promise.resolve()
+            .then(() => bundle.destroyResourceHandles([file]))
+            .catch((err) => logger.warn(`frame preview handle ${file}: ${err && err.message}`))
+            .then(() => {
+                try {
+                    fs.unlinkSync(file);
+                } catch (e) {
+                    /* gone already */
+                }
+            });
     }
 
     /* Writes url's QR code (none: a blank square) as a new file and shows it,
@@ -861,7 +952,7 @@ class WazeClusterApp extends OnlineApp {
 
     _removeStaleQr() {
         try {
-            fs.readdirSync(QR_DIR).filter((n) => /^qr_\d+\.png$/.test(n))
+            fs.readdirSync(QR_DIR).filter((n) => /^(qr|frame)_\d+\.png$/.test(n))
                 .forEach((n) => fs.unlinkSync(path.join(QR_DIR, n)));
         } catch (e) {
             /* no folder yet */
@@ -881,6 +972,13 @@ class WazeClusterApp extends OnlineApp {
         if (this._qr.file) {
             try {
                 fs.unlinkSync(this._qr.file);
+            } catch (e) {
+                /* gone already */
+            }
+        }
+        if (this._framePreview.file) {
+            try {
+                fs.unlinkSync(this._framePreview.file);
             } catch (e) {
                 /* gone already */
             }

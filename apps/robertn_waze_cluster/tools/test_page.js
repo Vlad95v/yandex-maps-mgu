@@ -62,6 +62,7 @@ const assert = require('assert');
 const EventEmitter = require('events');
 const fs = require('fs');
 const net = require('net');
+const os = require('os');
 const path = require('path');
 const { FakeRender, FakePatch, FakeLogs, RENDER_PAGE, RENDER_FPS } = require('./fakes.js');
 const { RENDER_PATH, PATCH_PATH, PENDING_PATH, SIZE, SAFE, HUD_SIZE_STEPS, HUD_CROP_STEPS } = require('../src/waze_cluster_control.js');
@@ -78,6 +79,14 @@ const APP_JSON = JSON.parse(fs.readFileSync(path.join(PKG, 'rhmiData', 'applicat
 const RSOCK = `/tmp/woc-pr-${process.pid}.sock`;
 const PSOCK = `/tmp/woc-pp-${process.pid}.sock`;
 const PENDING = `/tmp/woc-ppend-${process.pid}.json`;
+/* The full-frame dump the preview reads: a valid 1440x636 neutral grey atlas
+ * and its metadata, in a folder the app is told about. */
+const FRAME_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'woc-frame-'));
+process.env.WOC_FRAME_DIR = FRAME_DIR;
+fs.writeFileSync(path.join(FRAME_DIR, 'carplay-frame-1440x636.yuva'), Buffer.alloc(1440 * 954, 128));
+fs.writeFileSync(path.join(FRAME_DIR, 'carplay-frame-1440x636.json'),
+    JSON.stringify({ width: 1440, height: 636, full_frame: true, size: 1440 * 954 }));
+process.on('exit', () => { try { fs.rmSync(FRAME_DIR, { recursive: true, force: true }); } catch (e) {} });
 const LSOCK = `/tmp/woc-pl-${process.pid}.sock`;
 const SOCKETS = { [RENDER_PATH]: RSOCK, [PATCH_PATH]: PSOCK, [LOGS_PATH]: LSOCK };
 const realConnect = net.connect;
@@ -345,11 +354,10 @@ async function main() {
     assert.deepStrictEqual(xmlIds('2').map(([id, type]) => `${id} ${type}`).sort(),
         Object.entries(logsPage.components).map(([id, d]) => `${id} ${d.type}`).sort(), 'application.xml and uiDescription agree on the Logs page');
     assert.deepStrictEqual(xmlIds('2').map(([id]) => logsPage.components[id].name), ['wocLogsTitle', 'wocCapture', 'wocCaptureStatus',
-        'wocCaptureFrame', 'wocFrameStatus', 'wocFrameNote', 'wocLogsSave', 'wocLogsStatus', 'wocLogsQr', 'wocLogsUrl', 'wocLogsRow1',
+        'wocCaptureFrame', 'wocFrameStatus', 'wocFrameNote', 'wocLogsFramePreview', 'wocLogsSave', 'wocLogsStatus', 'wocLogsQr', 'wocLogsUrl', 'wocLogsRow1',
         'wocLogsRow2', 'wocLogsRow3', 'wocLogsRow4', 'wocLogsRow5']);
     assert(/<component id="83" type="label" widget="LT_Label_1Graphic_Scalable">/.test(XML), 'the QR code is a graphic');
-    assert.strictEqual(APP_JSON.application.entryPoints.length, 1);
-    assert.deepStrictEqual(xmlIds('2').slice(1).map(([id]) => logsPage.components[id].rows[0].Text && logsPage.components[id].rows[0].Text.value)
+    assert.strictEqual(APP_JSON.application.entryPoints.length, 1);    assert.deepStrictEqual(xmlIds('2').slice(1).filter(([id]) => id !== '113').map(([id]) => logsPage.components[id].rows[0].Text && logsPage.components[id].rows[0].Text.value)
         .slice(0, 7), ['Start capture', 'Capture: Unavailable', 'Capture full CarPlay frame', 'CarPlay frame: \u2014',
         'The frame is not scrubbed: the archive may contain the map, addresses, your location and route.',
         'Save logs', 'Saved logs: Connecting…']);
@@ -805,7 +813,20 @@ async function main() {
         render.frameCaptured(true);
         await until('saved, ready for Save logs', () => frameStatus.text === 'CarPlay frame: Frame captured. Ready to save logs' &&
             frameBtn.enabled === true);
+        /* The full source frame is shown as a PNG resource: 720x318, the
+         * uncropped 1440x636 picture, above Save logs. */
+        const framePreview = byName.wocLogsFramePreview;
+        await until('full source preview', () => framePreview.visible === true && !!framePreview.cells['0:Graphic'] &&
+            rhmi.handles.has(framePreview.cells['0:Graphic']));
+        const previewFile = framePreview.cells['0:Graphic'];
+        const previewBytes = fs.readFileSync(previewFile);
+        assert.deepStrictEqual(previewBytes.subarray(0, 8), Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]));
+        assert.deepStrictEqual([previewBytes.readUInt32BE(16), previewBytes.readUInt32BE(20)], [720, 318],
+            'the full 1440x636 source at half size');
+        console.log('ok   the Logs page shows the full CarPlay source frame as a 720x318 PNG');
         render.frameFailed('the picture is a part of the frame (hosted_vpp_scale), not the whole CarPlay frame');
+        await until('preview hidden after a failed capture', () => framePreview.visible === false && !fs.existsSync(previewFile) &&
+            !rhmi.handles.has(previewFile));
         await until('failed with the reason', () => /^CarPlay frame: Capture failed — the picture is a part/.test(frameStatus.text) &&
             frameBtn.enabled === true);
         render.frameDump = null;   /* a render before the feature */

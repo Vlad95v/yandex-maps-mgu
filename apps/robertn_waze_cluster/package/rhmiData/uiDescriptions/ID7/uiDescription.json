@@ -1275,6 +1275,23 @@
               }
             }
           ]
+        },
+        "113": {
+          "type": "label",
+          "name": "wocLogsFramePreview",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 0,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {}
+          ]
         }
       }
     },
