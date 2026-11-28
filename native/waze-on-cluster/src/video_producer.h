@@ -171,6 +171,10 @@ public:
     bool stream_lost() const;
     /* Decode errors so far, and the last one's text in *last. */
     uint32_t decode_errors(std::string *last) const;
+    /* The incoming H.264 sequence's own size (its last SPS), separate from
+     * the decoded atlas (tex_width x tex_height). 0 until one is read. */
+    uint32_t sps_width() const { return sps_w_.load(); }
+    uint32_t sps_height() const { return sps_h_.load(); }
     /* Readable once a frame waits to be taken. */
     int ready_fd() const { return ready_[0]; }
     size_t frame_bytes() const { return atlas_bytes_; }
@@ -252,6 +256,7 @@ private:
     const char *feed_source_ = "fifo";   /* the source of the bytes being fed */
     int64_t au_last_us_ = -1;        /* the open RTP access unit's last packet's arrival */
     SpsLog sps_log_;
+    std::atomic<uint32_t> sps_w_{0}, sps_h_{0};   /* the last SPS's own picture size */
     GapSettler gaps_;
     int64_t raw_retry_ms_ = 0;       /* a raw feed's next decoder start attempt */
     int64_t source_retry_ms_ = 0;    /* retry_sources' next attempt */

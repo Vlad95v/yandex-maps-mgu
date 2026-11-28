@@ -1,13 +1,15 @@
 {
   "schema": 1,
   "id": "robertn_waze_cluster",
-  "version": "0.6.17",
+  "version": "0.6.22",
   "tree": "package",
   "modules": [
     "src/robertn_waze_cluster.js",
     "src/i18n.js",
     "src/locales.js",
     "src/waze_cluster_control.js",
+    "src/calibration.js",
+    "src/text_encoding.js",
     "src/logs_control.js",
     "src/qr.js",
     "src/qrcodegen.js",

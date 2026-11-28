@@ -1,4 +1,5 @@
 {
   "SID_WOC_TITLE": "Mapy na přístrojovém štítu",
-  "SID_WOC_LOGS": "Protokoly"
+  "SID_WOC_LOGS": "Protokoly",
+  "SID_WOC_CALIBRATION": "Kalibrace CarPlay"
 }

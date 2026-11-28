@@ -32,7 +32,8 @@ const TEXTS = path.join(TREE, 'rhmiData', 'variantGroups', 'Common', 'texts');
 /* The string ids of application.json and uiDescription.json, in English. */
 const RHMI_TEXTS = {
     SID_WOC_TITLE: 'Maps on cluster',
-    SID_WOC_LOGS: 'Logs'
+    SID_WOC_LOGS: 'Logs',
+    SID_WOC_CALIBRATION: 'CarPlay calibration'
 };
 
 /* The HMI's English text files (the oap-sdk's names for ENGLISCH__UK and ENGLISCH__US). */

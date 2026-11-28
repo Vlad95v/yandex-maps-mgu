@@ -2,6 +2,47 @@
 
 ## Unreleased
 
+## 0.14.18
+
+Fix: waze-on-cluster 0.14.17 did not start on the car — its configuration
+reader did not know `cluster_crop_w` and `cluster_crop_y` from
+`waze-on-cluster.conf`. Both are registered with their 1088x480 baseline
+defaults now, and loading the shipped configuration whole is a host
+regression test.
+
+## 0.14.17
+
+CarPlay calibration: the patcher, patchd and the render accept an arbitrary
+advertised width (1088-1920, even, its 1088x480-shaped height and physical
+size calculated), kept apart from the live crop, and the render's cluster
+crop is now a variable rectangle of the 1440x636 source (816-1440 wide, any
+even X/Y) scaled to the fixed 1088x480: narrower crops are upscaled with
+bilinear interpolation, wider ones downscaled with the box filter, in the
+existing ScaleWorker, live, with no second decoder or stream. The full-frame
+dump's `.json` now carries the selected and active resolutions, the patch
+state, the incoming SPS size, the normalized atlas, the crop, the output and
+the zoom. `--res` takes any width 1088-1920 (not only `wide`), and a
+calibration geometry reads as patched.
+
+## 0.14.16
+
+The Logs page can keep one full CarPlay picture, before the map is cropped and
+scaled for the cluster and the HUD: "Capture full CarPlay frame" asks for the
+next 1440x636 whole frame, which is written beside the map's state
+(`carplay-frame-1440x636.yuva`, 1,373,760 bytes, and its `.json` with the size
+and the capture time), and Save logs puts both in the archive byte for byte
+(the scrub never sees the binary) and removes them once the archive is whole.
+Nothing is captured unless it is asked for. `tools/yuv_atlas_to_png.py` turns
+the archive's frame into a PNG on a PC.
+
+## 0.14.15
+
+HUD: a new **Width** setting shows a centred share (20-100 %) of the map's
+own horizontal region, the height and the pixel scale kept, so the map on the
+HUD gets narrower without its roads, route and labels getting smaller. 100 %
+is the geometry it always had; the cluster's crop and offset never reach it.
+Saved like the other HUD settings, per driver profile too.
+
 ## 0.14.14
 
 Fix start with the wide CarPlay source: `tex_size = 1440x636` is the decoder

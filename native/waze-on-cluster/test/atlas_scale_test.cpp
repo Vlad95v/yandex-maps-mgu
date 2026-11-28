@@ -40,9 +40,11 @@ int main()
     AtlasScaler s;
     std::vector<uint8_t> out;
 
-    ok("refuses odd, upscaled or empty sizes",
-       !s.configure(1088, 480, 453, 200, 0) && !s.configure(1088, 480, 1200, 200, 0) &&
-           !s.configure(1088, 480, 452, 482, 0) && !s.configure(0, 480, 452, 200, 0));
+    ok("refuses odd or empty sizes",
+       !s.configure(1088, 480, 453, 200, 0) && !s.configure(1088, 480, 452, 481, 0) &&
+           !s.configure(0, 480, 452, 200, 0) && !s.configure(1088, 480, 452, 0, 0));
+    ok("upscaling is allowed (bilinear)", s.configure(1088, 480, 1200, 600, 0));
+    ok("a crop can be upscaled to the fixed output", s.configure(1440, 636, 1088, 480, 0, 312, 0, 816, 360));
     ok("1088x480 -> 452x200", s.configure(1088, 480, 452, 200, 0) && s.dst_bytes() == 452u * 300);
 
     const std::vector<uint8_t> flat = atlas(1088, 480, 200, 60, 180);
@@ -70,6 +72,42 @@ int main()
             avg = avg && std::abs((int)out[r * 4 + c] - want) <= 1;
         }
     ok("2:1 is the 2x2 average (within rounding)", avg);
+
+    {
+        /* Upscaling: a constant frame stays exact in every plane, so Y, U
+         * and V still never mix (the 4:2:0 chroma planes are upscaled on
+         * their own), and a ramp stays monotonic between its ends. */
+        AtlasScaler up;
+        ok("8x8 -> 16x16 upscales", up.configure(8, 8, 16, 16, 0));
+        const std::vector<uint8_t> c8 = atlas(8, 8, 200, 60, 180);
+        up.scale(c8.data(), &out);
+        bool constant = out.size() == 16u * 24u;
+        for (size_t i = 0; i < 16u * 16u && constant; i++) constant = out[i] == 200;
+        for (uint32_t r = 0; r < 8 && constant; r++)
+            for (uint32_t c = 0; c < 8; c++)
+                constant = constant && out[16u * 16u + (size_t)r * 16 + c] == 60 &&
+                           out[16u * 16u + (size_t)r * 16 + 8 + c] == 180;
+        ok("upscale: flat Y, U and V stay exact", constant);
+
+        std::vector<uint8_t> r4((size_t)4 * crk::atlas_height(4), 128);
+        for (uint32_t r = 0; r < 4; r++)
+            for (uint32_t c = 0; c < 4; c++) r4[r * 4 + c] = (uint8_t)(c * 40);
+        AtlasScaler ur;
+        ok("4x4 -> 8x8 upscales", ur.configure(4, 4, 8, 8, 0));
+        ur.scale(r4.data(), &out);
+        bool mono_up = out[0] == 0 && out[7] == 120;
+        for (uint32_t c = 1; c < 8; c++) mono_up = mono_up && out[c] >= out[c - 1];
+        ok("upscale: a ramp keeps its ends and order", mono_up);
+
+        /* A crop narrower than the output: 816x360 of the 1440x636 source to
+         * 1088x480, inside it and even. */
+        AtlasScaler uc;
+        ok("1440x636, its 816x360 at 312,0 -> 1088x480", uc.configure(1440, 636, 1088, 480, 0, 312, 0, 816, 360));
+        const std::vector<uint8_t> wide = atlas(1440, 636, 50, 100, 200);
+        uc.scale(wide.data(), &out);
+        ok("the upscaled crop keeps flat planes exact", out.size() == 1088u * 720u && out[0] == 50 &&
+                                                          out[1088 * 480] == 100 && out[1088 * 480 + 544] == 200);
+    }
 
     /* a horizontal ramp at 1088 -> 452 keeps its mean and stays monotonic */
     std::vector<uint8_t> ramp = atlas(1088, 480, 0, 128, 128);
@@ -306,10 +344,9 @@ int main()
         for (size_t i = 0; i < f.size(); i++)
             f[i] = (uint8_t)((i * 7 + i / 1088 * 3) & 0xff);
         AtlasScaler cs;
-        ok("crop: refused odd, outside the frame, or smaller than the output",
+        ok("crop: refused odd or outside the frame",
            !cs.configure(1088, 480, 560, 400, 0, 263, 40, 560, 400) &&
-               !cs.configure(1088, 480, 560, 400, 0, 600, 40, 560, 400) &&
-               !cs.configure(1088, 480, 564, 400, 0, 264, 40, 560, 400));
+               !cs.configure(1088, 480, 560, 400, 0, 600, 40, 560, 400));
         ok("crop: 560x400 at 264,40, 1:1", cs.configure(1088, 480, 560, 400, 0, 264, 40, 560, 400) &&
                                                cs.dst_bytes() == 560u * 600);
         cs.scale(f.data(), &out);

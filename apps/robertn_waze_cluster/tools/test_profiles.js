@@ -46,10 +46,12 @@ function until(what, check, ms) {
         poll();
     });
 }
-/* keep left out: a patchd before hud_keep_shown; offset left out: one before cluster_offset_x */
-const settings = (cluster, hud, pct, x, y, keep, offset) => Object.assign({ cluster, hud, hud_width_pct: pct, hud_offset_x: x, hud_offset_y: y },
+/* keep left out: a patchd before hud_keep_shown; offset left out: one before
+ * cluster_offset_x; crop left out: one before hud_crop_width_pct */
+const settings = (cluster, hud, pct, x, y, keep, offset, crop) => Object.assign({ cluster, hud, hud_width_pct: pct, hud_offset_x: x, hud_offset_y: y },
     keep === undefined ? {} : { hud_keep_shown: keep },
-    offset === undefined ? {} : { cluster_offset_x: offset });
+    offset === undefined ? {} : { cluster_offset_x: offset },
+    crop === undefined ? {} : { hud_crop_width_pct: crop });
 
 let passed = 0;
 async function check(name, fn) {
@@ -227,8 +229,31 @@ async function main() {
         assert.deepStrictEqual(render.received.map((m) => m.cmd + (m.on || '')), ['cluster0', 'hud0', 'hud']);
     });
 
-    await check('a tick patchd refuses (another profile in effect): nothing changed, the profile told again, patchd\'s state shown', async () => {
-        patch.current = 'driverB';
+    /* a profile's HUD width (how much of it the map shows), and a patchd
+     * before the setting */
+    patch.map = settings(0, 1, 60, -40, 0, 1);                        /* what the render has */
+    patch.shared = settings(0, 1, 60, -40, 0, 1, undefined, 40);       /* B's, the shared ones */
+    render.received.length = 0;
+    id = 'driverB';
+    await check('a profile\'s HUD width: the render moved to it with the rest', async () => {
+        await until('B in effect', () => sync.profile === 'driverB' && sync.own === false);
+        await until('render moved', () => render.hudCrop === 40 && render.hudWidth === 60);
+        assert.deepStrictEqual(render.received.filter((m) => m.cmd === 'hud').slice(-1),
+            [{ cmd: 'hud', hud_width_pct: '60', hud_x: '-40', hud_y: '0', hud_keep_shown: '1', hud_crop_width_pct: '40' }]);
+    });
+    patch.shared = settings(0, 1, 60, -40, 0, 1);   /* a set saved before the setting */
+    render.received.length = 0;
+    id = 'driverA';
+    await check('a patchd before the HUD width: the render not told it', async () => {
+        await until('A in effect', () => sync.profile === 'driverA' && sync.own === true);
+        await until('render moved', () => render.hud === 1 && render.hudWidth === 60);
+        assert(!render.received.some((m) => m.hud_crop_width_pct !== undefined), 'no width sent');
+    });
+    /* the settings the checks after this one go on from */
+    patch.map = settings(0, 0, 60, -40, 0, 1);
+    patch.shared = settings(1, 0, 0, 0, 0, 0);
+
+    await check('a tick patchd refuses (another profile in effect): nothing changed, the profile told again, patchd\'s state shown', async () => {        patch.current = 'driverB';
         const told = patch.count('profile');
         await sync.setOwn(false);
         await until('told again', () => patch.count('profile') === told + 1);

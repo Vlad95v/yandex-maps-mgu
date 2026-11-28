@@ -50,7 +50,11 @@
  * archive; the address shows as text and as a QR code, a new code replacing
  * the old one when the address changes and a blank one without an address;
  * back from an overlay on the Logs page, the logs socket opens again; a tile
- * launch after leaving on the Logs page opens none. The display language,
+ * launch after leaving on the Logs page opens none. The Calibration page
+ * (a child of the main page, opened from its own button): the selected and
+ * active resolution, the computed height and physical size, the width steps
+ * and Apply, the crop buttons and X/Y steps, Centre and Reset, and the frame
+ * capture with its privacy note. The display language,
  * from HMIContext: a change writes the rows of both pages again in its
  * words, English for a word it lacks, and English again after.
  */
@@ -60,7 +64,7 @@ const fs = require('fs');
 const net = require('net');
 const path = require('path');
 const { FakeRender, FakePatch, FakeLogs, RENDER_PAGE, RENDER_FPS } = require('./fakes.js');
-const { RENDER_PATH, PATCH_PATH, PENDING_PATH, SIZE, SAFE, HUD_SIZE_STEPS } = require('../src/waze_cluster_control.js');
+const { RENDER_PATH, PATCH_PATH, PENDING_PATH, SIZE, SAFE, HUD_SIZE_STEPS, HUD_CROP_STEPS } = require('../src/waze_cluster_control.js');
 const { LOGS_PATH } = require('../src/logs_control.js');
 
 const MANIFEST = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'mgu-app.json'), 'utf8'));
@@ -105,6 +109,7 @@ class FakeComponent extends EventEmitter {
         this.text = null;
         this.cells = {};
         this.enabled = null;
+        this.resourcesUpdated = 0;
         this.visible = (desc && desc.properties && desc.properties.Visible) ? desc.properties.Visible.value === 1 : null;
         this.enabledSeen = new Set();
         this.ticks = [];
@@ -170,7 +175,7 @@ class FakeComponent extends EventEmitter {
     turn(dir) { this.emit('action', { row: 0, subType: dir > 0 ? 4 : 5 }); }
     setEnabled(enabled) { this.enabled = enabled; this.enabledSeen.add(enabled); return Promise.resolve(); }
     setVisible(visible) { this.visible = visible; shownOrHidden.add(this.desc.name); return Promise.resolve(); }
-    updateResources() { return Promise.resolve(); }
+    updateResources() { this.resourcesUpdated += 1; return Promise.resolve(); }
 }
 
 const shownOrHidden = new Set();
@@ -286,8 +291,9 @@ async function main() {
         'wocTitle',
         'wocHeadGeneral General', 'wocShowOn Show on: Cluster', 'wocProfile Own settings for this driver', 'wocMap Cluster map: Off',
         'wocClusterOffset Cluster offset: —', 'wocClusterLeft Move left', 'wocClusterRight Move right', 'wocClusterCentre Centre',
-        "wocGuide Hide BMW's turn box", 'wocLogs Logs',
-        'wocHeadHud HUD', 'wocHud HUD map: \u2014', "wocHudKeep Keep HUD map over BMW's pop-ups", 'wocHudSize Size: \u2014', 'wocHudPos Position: \u2014', 'wocHudLeft Move left',
+        "wocGuide Hide BMW's turn box", 'wocLogs Logs', 'wocCalibration CarPlay calibration',
+        'wocHeadHud HUD', 'wocHud HUD map: \u2014', "wocHudKeep Keep HUD map over BMW's pop-ups", 'wocHudSize Size: \u2014',
+        'wocHudCropWidth Width: \u2014', 'wocHudPos Position: \u2014', 'wocHudLeft Move left',
         'wocHudRight Move right', 'wocHudUp Move up', 'wocHudDown Move down', 'wocHudCentre Centre',
         'wocHeadCarPlay CarPlay', 'wocStatus Status: Connecting…', 'wocEnable Patch', 'wocDisable Remove patch', 'wocWifi ', 'wocWifiHint ',
         'wocHeadAa Android Auto', 'wocAaStatus Status: Connecting…', 'wocAaEnable Patch', 'wocAaDisable Remove patch',
@@ -310,11 +316,17 @@ async function main() {
     assert(!main.some(([, , name]) => /^wocRow|^wocSetup|^wocCapture/.test(name)), 'no log rows, setup line or capture on the main page');
     assert.deepStrictEqual(['wocAaCard', 'wocGuide', 'wocProfile', 'wocHudKeep'].map((n) => widgets[n]), Array(4).fill('LT_CheckBox_1Row'),
         'the on/off settings are checkboxes');
-    assert.deepStrictEqual([widgets.wocShowOn, widgets.wocHudSize], ['LT_DropDownMenu_1Row_2Col3070', 'LT_Slider_LeftJustified_Fill_Steps'],
-        'where the map shows: a drop-down of four; the HUD\'s size: a slider');
+    assert.deepStrictEqual([widgets.wocShowOn, widgets.wocHudSize, widgets.wocHudCropWidth],
+        ['LT_DropDownMenu_1Row_2Col3070', 'LT_Slider_LeftJustified_Fill_Steps', 'LT_Slider_LeftJustified_Fill_Steps'],
+        'where the map shows: a drop-down of four; the HUD\'s size and width: sliders');
     assert.deepStrictEqual(components['62'].rows.map((r) => r.ItemText.value), ['Cluster', 'HUD (experimental)', 'Cluster and HUD (experimental)', 'Off']);
     assert.deepStrictEqual(['MinValue', 'MaxValue', 'NumberOfSteps'].map((k) => components['52'].rows[0][k].value), [0, HUD_SIZE_STEPS, HUD_SIZE_STEPS],
-        'the slider: one step for each 5 %');
+        'the size slider: one step for each 5 %');
+    assert.strictEqual(HUD_SIZE_STEPS, 14, 'the size slider: 30 % to 100 % in 5 % steps');
+    assert.strictEqual(30 + HUD_SIZE_STEPS * 5, 100, 'the last size step is 100 %');
+    assert.deepStrictEqual(['MinValue', 'MaxValue', 'NumberOfSteps'].map((k) => components['108'].rows[0][k].value),
+        [0, HUD_CROP_STEPS, HUD_CROP_STEPS], 'the width slider: one step for each 5 %, 20-100 %');
+    assert.strictEqual(components['108'].name, 'wocHudCropWidth');
     /* every info row reads "Name: Value" */
     assert(main.filter(([, type, name]) => type === 'label' && !/^wocHead|^(wocRestartStatus|wocWifi|wocWifiHint)$/.test(name))
         .every(([, , , text]) => /^[A-Z][A-Za-z ]+: [A-Z\u2014]/.test(text)), 'info rows as Name: Value');
@@ -333,12 +345,36 @@ async function main() {
     assert.deepStrictEqual(xmlIds('2').map(([id, type]) => `${id} ${type}`).sort(),
         Object.entries(logsPage.components).map(([id, d]) => `${id} ${d.type}`).sort(), 'application.xml and uiDescription agree on the Logs page');
     assert.deepStrictEqual(xmlIds('2').map(([id]) => logsPage.components[id].name), ['wocLogsTitle', 'wocCapture', 'wocCaptureStatus',
-        'wocLogsSave', 'wocLogsStatus', 'wocLogsQr', 'wocLogsUrl', 'wocLogsRow1', 'wocLogsRow2', 'wocLogsRow3', 'wocLogsRow4', 'wocLogsRow5']);
+        'wocCaptureFrame', 'wocFrameStatus', 'wocFrameNote', 'wocLogsSave', 'wocLogsStatus', 'wocLogsQr', 'wocLogsUrl', 'wocLogsRow1',
+        'wocLogsRow2', 'wocLogsRow3', 'wocLogsRow4', 'wocLogsRow5']);
     assert(/<component id="83" type="label" widget="LT_Label_1Graphic_Scalable">/.test(XML), 'the QR code is a graphic');
     assert.strictEqual(APP_JSON.application.entryPoints.length, 1);
     assert.deepStrictEqual(xmlIds('2').slice(1).map(([id]) => logsPage.components[id].rows[0].Text && logsPage.components[id].rows[0].Text.value)
-        .slice(0, 4), ['Start capture', 'Capture: Unavailable', 'Save logs', 'Saved logs: Connecting…']);
-    console.log('ok   the Logs page: Start capture and its row, Save logs and its row, QR code, address, five archives; a child of the main page');
+        .slice(0, 7), ['Start capture', 'Capture: Unavailable', 'Capture full CarPlay frame', 'CarPlay frame: \u2014',
+        'The frame is not scrubbed: the archive may contain the map, addresses, your location and route.',
+        'Save logs', 'Saved logs: Connecting…']);
+    console.log('ok   the Logs page: Start capture, the full CarPlay frame and its note, Save logs and its row, QR code, address, ' +
+        'five archives; a child of the main page');
+    const calPage = UI.containers['3'];
+    assert.strictEqual(calPage.name, 'ST_OnlineApps_WazeClusterCalibration');
+    assert.deepStrictEqual(calPage.properties.ParentState, { value: 1, type: 'UInt' }, 'the Calibration page is a child of the main page');
+    assert(/<container id="3" type="state" widget="LT_State_Wide">\s*<property id="9" value="1"\/>/.test(XML));
+    assert.deepStrictEqual(xmlIds('3').map(([id, type]) => `${id} ${type}`).sort(),
+        Object.entries(calPage.components).map(([id, d]) => `${id} ${d.type}`).sort(), 'application.xml and uiDescription agree on the Calibration page');
+    assert.deepStrictEqual(xmlIds('3').map(([id]) => calPage.components[id].name), [
+        'wocCalTitle', 'wocCalHeadResolution', 'wocCalSelected', 'wocCalPhysical',
+        'wocCalWidthMinus100', 'wocCalWidthMinus10', 'wocCalWidthMinus2', 'wocCalWidthPlus2', 'wocCalWidthPlus10',
+        'wocCalWidthPlus100', 'wocCalApply', 'wocCalActive', 'wocCalHeadCrop', 'wocCalCrop',
+        'wocCalCropMinus', 'wocCalCropMinus2', 'wocCalCropPlus2', 'wocCalCropPlus', 'wocCalX', 'wocCalXMinus10',
+        'wocCalXMinus2', 'wocCalXPlus2', 'wocCalXPlus10', 'wocCalYMinus10', 'wocCalYMinus2',
+        'wocCalYPlus2', 'wocCalYPlus10', 'wocCalCentre', 'wocCalReset', 'wocCalSps',
+        'wocCalCaptureFrame', 'wocCalFrameStatus', 'wocCalLogs']);
+    assert.strictEqual(Object.keys(calPage.components).length, 33, 'a page inside the main page\'s visible row count');
+    assert(!xmlIds('3').some(([, type]) => type === 'slider'), 'no stepped slider on the calibration page');
+    assert.deepStrictEqual(xmlIds('3').filter(([id]) => /^(121|134)$/.test(id)).map(([, , w]) => w),
+        Array(2).fill('LT_Label_Header_1Row'), 'the calibration sections are header rows');
+    console.log('ok   the Calibration page: resolution, crop and diagnostics sections; the width and crop controls, ' +
+        'Apply, Centre, Reset and the frame capture; a child of the main page');
 
     const render = new FakeRender(RSOCK);
     let patch = new FakePatch(PSOCK);
@@ -357,9 +393,20 @@ async function main() {
         const status = byName.wocStatus;
         await until('page shows the map', () => byName.wocMap.text === `Cluster map: Showing ${RENDER_PAGE} — ${RENDER_FPS}` && status.text === 'Status: Patched');
         assert(!logs.some((l) => /^error/.test(l)), logs.filter((l) => /^error/.test(l)).join('\n'));
+        assert.deepStrictEqual([byName.ST_OnlineApps_WazeCluster, byName.ST_OnlineApps_WazeClusterLogs,
+            byName.ST_OnlineApps_WazeClusterCalibration].map((s) => s.resourcesUpdated), [1, 1, 1],
+        'main, Logs and Calibration resources updated before the page is ready');
+        assert(logs.some((l) => l === 'info: RHMI resources: main, logs and calibration updated'),
+            'the resource update is in the application log');
         const bound = logs.filter((l) => l.startsWith('info: BIND OK: ')).map((l) => l.split(' ')[3]).sort();
-        assert.deepStrictEqual(bound, ['wocAaCard', 'wocAaDisable', 'wocAaEnable', 'wocAaZoomIn', 'wocAaZoomOut', 'wocCapture',
-            'wocClusterCentre', 'wocClusterLeft', 'wocClusterRight', 'wocDisable', 'wocEnable',
+        assert.deepStrictEqual(bound, ['wocAaCard', 'wocAaDisable', 'wocAaEnable', 'wocAaZoomIn', 'wocAaZoomOut',
+            'wocCalApply', 'wocCalCaptureFrame', 'wocCalCentre', 'wocCalCropMinus', 'wocCalCropMinus2',
+            'wocCalCropPlus', 'wocCalCropPlus2', 'wocCalLogs',
+            'wocCalReset', 'wocCalWidthMinus10', 'wocCalWidthMinus100', 'wocCalWidthMinus2',
+            'wocCalWidthPlus10', 'wocCalWidthPlus100', 'wocCalWidthPlus2', 'wocCalXMinus10', 'wocCalXMinus2',
+            'wocCalXPlus10', 'wocCalXPlus2', 'wocCalYMinus10', 'wocCalYMinus2', 'wocCalYPlus10', 'wocCalYPlus2',
+            'wocCalibration', 'wocCapture',
+            'wocCaptureFrame', 'wocClusterCentre', 'wocClusterLeft', 'wocClusterRight', 'wocDisable', 'wocEnable',
             'wocGuide', 'wocHudCentre', 'wocHudDown', 'wocHudKeep', 'wocHudLeft', 'wocHudRight', 'wocHudUp', 'wocLogs', 'wocLogsSave', 'wocProfile',
             'wocRestart'],
             'bound buttons and checkbox');
@@ -444,14 +491,17 @@ async function main() {
         /* ---- where the map shows, and the HUD ---- */
         const showOn = byName.wocShowOn;
         const size = byName.wocHudSize;
-        const hudRows = () => ['wocHudKeep', 'wocHudSize', 'wocHudLeft', 'wocHudRight', 'wocHudUp', 'wocHudDown'].map((n) => byName[n].enabled);
+        const crop = byName.wocHudCropWidth;
+        const hudRows = () => ['wocHudKeep', 'wocHudSize', 'wocHudCropWidth', 'wocHudLeft', 'wocHudRight', 'wocHudUp', 'wocHudDown'].map((n) => byName[n].enabled);
         await until('the cluster, the HUD off', () => showOn.shown() === 'Show on: Cluster' && showOn.enabled === true &&
             byName.wocHud.text === 'HUD map: Off' && size.text === 'Size: Standard' && size.cells['0:Value'] === 5 &&
+            crop.text === 'Width: 100 %' && crop.cells['0:Value'] === HUD_CROP_STEPS &&
             byName.wocHudPos.text === 'Position: Centre');
-        assert(hudRows().every((e) => e === false) && byName.wocHudCentre.enabled === false, 'the size and position greyed while off');
+        assert(hudRows().every((e) => e === false) && byName.wocHudCentre.enabled === false, 'the size, the width and position greyed while off');
         render.received.length = 0;
         size.turn(1);
-        await until('a greyed slider turned: back where it was', () => size.cells['0:Value'] === 5);
+        crop.turn(-1);
+        await until('a greyed slider turned: back where it was', () => size.cells['0:Value'] === 5 && crop.cells['0:Value'] === HUD_CROP_STEPS);
         assert.deepStrictEqual(render.received, [], 'nothing sent');
         showOn.pick(1);
         await until('the HUD alone', () => render.hud === 1 && render.cluster === 0 && showOn.shown() === 'Show on: HUD (experimental)' &&
@@ -465,6 +515,22 @@ async function main() {
         size.turn(-1);
         size.turn(-1);
         await until('smaller', () => size.text === 'Size: 50 %' && render.hudWidth === 50);
+        size.setStepValue(HUD_SIZE_STEPS - 1);
+        await until('95 %', () => size.text === 'Size: 95 %' && render.hudWidth === 95 && size.cells['0:Value'] === HUD_SIZE_STEPS - 1);
+        size.turn(1);
+        await until('100 %', () => size.text === 'Size: 100 %' && render.hudWidth === 100 && size.cells['0:Value'] === HUD_SIZE_STEPS);
+        await until('100 % saved', () => patch.received.some((m) => m.cmd === 'hud-size' && m.hud_width_pct === 100));
+        /* the width slider: how much of the HUD map's width it shows, the
+         * render at once, patchd saving it; 100 % (the last step) the whole */
+        crop.turn(-1);
+        await until('narrower', () => crop.text === 'Width: 95 %' && render.hudCrop === 95 && crop.cells['0:Value'] === HUD_CROP_STEPS - 1);
+        await until('saved', () => patch.received.some((m) => m.cmd === 'hud-crop-width' && m.hud_crop_width_pct === 95));
+        crop.turn(1);
+        await until('full width again', () => crop.text === 'Width: 100 %' && render.hudCrop === 100);
+        /* a saved 85 % is a valid step on the wider slider */
+        render.hudWidth = 85;
+        render.announce(render.state, render.reason);
+        await until('saved 85 % still valid', () => size.text === 'Size: 85 %' && size.cells['0:Value'] === 11);
         byName.wocHudLeft.emit('action');
         await until('moved', () => byName.wocHudPos.text === 'Position: 10 px left' && byName.wocHudCentre.enabled === true);
         /* the HUD map over BMW's pop-ups: gives way by default; a press keeps it shown, the render's answer ticks it, patchd saves it */
@@ -680,10 +746,10 @@ async function main() {
         Object.values(components).filter((d) => !/^(wocRestart|wocWifi)/.test(d.name) && d.type !== 'title')
             .forEach((d) => assert.strictEqual(byName[d.name].visible, true, `${d.name} stays on the page`));
         ['wocEnable', 'wocDisable', 'wocAaEnable', 'wocAaDisable', 'wocAaZoomOut', 'wocAaZoomIn', 'wocAaCard', 'wocGuide', 'wocShowOn', 'wocProfile', 'wocHudSize',
-            'wocHudLeft', 'wocHudCentre', 'wocHudKeep', 'wocClusterLeft', 'wocClusterRight']
+            'wocHudCropWidth', 'wocHudLeft', 'wocHudCentre', 'wocHudKeep', 'wocClusterLeft', 'wocClusterRight']
             .forEach((n) => assert.deepStrictEqual([...byName[n].enabledSeen].sort(), [false, true], `${n} greyed and enabled in place`));
         const valueRow = /^[A-Z][A-Za-z ]+: [A-Z0-9\u2014]/;
-        ['wocStatus', 'wocAaStatus', 'wocAaZoom', 'wocMap', 'wocHud', 'wocHudSize', 'wocHudPos', 'wocRestartStatus']
+        ['wocStatus', 'wocAaStatus', 'wocAaZoom', 'wocMap', 'wocHud', 'wocHudSize', 'wocHudCropWidth', 'wocHudPos', 'wocRestartStatus']
             .forEach((n) => assert(valueRow.test(byName[n].text), `${n}: "${byName[n].text}" as Name: Value`));
         console.log('ok   no row came or went but CarPlay Wi-Fi, its line and the restart\'s; the buttons were greyed and enabled in place; ' +
             'info rows as Name: Value');
@@ -713,6 +779,44 @@ async function main() {
         assert.deepStrictEqual(fs.readFileSync(qr1).slice(0, 8), Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]));
         assert.strictEqual(fs.statSync(qr1).mode & 0o777, 0o644, 'the HMI reads it');
         console.log('ok   Logs opens the Logs page; the app stays shown; the page shows the address and its QR code');
+
+        /* The full CarPlay frame: the button asks the render once, the page
+         * follows the render's state, and Save logs takes the frame in. */
+        const frameBtn = byName.wocCaptureFrame;
+        const frameStatus = byName.wocFrameStatus;
+        await until('the frame row', () => frameBtn.text === 'Capture full CarPlay frame' &&
+            frameStatus.text === 'CarPlay frame: Not captured' && frameBtn.enabled === true &&
+            byName.wocFrameNote.visible === true &&
+            /^The frame is not scrubbed/.test(byName.wocFrameNote.text));
+        render.received.length = 0;
+        frameBtn.emit('action');
+        await until('asked', () => render.frameDump === 'waiting' && frameStatus.text === 'CarPlay frame: Waiting for CarPlay frame');
+        assert.strictEqual(render.received.length, 1, 'one command to the render');
+        assert.strictEqual(render.received[0].cmd, 'frame-dump');
+        assert(/^\d+x\d+$/.test(render.received[0].selected), 'the selected resolution goes with it');
+        assert(render.received[0].patch, 'and the patch state');
+        await until('the button greyed while it waits', () => frameBtn.enabled === false);
+        frameBtn.emit('action');
+        await sleep(100);
+        assert.strictEqual(render.received.length, 1, 'a greyed press sends nothing, and no second capture is asked for');
+        render.frameCaptured(false);
+        await until('held for the archive', () => frameStatus.text === 'CarPlay frame: Frame captured. Ready to save logs' &&
+            frameBtn.enabled === false);
+        render.frameCaptured(true);
+        await until('saved, ready for Save logs', () => frameStatus.text === 'CarPlay frame: Frame captured. Ready to save logs' &&
+            frameBtn.enabled === true);
+        render.frameFailed('the picture is a part of the frame (hosted_vpp_scale), not the whole CarPlay frame');
+        await until('failed with the reason', () => /^CarPlay frame: Capture failed — the picture is a part/.test(frameStatus.text) &&
+            frameBtn.enabled === true);
+        render.frameDump = null;   /* a render before the feature */
+        render.announce(render.state, render.reason);
+        await until('a render without it: greyed, Unavailable', () => frameStatus.text === 'CarPlay frame: Unavailable' &&
+            frameBtn.enabled === false);
+        render.frameDump = 'off';
+        render.announce(render.state, render.reason);
+        await until('back', () => frameStatus.text === 'CarPlay frame: Not captured' && frameBtn.enabled === true);
+        console.log('ok   the full CarPlay frame: asked once, greyed while it waits, the render\'s state with its reason, ' +
+            'Unavailable for a render without it');
 
         byName.wocLogsSave.emit('action');
         ['wocCaptureStatus', 'wocLogsStatus', 'wocLogsUrl'].forEach((n) => assert(/^[A-Z][a-z ]+: [A-Z0-9h]/.test(byName[n].text), byName[n].text));
@@ -752,6 +856,161 @@ async function main() {
         rhmi.emit('applicationStackChanged', { ROOT_APP: 1 });
         await sleep(200);
         assert.strictEqual(lserver._clients.size, 0, 'back on the main page: no logs socket');
+
+        /* ---- the Calibration page ---- */
+        const calState = byName.ST_OnlineApps_WazeClusterCalibration;
+        await until('the Calibration button', () => byName.wocCalibration.visible === true);
+        /* a known applied state: the wide geometry, nothing pending */
+        patch.pending = null;
+        patch.carplay = null;
+        patch.res = '1440x636';
+        patch.safe = '667x488+379+95';
+        patch.resSelected = 1440;
+        patch.announce('patched', 'high', null);
+        /* the restart test before left its request standing; a real unit would
+         * have gone down, so start this page's steps from an idle app */
+        OnlineApp.instance._control._restartRequested = false;
+        patch.restart = { state: 'idle' };
+        patch._rebooting = false;
+        patch.announce('patched', 'high', null);
+        await until('calibration patched', () => byName.wocCalActive.text === 'Active: 1440x636 · Resolution: Applied');
+        byName.wocCalibration.emit('action');
+        await until('Calibration opened', () => rhmi.opened.indexOf('ST_OnlineApps_WazeClusterCalibration') >= 0);
+        assert(logs.some((l) => l === 'info: calibration button: opening ST_OnlineApps_WazeClusterCalibration'),
+            'the calibration button action is logged');
+        assert(logs.some((l) => l === 'info: openState ST_OnlineApps_WazeClusterCalibration: requested'),
+            'the openState request is logged');
+        await until('openState resolved in the log', () => logs.some((l) =>
+            l === 'info: openState ST_OnlineApps_WazeClusterCalibration: resolved'));
+        main.emit('visible', { visible: false });
+        calState.emit('visible', { visible: true });
+        await until('calibration shown', () => byName.wocCalSelected.text === 'Selected: 1440x636 · Height: 636' &&
+            byName.wocCalPhysical.text === 'Physical: 183x81 mm');
+        assert(logs.some((l) => l === 'info: RHMI page calibration: visible (main=0, logs=0, calibration=1)'),
+            'the Calibration visibility event and all three values are logged');
+        assert.strictEqual(byName.wocCalActive.text, 'Active: 1440x636 · Resolution: Applied');
+        assert.strictEqual(byName.wocCalCrop.text, 'Crop: 1088x480  X 176  Y 0 · Zoom: 100 %');
+        assert.strictEqual(byName.wocCalX.text, 'X: 176 · Y: 0');
+        assert.strictEqual(byName.wocCalSps.text, 'Incoming SPS: 1440x636 · Decoded: 1440x636');
+        assert.strictEqual(byName.wocCalWidthPlus10.text, 'Width +10');
+        console.log('ok   the Calibration page: the selected and active resolution, its height and physical size, the crop, zoom and SPS');
+
+        /* The width steps: +10 saves a new selection (nothing applied yet). */
+        patch.received.length = 0;
+        byName.wocCalWidthPlus10.emit('action');
+        await until('width 1450', () => byName.wocCalSelected.text === 'Selected: 1450x640 · Height: 640' &&
+            patch.count('carplay-res-select') === 1);
+        assert.deepStrictEqual(patch.received.filter((m) => m.cmd === 'carplay-res-select'), [{ cmd: 'carplay-res-select', width: 1450 }]);
+        assert.strictEqual(byName.wocCalActive.text, 'Active: 1440x636 · Resolution: Apply needed');
+        assert.strictEqual(patch.count('apply'), 0, 'no patch before Apply');
+        byName.wocCalApply.emit('action');
+        await until('applied 1450', () => patch.count('apply') === 1 && !patch.busy);
+        assert.deepStrictEqual(patch.received.filter((m) => m.cmd === 'apply'), [{ cmd: 'apply', panel: 'high', mode: 'avb', res: '1450x640' }]);
+        await until('active 1450', () => byName.wocCalActive.text === 'Active: 1450x640 · Resolution: Applied');
+        console.log('ok   the Calibration page: a width step selects, Apply patches it, the active line follows');
+
+        /* The crop: 2 px and 8 px buttons, X/Y steps, Centre and Reset. */
+        byName.wocCalCropMinus2.emit('action');
+        await until('crop 1086', () => byName.wocCalCrop.text === 'Crop: 1086x480  X 178  Y 0 · Zoom: 100.2 %');
+        byName.wocCalCropMinus.emit('action');
+        await until('crop 1078', () => byName.wocCalCrop.text === 'Crop: 1078x476  X 182  Y 0 · Zoom: 100.9 %');
+        byName.wocCalXPlus2.emit('action');
+        await until('x 184', () => byName.wocCalX.text === 'X: 184 · Y: 0');
+        byName.wocCalYPlus10.emit('action');
+        await until('y 10', () => byName.wocCalX.text === 'X: 184 · Y: 10');
+        byName.wocCalCentre.emit('action');
+        await until('centred', () => byName.wocCalX.text === 'X: 182 · Y: 10');
+        byName.wocCalReset.emit('action');
+        await until('baseline crop', () => byName.wocCalCrop.text === 'Crop: 1088x480  X 176  Y 0 · Zoom: 100 %');
+        console.log('ok   the Calibration page: the 2 px and 8 px crop steps, X/Y, Centre and Reset');
+
+        /* Diagnostics: the frame capture and the Logs page's Save logs. */
+        assert.strictEqual(byName.wocCalCaptureFrame.text, 'Capture full CarPlay frame');
+        render.received.length = 0;
+        byName.wocCalCaptureFrame.emit('action');
+        await until('frame asked from the Calibration page', () => render.received.some((m) => m.cmd === 'frame-dump'));
+        await until('frame status', () => byName.wocCalFrameStatus.text === 'CarPlay frame: Waiting for CarPlay frame');
+        render.frameCaptured(true);
+        await until('frame captured', () => byName.wocCalFrameStatus.text === 'CarPlay frame: Frame captured. Ready to save logs');
+        console.log('ok   the Calibration page: the frame capture; Save logs stays on the Logs page');
+
+        /* The real BMW order: Calibration becomes visible before the main page
+         * hides. The app must stay visible, with its sockets open. */
+        calState.emit('visible', { visible: false });
+        main.emit('visible', { visible: true });
+        await until('main back for the reverse-order test', () => OnlineApp.instance._pages.main === true &&
+            OnlineApp.instance._visible === true && render._clients.size === 1 && patch._clients.size === 1);
+        const inactiveBeforeReverse = inactiveReports;
+        const reverseLog = logs.length;
+        calState.emit('visible', { visible: true });
+        main.emit('visible', { visible: false });
+        await sleep(1100);
+        assert.strictEqual(OnlineApp.instance._visible, true, 'Calibration visible first: the app stays visible');
+        assert.deepStrictEqual(OnlineApp.instance._pages, { main: false, logs: false, calibration: true },
+            'Calibration visible first: only the main page hid');
+        assert.strictEqual(OnlineApp.instance._hideTimer, null, 'no hide timer while Calibration is visible');
+        assert.strictEqual(render._clients.size, 1, 'the render socket stays open');
+        assert.strictEqual(patch._clients.size, 1, 'the patch socket stays open');
+        assert.strictEqual(inactiveReports, inactiveBeforeReverse, 'the app did not report itself inactive');
+        assert(!logs.slice(reverseLog).some((l) => /hide timer: scheduled|page hidden/.test(l)),
+            'no hide was scheduled or fired');
+        byName.wocCalCropPlus2.emit('action');
+        await until('Calibration still works after the hidden main page', () =>
+            byName.wocCalCrop.text === 'Crop: 1090x480  X 176  Y 0 · Zoom: 99.8 %');
+        byName.wocCalReset.emit('action');
+        await until('Calibration reset after the reverse-order test', () =>
+            byName.wocCalCrop.text === 'Crop: 1088x480  X 176  Y 0 · Zoom: 100 %');
+        console.log('ok   Calibration visible before main hides: visible, sockets open, page works, no hide timer');
+
+        /* Only when main, Logs and Calibration are all hidden does the timer
+         * hide the app and close its connections. */
+        const hideLog = logs.length;
+        calState.emit('visible', { visible: false });
+        await sleep(1100);
+        assert.strictEqual(OnlineApp.instance._visible, false, 'all three hidden: the app hides');
+        assert.deepStrictEqual(OnlineApp.instance._pages, { main: false, logs: false, calibration: false },
+            'all three hidden: every page is marked hidden');
+        assert.strictEqual(render._clients.size, 0, 'all three hidden: the render socket closes');
+        assert.strictEqual(patch._clients.size, 0, 'all three hidden: the patch socket closes');
+        assert(inactiveReports > inactiveBeforeReverse, 'all three hidden: the app reports itself inactive');
+        assert(logs.slice(hideLog).some((l) => l.indexOf('hide timer: fired') >= 0),
+            'the hide timer fired after all three pages hid');
+        main.emit('visible', { visible: true });
+        await until('main back after the all-hidden test', () => OnlineApp.instance._visible === true &&
+            render._clients.size === 1 && patch._clients.size === 1);
+        console.log('ok   all three pages hidden: the timer hides the app and closes its sockets; main brings it back');
+
+        /* Calibration -> Logs, an overlay and back, then Calibration -> main. */
+        calState.emit('visible', { visible: true });
+        main.emit('visible', { visible: false });
+        logsState.emit('visible', { visible: true });
+        calState.emit('visible', { visible: false });
+        await until('Calibration left for Logs', () => OnlineApp.instance._visible === true &&
+            OnlineApp.instance._pages.main === false && OnlineApp.instance._pages.logs === true &&
+            OnlineApp.instance._pages.calibration === false && lserver._clients.size === 1);
+        assert.strictEqual(OnlineApp.instance._hideTimer, null, 'Calibration -> Logs: no hide timer');
+        console.log('ok   Calibration -> Logs: the app stays visible, the logs socket moves to Logs');
+
+        /* an overlay takes the screen and gives it back on the Logs page */
+        rhmi.emit('applicationStackChanged', { OVERLAY: 1 });
+        await until('overlay hides the app', () => OnlineApp.instance._visible === false && lserver._clients.size === 0);
+        rhmi.emit('applicationStackChanged', { ROOT_APP: 1 });
+        await until('back on Logs from the overlay', () => OnlineApp.instance._visible === true &&
+            OnlineApp.instance._pages.logs === true && lserver._clients.size === 1);
+        console.log('ok   back from an overlay on Logs: visible, the logs socket open again');
+
+        /* Logs -> main, then Calibration -> main */
+        main.emit('visible', { visible: true });
+        logsState.emit('visible', { visible: false });
+        await until('Logs -> main', () => OnlineApp.instance._pages.main === true && lserver._clients.size === 0 &&
+            render._clients.size === 1 && patch._clients.size === 1);
+        calState.emit('visible', { visible: true });
+        main.emit('visible', { visible: false });
+        main.emit('visible', { visible: true });
+        calState.emit('visible', { visible: false });
+        await until('Calibration -> main', () => OnlineApp.instance._visible === true &&
+            OnlineApp.instance._pages.main === true && OnlineApp.instance._pages.calibration === false && lserver._clients.size === 0);
+        console.log('ok   Logs -> main and Calibration -> main: visible, the logs socket closed, both control sockets open');
 
         /* left from the Logs page, launched again from the tile: the main
          * page, no logs socket (which would start the page server) */

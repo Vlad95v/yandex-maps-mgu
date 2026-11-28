@@ -122,7 +122,10 @@ the cluster is hidden (cluster-render README, "Guide hold"). The app's
 **Where the map shows.** The app's **Show on** sets the cluster, the HUD,
 both or neither (**Off**), at once. On the HUD the frames are scaled on the
 head unit to the size shown (**Size**, 30 % to 85 % of the HUD's width, or
-Standard, about 57 %), moved by **Position**, the corners rounded and a
+Standard, about 57 %), narrowed to the share of its width shown (**Width**,
+20 % to 100 %: a centred crop of the map's own region, the height and the
+pixel scale kept, so the map gets narrower without getting smaller),
+moved by **Position**, the corners rounded and a
 night map's background made black, which the HUD shows as nothing. With
 both, the HUD gets up to half the upload budget, only what it uses. The
 HUD map steps aside while BMW's HUD lists show (never for route guidance),
@@ -169,6 +172,19 @@ panel. For wide CarPlay the patch advertises 1440x636 at 183x81 mm
 (`--res wide`), so `tex_size` is 1440x636 and MapFeed crops the 1088x480 view
 from it at `crop_x = 176 - cluster_offset_x`. With a non-wide patch
 `tex_size` is 1088x480, the map texture itself.
+
+The crop is a calibration rectangle of the 1440x636 source, not only the
+centred 1088x480: `cluster_crop_w` (816-1440, even), `cluster_crop_y`, and
+`cluster_offset_x` (which moves it horizontally) are saved in
+`map_state_file` and changed live by a control `{"cmd":"cluster",...}`. The
+rectangle is scaled to the fixed 1088x480 output in the existing
+`ScaleWorker`: wider than 1088 is the area-average box filter, narrower is
+bilinear upscaling, Y/U/V on their own. The advertised resolution is
+separate: `--res WxH` for any even width 1088-1920 with the 1088x480 shape's
+height, its physical size interpolated from the two known sizes; patchd
+keeps the selected width in `/var/opt/waze-on-cluster/carplay-res.conf`,
+apart from the live crop.
+
 `src_crop` takes part of a picture of one size and scales it to `tex_size`
 (Android Auto's 1280x720 stream has its map in the top 1280x564).
 `map_rect` draws the map stretched into a rect of the map slot.
@@ -293,6 +309,26 @@ sources are left out.
 - **Save logs** keeps at most 5 archives in `/var/opt/waze-on-cluster/saved`.
   The Logs page serves them to a phone on the car's Wi-Fi hotspot, at the
   address it shows, while the page is open and for 15 minutes after a save.
+- **The full CarPlay frame.** The app's **Capture full CarPlay frame** asks
+  this tool for the next whole 1440x636 picture, before the map feed crops or
+  scales it: it is copied on the main loop (never on the decode thread) and
+  written to `carplay-frame-1440x636.yuva` in `frame_dump_dir`
+  (`/var/opt/waze-on-cluster/state`, 1,373,760 bytes: the map's 4:2:0 atlas,
+  `native/cluster-render/kit/yuv_atlas.h`) with `carplay-frame-1440x636.json`
+  beside it (size, capture time, that it is a full frame, and the
+  calibration: the selected and active advertised resolutions, the patch
+  state, the incoming SPS size, the normalized atlas, the cluster crop and
+  output, and the zoom), atomically: a temporary file, then a rename,
+  world-readable for the logs service. A frame
+  that is a part (`hosted_vpp_scale`), another size, a repeat, or nothing
+  while no map shows is not taken, and the status says why
+  (`frame_dump`, `frame_dump_reason`). `collect-logs.sh` adds the two files
+  to the archive **after** the scrub, byte for byte (the scrub never sees a
+  binary), and removes them once the archive is whole; a failed save keeps
+  them for another try. They are there only when the button was pressed, and
+  they are **not** anonymised: the picture can show the map, the route and
+  addresses. `tools/yuv_atlas_to_png.py <archive> --output <png>` turns it
+  into a PNG on a PC (standard library only, `atlas_rgb()`'s colours).
 
 ### Processes
 

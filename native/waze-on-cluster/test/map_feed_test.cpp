@@ -1453,6 +1453,90 @@ static void hud_crop_pixels()
     ok("HUD pixels: independent of cluster offset", !a.empty() && a == b && b == c);
 }
 
+/* hud_crop_width_pct: the HUD's box narrows by the share, its height and the
+ * pixel scale kept, from the HUD's own region; 100 % is exactly the geometry
+ * before it, and the offsets move the narrower box as they moved the box. */
+static void hud_width_share()
+{
+    const std::vector<uint8_t> f = carplay_source(9);
+    struct Shot {
+        uint32_t w = 0, h = 0, rx = 0, ry = 0;
+        HudCrop crop;
+    };
+    /* A HUD feed alone, the Size setting at 85 % (the 680x300 box the app
+     * asks for at its widest), showing crop_pct of its region, moved by
+     * offset_x */
+    const auto shot = [&](unsigned crop_pct, int offset_x) {
+        Rig r(false, 6000, false, true, true, 1440, 636);
+        FeedConfig hfc;
+        hfc.socket = r.path;
+        hfc.target = "hud";
+        hfc.video.w = 1440;
+        hfc.video.h = 636;
+        hfc.video.level_bits = 2;
+        hfc.video.stall_ms = 6000;
+        hfc.scaled_level_bits = 2;
+        hfc.hud_width_pct = 85;
+        hfc.hud_crop_width_pct = crop_pct;
+        hfc.hud_offset_x = offset_x;
+        r.feed.reset(new MapFeed(hfc));
+        r.feed->set_stream(true, false, Picture::Shown);
+        r.pump(1000, &f);
+        r.pump(200);
+        Shot s;
+        s.crop = r.feed->hud_crop_rect();
+        if (const crs::VideoParams *vp = map_video(r)) {
+            s.w = vp->w;
+            s.h = vp->h;
+        }
+        if (const crs::Layer *l = r.map_layer()) {
+            s.rx = l->params.rect.x;
+            s.ry = l->params.rect.y;
+        }
+        return s;
+    };
+
+    const Shot full = shot(100, 0);
+    ok("HUD width 100 %: the Size setting's 680x300, the whole 1088x480 region at X 176",
+       full.w == 680 && full.h == 300 && full.crop.x == 176 && full.crop.y == 0 && full.crop.w == 1088 && full.crop.h == 480);
+    ok("HUD width 100 %: the box centred on the 800x480 HUD", full.rx == 60 && full.ry == 90);
+
+    const Shot half = shot(50, 0);
+    ok("HUD width 50 %: 340x300, the region's middle 544, the height kept",
+       half.w == 340 && half.h == 300 && half.crop.x == 448 && half.crop.w == 544 && half.crop.h == 480);
+    ok("HUD width 50 %: the narrower box still centred", half.rx == 230 && half.ry == 90);
+
+    const Shot narrow = shot(20, 0);
+    ok("HUD width 20 %: 136x300, a fifth of the region", narrow.w == 136 && narrow.h == 300 && narrow.crop.w == 218);
+
+    const Shot moved = shot(50, 50);
+    ok("HUD width 50 %, moved +50: the same crop, the box 50 px right",
+       moved.w == half.w && moved.crop.x == half.crop.x && moved.crop.w == half.crop.w && moved.rx == half.rx + 50);
+
+    /* The height is the Size setting's, whatever the width */
+    ok("HUD width: the height never changes with the share", full.h == half.h && half.h == narrow.h && full.h == moved.h);
+
+    /* The cluster's feed keeps its own crop, and the HUD's the share */
+    Rig both(false, 6000, false, true, true, 1440, 636);
+    FeedConfig hfc;
+    hfc.socket = both.path;
+    hfc.target = "hud";
+    hfc.video.w = 1440;
+    hfc.video.h = 636;
+    hfc.video.level_bits = 2;
+    hfc.video.stall_ms = 6000;
+    hfc.scaled_level_bits = 2;
+    hfc.hud_width_pct = 85;
+    hfc.hud_crop_width_pct = 50;
+    hfc.cluster_offset_x = 120;
+    both.feed.reset(new MapFeed(hfc));
+    both.feed->set_stream(true, false, Picture::Shown);
+    both.pump(1000, &f);
+    both.pump(200);
+    ok("HUD width 50 %: cluster_offset_x never reaches it", both.feed->cluster_crop_x() == 448 &&
+                                                                both.feed->hud_crop_rect().w == 544);
+}
+
 int main()
 {
     signal(SIGPIPE, SIG_IGN);
@@ -1469,6 +1553,7 @@ int main()
     cached_frame_recrop();
     recrop_while_worker_in_flight();
     hud_crop_pixels();
+    hud_width_share();
     Rig r;
     r.pump(100);
     const crs::Layer *l = r.map_layer();

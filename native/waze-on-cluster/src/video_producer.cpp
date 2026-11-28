@@ -43,6 +43,11 @@ VideoProducer::VideoProducer(const VideoConfig &cfg)
     rtp_sink_ = [this](const uint8_t *d, size_t n, bool end_of_au) { on_nal(d, n, end_of_au); };
     rtp_.on_gap = [this](const RtpH264::Gap &g) { gaps_.gap(g, packet_->source, packet_->dropped); };
     decoder_.on_sps([this](const uint8_t *nal, size_t len) {
+        SpsInfo sps;
+        if (parse_sps(nal, len, &sps)) {
+            sps_w_.store(sps.width);
+            sps_h_.store(sps.height);
+        }
         const std::string line = sps_log_.sps(nal, len, feed_source_, cld::now_ms());
         if (!line.empty())
             log_info("%s", line.c_str());

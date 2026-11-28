@@ -64,7 +64,11 @@ KOMBI (приборка BMW): слоты map 0x100 (1088x480), panel 1920x720,
   главный цикл poll.
 - `src/map_feed.cpp` — позиционирование слоя карты: `make_layer()`
   (100–225), `quad()` (260–289), `set_hud_offset()` (291–306),
-  `set_hud_width()` (319–331).
+  `set_hud_width()` (319–331), `set_hud_crop_width()`.
+- `src/hud_crop.h` — `hud_source()` (своя область HUD: для 1440x636 —
+  центральные 1088x480 с X=176), `hud_geometry()`: центрированная доля
+  ширины (`hud_crop_width_pct`, 20–100 %, 100 % — прежняя геометрия), высота
+  и масштаб пикселя сохраняются; ограничения скалера и минимум видео 64 px.
 - `src/map_feeds.cpp` — два фида: cluster и hud (HUD не получает
   `map_rect`, стр. 27).
 - `src/decoder_msdk.cpp` — VAAPI/VPP: `src_crop` применяется покадрово
@@ -74,9 +78,10 @@ KOMBI (приборка BMW): слоты map 0x100 (1088x480), panel 1920x720,
 - `src/video_producer.{h,cpp}` — производство кадров: `decoder_.init(...)`
   с `tex_width/tex_height` и `src_crop` (350–351).
 - `src/map_state.cpp` — персистентность настроек (whitelist ключей,
-  стр. 16–17).
+  стр. 16–18; 8 ключей, включая `hud_crop_width_pct`).
 - `waze-on-cluster.conf` — все настройки геометрии: `tex_size` (66),
-  `src_crop` (81), `map_rect` (86), `hud_*` (167–193).
+  `src_crop` (81), `map_rect` (86), `hud_*` (167–193, включая
+  `hud_crop_width_pct`).
 
 ### 3.2 cluster-render (`native/cluster-render`)
 
@@ -161,6 +166,7 @@ UI в магазине: `src/waze_cluster_control.js` (строки настро
 |---|---|
 | `native/waze-on-cluster/src/map_feed.cpp` | позиционирование слоя карты (`make_layer`, `quad`, `set_hud_offset`) |
 | `native/waze-on-cluster/src/map_feed.h` | `FeedConfig` (rect, hud_offset_x/y), `FeedStatus` |
+| `native/waze-on-cluster/src/hud_crop.h` | срез ширины HUD (`hud_geometry`, 20–100 %), область HUD 1088x480@176 |
 | `native/waze-on-cluster/src/source_crop.h` | парсинг/применение `src_crop`, `rect_needs_reset` |
 | `native/waze-on-cluster/src/decoder_msdk.cpp` | VAAPI/VPP, покадровый crop (730), выход = tex (501–502) |
 | `native/waze-on-cluster/src/map_rect.h` | `MapRect`, `parse_map_rect`, `fits`, `host_crop`, `OutputPart` |
@@ -210,6 +216,24 @@ UI в магазине: `src/waze_cluster_control.js` (строки настро
 - Сборка/установка и эксперименты на автомобиле выполняются только по
   отдельному указанию.
 
+## 6.1. Будущее направление: данные монитора (не реализовано)
+
+Фотография центрального дисплея MGU с Yandex Navigator в CarPlay
+(`screenshot/monitor.jpg` в ветке `feature/carplay-frame-dump`) показывает
+больше навигационных данных, чем попадает в срез кластера: следующий манёвр,
+оставшееся расстояние и время, время прибытия, задержку из-за пробок,
+ограничения скорости, предупреждения о камерах и текущую скорость.
+
+Подтверждено только одно: информация о манёвре передаётся в штатную
+навигацию BMW и видна на приборке и HUD, когда «Hide BMW's turn box»
+выключен (`screenshot/plashka.jpg`). Доступность ETA, расстояния, времени,
+камер и ограничений как отдельных структурированных метаданных CarPlay **не
+подтверждена**. В этой задаче `monitor.jpg` используется только как
+визуальный и архитектурный ориентир: рассматривается чисто видео-слой карты
+на кластере вместе со штатными подсказками BMW и, возможно, другими данными
+маршрута. OCR, разбор экрана монитора и новая пересылка данных в BMW не
+реализуются.
+
 ## 7. Регламент дальнейшей разработки (постоянные правила)
 
 ### 7.1 Правила git (обязательны для всех задач)
@@ -257,8 +281,9 @@ UI в магазине: `src/waze_cluster_control.js` (строки настро
 
 1. `git status` → убедиться, что рабочее дерево чистое (или изменения
    принадлежат текущей задаче).
-2. `git switch main && git pull` (проверка актуальности) →
-   `git switch -c <тип>/<описание>`.
+2. `git fetch origin --tags` (актуальность `origin/main`; upstream этого
+   проекта не синхронизируется) →
+   `git switch -c <тип>/<описание> origin/main`.
 3. Работа; по ходу — записи в `DEVELOPMENT_LOG.md`.
 4. Проверка: `git diff`, доступные тесты (в этом репозитории —
    `native/*/test`, `patch/test` — по мере применимости).

@@ -68,6 +68,7 @@
 #include "atlas_scale.h"
 #include "cluster_render/client.h"
 #include "freeze_watch.h"
+#include "hud_crop.h"
 #include "map_rect.h"
 #include "map_geometry.h"
 
@@ -93,6 +94,12 @@ struct FeedConfig {
      * the picture's shape, at most the HUD's), centred. 0: the kit's fitted
      * box (about 57 %). */
     unsigned hud_width_pct = 0;
+    /* On the HUD: how much of the map's own horizontal region the HUD shows,
+     * 20-100 %, centred, the height and the pixel scale kept (hud_crop.h):
+     * 100 % the region as it always was, less a centred share of its width
+     * in a box as much narrower. Independent of hud_width_pct, the offsets
+     * and the cluster's crop. */
+    unsigned hud_crop_width_pct = kHudCropMaxPct;
     /* On the HUD: the map moved from its centred place, in the HUD scene's
      * pixels (+x right, +y down), held inside the HUD's scene. */
     int hud_offset_x = 0, hud_offset_y = 0;
@@ -100,6 +107,12 @@ struct FeedConfig {
      * cluster scene's pixels (+x right), held inside the cluster's scene (1088x480).
      * Note: the cluster map fills the 1088x480 slot; shifting creates empty edges. */
     int cluster_offset_x = 0;
+    /* The calibration crop of the 1440x636 decoded source for the cluster:
+     * the rectangle (x,y,w,h) scaled to the fixed 1088x480 output, even and
+     * inside the source, h the 1088x480 shape's for w. The defaults are the
+     * baseline: 1088x480 at 176,0. */
+    int cluster_crop_x = 176, cluster_crop_y = 0;
+    uint32_t cluster_crop_w = 1088, cluster_crop_h = 480;
     /* On the HUD: kept shown over the stock HMI's pop-ups (the layer's
      * yield 0); else it gives way to them (cluster-render's hud_yield_slots). */
     bool hud_keep_shown = false;
@@ -142,12 +155,20 @@ struct FeedStatus {
     bool hud = false;              /* the HUD setting (MapFeeds) */
     std::string hud_state = "off";   /* off, disabled, or the HUD feed's state */
     unsigned hud_width_pct = 0;   /* the HUD map's size setting (0: the default) */
+    unsigned hud_crop_width_pct = kHudCropMaxPct;   /* how much of its width the HUD shows */
     int hud_offset_x = 0, hud_offset_y = 0;   /* and where it is moved to from the centre */
     int cluster_offset_x = 0;                 /* the cluster map's requested horizontal offset */
     int cluster_offset_x_actual = 0;          /* the cluster map's actual horizontal offset after clamping */
-    int cluster_crop_x = 0;                   /* the cluster's source crop X offset */
+    int cluster_crop_x = 0, cluster_crop_y = 0;   /* the cluster's source crop */
+    uint32_t cluster_crop_w = 0, cluster_crop_h = 0;
+    double cluster_zoom = 100.0;              /* 1088 / crop_w * 100 */
+    bool cluster_upscaled = false;            /* crop_w < 1088: the worker upscales to 1088x480 */
     uint32_t source_w = 0, source_h = 0;      /* source atlas dimensions */
     uint32_t output_w = 0, output_h = 0;      /* output/crop dimensions */
+    /* The incoming H.264 sequence's own size (its SPS), separate from the
+     * normalized decoded atlas (source_w x source_h) and the advertised
+     * geometry. 0 until the SPS is read. */
+    uint32_t sps_w = 0, sps_h = 0;
     bool hud_keep_shown = false;   /* the HUD map kept shown over the stock HMI's pop-ups */
 };
 
@@ -186,6 +207,11 @@ public:
     /* The HUD map's size (FeedConfig::hud_width_pct), applied at once to a
      * map on the HUD. */
     void set_hud_width(unsigned pct);
+    /* How much of the HUD map's width it shows (FeedConfig::hud_crop_width_pct),
+     * applied at once to a map on the HUD. */
+    void set_hud_crop_width(unsigned pct);
+    /* The HUD map's crop as quad() last worked it out (hud_crop.h). */
+    HudCrop hud_crop_rect() const { return hud_crop_; }
     /* The HUD map moved (FeedConfig::hud_offset_x/y), at once: the layer
      * only changes place, no new texture. Held inside the HUD: the offset
      * the map is at (hud_offset_x/y, the status's) then is as far as it
@@ -199,6 +225,15 @@ public:
     int cluster_offset_x() const { return cfg_.cluster_offset_x; }
     int cluster_offset_x_actual() const { return placed_x_; }
     int cluster_crop_x() const { return crop_x_; }
+    int cluster_crop_y() const { return crop_y_; }
+    uint32_t cluster_crop_w() const { return crop_w_; }
+    uint32_t cluster_crop_h() const { return crop_h_; }
+    double cluster_zoom() const;
+    bool cluster_upscaled() const { return crop_w_ && crop_w_ < crk::kMapAreaWidth; }
+    /* The calibration crop of the 1440x636 source shown on the cluster, at
+     * once: the active ScaleShape, no decoder or layer restart. Held inside
+     * the source; an invalid rectangle is refused with a log line. */
+    void set_cluster_crop(int x, int y, uint32_t w, uint32_t h);
     /* The HUD map kept shown over the stock HMI's pop-ups or not
      * (FeedConfig::hud_keep_shown), at once. */
     void set_hud_keep_shown(bool keep);
@@ -326,8 +361,15 @@ private:
     std::string target_state_, holder_;
     /* the HUD map's offset as quad() last placed it; as asked until then */
     mutable int placed_x_ = 0, placed_y_ = 0;
-    /* The cluster's source crop X offset (for wider CarPlay geometry). */
-    mutable int crop_x_ = 0;
+    /* The HUD map's crop as quad() last worked it out (hud_crop.h), for the
+     * layer's shape and the status. */
+    mutable HudCrop hud_crop_;
+    /* The cluster's source crop (for the wide 1440x636 geometry). */
+    mutable int crop_x_ = 0, crop_y_ = 0;
+    mutable uint32_t crop_w_ = 0, crop_h_ = 0;
+    /* The cluster's crop changed: recompute its ScaleShape and resubmit the
+     * newest source picture, if one is held. */
+    void update_cluster_crop();
     unsigned cap_kb_ = 0, max_kb_ = 0;
     std::string budget_reason_, refused_, report_;
     bool connected_ = false, status_asked_ = false;

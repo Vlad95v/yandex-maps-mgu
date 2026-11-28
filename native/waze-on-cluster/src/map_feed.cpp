@@ -165,15 +165,20 @@ void MapFeed::make_layer()
         log_info("render: hosted on %s: the map's %ux%u at %u,%u, as %ux%u%s", host_.into.c_str(), crop.w,
                  crop.h, crop.x, crop.y, dw, dh, part_.set() ? ", made by VPP (hosted_vpp_scale)" : "");
     } else if (cfg_.target == "map" && cfg_.video.w == kCarplayWideWidth && cfg_.video.h == kCarplayWideHeight) {
-        /* Cluster feed: wider CarPlay source (1440x636) -> cluster viewport (1088x480).
-         * Crop X shifts to pan horizontally: crop_x = 176 - cluster_offset_x. */
-        const int offset = cfg_.cluster_offset_x;
-        int crop_x = 176 - offset;
-        crop_x = std::max(0, std::min(crop_x, 352));
-        crop_x_ = crop_x;
-        placed_x_ = offset;
-        const uint32_t crop_w = 1088, crop_h = 480;
-        const uint32_t dw = crop_w, dh = crop_h;
+        /* Cluster feed: the calibration crop of the wider CarPlay source
+         * (1440x636) to the cluster viewport (1088x480). The crop defaults to
+         * the baseline 1088x480 at 176,0; set_cluster_crop changes it live. */
+        const uint32_t dw = crk::kMapAreaWidth, dh = crk::kMapAreaHeight;
+        const uint32_t cw = cfg_.cluster_crop_w ? cfg_.cluster_crop_w : dw;
+        const uint32_t ch = cfg_.cluster_crop_h ? cfg_.cluster_crop_h : dh;
+        int cx = cfg_.cluster_crop_x, cy = cfg_.cluster_crop_y;
+        cx = std::max(0, std::min(cx, (int)(cfg_.video.w - cw)));
+        cy = std::max(0, std::min(cy, (int)(cfg_.video.h - ch)));
+        crop_x_ = cx;
+        crop_y_ = cy;
+        crop_w_ = cw;
+        crop_h_ = ch;
+        placed_x_ = (int)((cfg_.video.w - cw) / 2) - cx;
         q = crk::QuadRect{0, 0, dw, dh};
         vo.w = dw;
         vo.h = dh;
@@ -183,13 +188,13 @@ void MapFeed::make_layer()
         shape_.h = cfg_.video.h;
         shape_.dw = dw;
         shape_.dh = dh;
-        shape_.crop_x = (uint32_t)crop_x;
-        shape_.crop_y = 0;
-        shape_.crop_w = crop_w;
-        shape_.crop_h = crop_h;
+        shape_.crop_x = (uint32_t)cx;
+        shape_.crop_y = (uint32_t)cy;
+        shape_.crop_w = cw;
+        shape_.crop_h = ch;
         shape_.level_bits = cfg_.video.level_bits;
-        log_info("render: cluster map from 1440x636, crop %ux%u at %u,0 -> %ux%u",
-                 crop_w, crop_h, crop_x, dw, dh);
+        log_info("render: cluster map from %ux%u, crop %ux%u at %d,%d -> %ux%u%s",
+                 cfg_.video.w, cfg_.video.h, cw, ch, cx, cy, dw, dh, cw < dw ? " (upscaled)" : "");
     } else if (cfg_.target == "hud" &&
                (cfg_.scale_down || (cfg_.video.w == kCarplayWideWidth && cfg_.video.h == kCarplayWideHeight)) &&
                (sw < cfg_.video.w || sh < cfg_.video.h) && sw >= 64 &&
@@ -206,15 +211,16 @@ void MapFeed::make_layer()
         shape_.h = cfg_.video.h;
         shape_.dw = sw;
         shape_.dh = sh;
-        /* Wider CarPlay source: the HUD shows the same independent centred
-         * 1088x480 crop it always did, scaled to its box. cluster_offset_x
-         * never reaches this shape. */
-        if (cfg_.video.w == kCarplayWideWidth && cfg_.video.h == kCarplayWideHeight) {
-            shape_.crop_x = 176;
-            shape_.crop_y = 0;
-            shape_.crop_w = 1088;
-            shape_.crop_h = 480;
+        /* The map's own region of the picture, and the share of its width
+         * hud_crop_width_pct keeps (hud_crop.h; quad() worked it out above). */
+        if (!hud_crop_.w) {
+            const HudGeometry g = hud_geometry(cfg_.video.w, cfg_.video.h, sw, sh, cfg_.hud_crop_width_pct);
+            hud_crop_ = g.crop;
         }
+        shape_.crop_x = hud_crop_.x;
+        shape_.crop_y = hud_crop_.y;
+        shape_.crop_w = hud_crop_.w;
+        shape_.crop_h = hud_crop_.h;
         shape_.level_bits = cfg_.scaled_level_bits;
         shape_.radius = cfg_.hud_round_corners ? (sh / 12 > 6 ? sh / 12 : 6) : 0;
         shape_.black = cfg_.hud_black_background;
@@ -297,21 +303,26 @@ void MapFeed::remake_layer()
 
 /* Where the map goes on a target of tw x th: the kit's fitted rect, or on
  * the HUD with a size set, that width (the picture's shape kept, at most the
- * HUD's height), centred; on the HUD then moved by the offset, held inside
- * the scene. On the cluster, crop horizontally from wider 1440x636 source:
- * crop_x = 176 - cluster_offset_x, crop_w = 1088, crop_h = 480.
- * HUD gets independent centered crop (crop_x = 176). */
+ * HUD's height), centred; on the HUD then narrowed to hud_crop_width_pct of
+ * its region, the height kept (hud_crop.h); then moved by the offset, held
+ * inside the scene. On the cluster, crop horizontally from wider 1440x636
+ * source: crop_x = 176 - cluster_offset_x, crop_w = 1088, crop_h = 480. */
 crk::QuadRect MapFeed::quad(uint32_t tw, uint32_t th) const
 {
     if (cfg_.target != "hud" || !cfg_.video.w || !cfg_.video.h) {
         crk::QuadRect q = crk::map_quad(tw, th, cfg_.video.w, cfg_.video.h);
-        /* Cluster feed: source is 1440x636 (RES_WIDE), output 1088x480.
-         * Crop X shifts to pan: crop_x = 176 - cluster_offset_x. */
+        /* Cluster feed: source is the wide 1440x636; the crop is the
+         * calibration one, its offset from the centre the status's. */
         if (cfg_.target == "map" && cfg_.video.w == kCarplayWideWidth && cfg_.video.h == kCarplayWideHeight) {
-            const int offset = cfg_.cluster_offset_x;
-            const int crop_x = 176 - offset;   // centered at offset 0, range 0..352
-            crop_x_ = std::max(0, std::min(crop_x, 352));
-            placed_x_ = offset;  // actual offset after clamping
+            const uint32_t cw = cfg_.cluster_crop_w ? cfg_.cluster_crop_w : crk::kMapAreaWidth;
+            const uint32_t ch = cfg_.cluster_crop_h ? cfg_.cluster_crop_h : crk::kMapAreaHeight;
+            const int cx = std::max(0, std::min(cfg_.cluster_crop_x, (int)(cfg_.video.w - cw)));
+            const int cy = std::max(0, std::min(cfg_.cluster_crop_y, (int)(cfg_.video.h - ch)));
+            crop_x_ = cx;
+            crop_y_ = cy;
+            crop_w_ = cw;
+            crop_h_ = ch;
+            placed_x_ = (int)((cfg_.video.w - cw) / 2) - cx;
         }
         return q;
     }
@@ -328,6 +339,21 @@ crk::QuadRect MapFeed::quad(uint32_t tw, uint32_t th) const
         }
         q = crk::QuadRect{(uint32_t)((tw - w) / 2), (uint32_t)((th - h) / 2), (uint32_t)w, (uint32_t)h};
     }
+    /* hud_crop_width_pct: a centred share of the map's own region shown, the
+     * height and the pixel scale kept: a narrower box, not a squeezed map.
+     * Only where the HUD scales the frame down (the box is smaller than the
+     * picture); without that there is no crop to take, and it is 100 %. */
+    if (cfg_.target == "hud" &&
+        (cfg_.scale_down || (cfg_.video.w == kCarplayWideWidth && cfg_.video.h == kCarplayWideHeight))) {
+        const HudGeometry g = hud_geometry(cfg_.video.w, cfg_.video.h, q.w, q.h, cfg_.hud_crop_width_pct);
+        hud_crop_ = g.crop;
+        crop_x_ = (int)g.crop.x;   /* the HUD's own crop, never the cluster's */
+        if (g.box.w != q.w || g.box.h != q.h) {
+            q.x += (q.w - g.box.w) / 2;   /* its centre where the box's was */
+            q.w = g.box.w;
+            q.h = g.box.h;
+        }
+    }
     const long x = (long)q.x + cfg_.hud_offset_x, y = (long)q.y + cfg_.hud_offset_y;
     const long xmax = (long)tw - (long)q.w, ymax = (long)th - (long)q.h;
     const uint32_t cx = q.x, cy = q.y;
@@ -335,10 +361,6 @@ crk::QuadRect MapFeed::quad(uint32_t tw, uint32_t th) const
     q.y = (uint32_t)(y < 0 ? 0 : y > ymax ? ymax : y);
     placed_x_ = (int)q.x - (int)cx;
     placed_y_ = (int)q.y - (int)cy;
-    /* HUD feed: independent centered crop from 1440x636 at crop_x = 176. */
-    if (cfg_.target == "hud" && cfg_.video.w == kCarplayWideWidth && cfg_.video.h == kCarplayWideHeight) {
-        crop_x_ = 176;
-    }
     return q;
 }
 
@@ -360,40 +382,84 @@ void MapFeed::set_hud_offset(int dx, int dy)
 }
 
 /* The cluster map moved horizontally (FeedConfig::cluster_offset_x), at once:
- * live crop update via AtlasScaler, no decoder/renderer restart. */
+ * the crop's X follows, live via the AtlasScaler, no decoder or renderer
+ * restart. crop_x = (1440 - crop_w) / 2 - offset. */
 void MapFeed::set_cluster_offset(int dx)
 {
-    if (dx == cfg_.cluster_offset_x)
+    const uint32_t cw = cfg_.cluster_crop_w ? cfg_.cluster_crop_w : crk::kMapAreaWidth;
+    const int max = (int)(kCarplayWideWidth - cw) / 2;
+    const int offset = std::max(-max, std::min(dx, max));
+    if (offset == cfg_.cluster_offset_x && cfg_.cluster_crop_x == (int)(kCarplayWideWidth - cw) / 2 - offset)
         return;
-    cfg_.cluster_offset_x = dx;
-    uint32_t tw, th;
-    /* hosted, the host places it: the offset waits for the cluster's own */
-    if (cfg_.target != "map" || !layer_ || hosted() || !target_size(client_.targets, "map", &tw, &th))
-        return;
-    const crk::QuadRect q = quad(tw, th);
-    /* Update AtlasScaler crop_x for live offset change. */
-    if (scaling_ && cfg_.video.w == kCarplayWideWidth && cfg_.video.h == kCarplayWideHeight) {
-        const int crop_x = 176 - dx;
-        shape_.crop_x = (uint32_t)std::max(0, std::min(crop_x, 352));
-        crop_x_ = shape_.crop_x;
-        placed_x_ = dx;
-        log_info("render: cluster crop_x updated to %u (offset %+d)", shape_.crop_x, dx);
-    }
-    lo_.x = (int)q.x;
-    client_.set(layer_, lo_);
-    log_info("render: cluster map at x=%u (offset %+d)", q.x, placed_x_);
+    cfg_.cluster_offset_x = offset;
+    int cropX = (int)(kCarplayWideWidth - cw) / 2 - offset;
+    cropX = std::max(0, std::min(cropX, (int)(kCarplayWideWidth - cw)));
+    /* set_cluster_crop does the shape and the resubmission, and logs it. */
+    set_cluster_crop(cropX, cfg_.cluster_crop_y, cw, cfg_.cluster_crop_h ? cfg_.cluster_crop_h : crk::kMapAreaHeight);
+}
 
+/* The calibration crop of the 1440x636 source: validated against the source,
+ * the shape kept (the height is the 1088x480 shape's for the width), and
+ * applied live: the active ScaleShape, then the newest source picture
+ * resubmitted through the ScaleWorker. A stale worker result is discarded
+ * by send_pending (its shape compared with the current one). */
+void MapFeed::set_cluster_crop(int x, int y, uint32_t w, uint32_t h)
+{
+    const uint32_t srcW = kCarplayWideWidth, srcH = kCarplayWideHeight;
+    const uint32_t evenW = w & ~1u, wantH = 2 * ((evenW * 15u + 34u) / 68u);
+    if (w % 2 || w < 816 || w > 1440 || h % 2 || h != wantH) {
+        log_warn("render: cluster crop %ux%u is not an even width 816-1440 with its 1088x480 height; kept %ux%u",
+                 w, h, cfg_.cluster_crop_w, cfg_.cluster_crop_h);
+        return;
+    }
+    const int cx = std::max(0, std::min(x & ~1, (int)(srcW - w)));
+    const int cy = std::max(0, std::min(y & ~1, (int)(srcH - h)));
+    if (cx == cfg_.cluster_crop_x && cy == cfg_.cluster_crop_y && w == cfg_.cluster_crop_w && h == cfg_.cluster_crop_h)
+        return;
+    cfg_.cluster_crop_x = cx;
+    cfg_.cluster_crop_y = cy;
+    cfg_.cluster_crop_w = w;
+    cfg_.cluster_crop_h = h;
+    cfg_.cluster_offset_x = (int)((srcW - w) / 2) - cx;
+    crop_x_ = cx;
+    crop_y_ = cy;
+    crop_w_ = w;
+    crop_h_ = h;
+    placed_x_ = (int)((srcW - w) / 2) - cx;
+    log_info("render: cluster crop %ux%u at %d,%d (zoom %.1f%%, %s), offset %+d", w, h, cx, cy,
+             cluster_zoom(), w < crk::kMapAreaWidth ? "upscaled" : w > crk::kMapAreaWidth ? "downscaled" : "1:1",
+             cfg_.cluster_offset_x);
+    if (cfg_.target != "map" || !layer_ || hosted() ||
+        cfg_.video.w != kCarplayWideWidth || cfg_.video.h != kCarplayWideHeight)
+        return;
+    /* The layer's place does not move (the slot stays 1088x480); only the
+     * crop and the scale change. */
+    update_cluster_crop();
+}
+
+void MapFeed::update_cluster_crop()
+{
+    if (!scaling_ || cfg_.target != "map" || cfg_.video.w != kCarplayWideWidth || cfg_.video.h != kCarplayWideHeight)
+        return;
+    shape_.crop_x = (uint32_t)cfg_.cluster_crop_x;
+    shape_.crop_y = (uint32_t)cfg_.cluster_crop_y;
+    shape_.crop_w = cfg_.cluster_crop_w;
+    shape_.crop_h = cfg_.cluster_crop_h;
     /* If we have a cached source atlas and the worker is idle, resubmit it
-     * with the new crop. The source atlas may be in held_ either because:
-     * - it was never sent to the worker (held_new_ == true), or
-     * - it was successfully scaled and returned (has_cached_source_ == true).
-     * If the worker is busy, the stale result will be discarded and the
-     * returned atlas will be marked for resubmission in send_pending. */
-    if (scaling_ && has_cached_source_ && !elsewhere_ && !in_worker_ && worker_.idle() && sending()) {
-        log_info("render: cluster offset changed, resubmitting cached source atlas with new crop");
+     * with the new crop. If the worker is busy, its stale result is
+     * discarded (send_pending compares the shape) and the returned atlas is
+     * marked for resubmission. */
+    if (has_cached_source_ && !elsewhere_ && !in_worker_ && worker_.idle() && sending()) {
+        log_info("render: cluster crop changed, resubmitting the cached source atlas");
         held_new_ = true;
         send_pending(cld::now_ms());
     }
+}
+
+double MapFeed::cluster_zoom() const
+{
+    const uint32_t cw = crop_w_ ? crop_w_ : cfg_.cluster_crop_w;
+    return cw ? 1088.0 * 100.0 / (double)cw : 100.0;
 }
 
 void MapFeed::set_hud_keep_shown(bool keep)
@@ -418,6 +484,20 @@ void MapFeed::set_hud_width(unsigned pct)
         return;
     /* the texture's size changes with it: a new layer at the new size */
     log_info("render: HUD map %u%% wide", pct);
+    remake_layer();
+}
+
+void MapFeed::set_hud_crop_width(unsigned pct)
+{
+    if (pct == cfg_.hud_crop_width_pct)
+        return;
+    cfg_.hud_crop_width_pct = pct;
+    uint32_t tw, th;
+    /* hosted, the host sizes it: the width waits for the HUD's own */
+    if (cfg_.target != "hud" || !layer_ || hosted() || !target_size(client_.targets, "hud", &tw, &th))
+        return;
+    /* the texture's size changes with it: a new layer at the new size */
+    log_info("render: HUD map %u%% of its width", pct);
     remake_layer();
 }
 
@@ -704,6 +784,7 @@ FeedStatus MapFeed::status(const std::string &decode, const std::string &stream)
     s.target = drawn_target();
     s.hosted = hosted();
     s.hud_width_pct = cfg_.hud_width_pct;
+    s.hud_crop_width_pct = cfg_.hud_crop_width_pct;
     s.hud_offset_x = placed_x_;
     s.hud_keep_shown = cfg_.hud_keep_shown;
     s.hud_offset_y = placed_y_;
@@ -770,10 +851,16 @@ FeedStatus MapFeed::status(const std::string &decode, const std::string &stream)
         s.reason = stream;
         s.stream_reason = !stream.empty();
     }
-    /* Cluster offset and crop status (for wider CarPlay geometry). */
+    /* Cluster offset and crop status (for the wide CarPlay geometry and the
+     * calibration page). */
     s.cluster_offset_x = cfg_.cluster_offset_x;       // requested
     s.cluster_offset_x_actual = placed_x_;            // actual after clamping
-    s.cluster_crop_x = crop_x_;                       // current source crop X
+    s.cluster_crop_x = crop_x_;                       // current source crop
+    s.cluster_crop_y = crop_y_;
+    s.cluster_crop_w = crop_w_;
+    s.cluster_crop_h = crop_h_;
+    s.cluster_zoom = cluster_zoom();
+    s.cluster_upscaled = cluster_upscaled();
     s.source_w = cfg_.video.w;                        // source atlas width
     s.source_h = cfg_.video.h;                        // source atlas height
     s.output_w = scaling_ ? shape_.dw : cfg_.video.w; // output/crop width

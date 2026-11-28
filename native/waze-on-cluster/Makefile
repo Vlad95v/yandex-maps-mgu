@@ -52,7 +52,7 @@ VERSION := $(shell sed -n 's/^ *"version": *"\([^"]*\)".*/\1/p' component.json)
 # The capture, decode and map feed (own files), the kit's atlas, packing and
 # geometry, and the shared renderer's client.
 WOC_SRC = src/main.cpp src/refused.cpp src/video_producer.cpp src/freeze_watch.cpp src/alt_screen.cpp src/map_feed.cpp src/map_feeds.cpp src/atlas_scale.cpp src/control.cpp src/h264_source.cpp \
-          src/guide_setting.cpp src/map_state.cpp src/opt_in.cpp \
+          src/guide_setting.cpp src/map_state.cpp src/frame_dump.cpp src/opt_in.cpp src/config_keys.cpp \
           src/udp_source.cpp src/avb_source.cpp src/framing_probe.cpp src/rtp_h264.cpp src/sps_info.cpp \
           src/decoder_msdk.cpp src/nal_reader.cpp src/stream_health.cpp $(KIT)/map_geometry.cpp $(KIT)/yuv_atlas.cpp \
           $(KIT)/block_pack.cpp
@@ -67,7 +67,8 @@ CPP_TESTS = $(BUILD)/host/nal_reader_test $(BUILD)/host/rtp_h264_test $(BUILD)/h
 		$(BUILD)/host/stream_health_test $(BUILD)/host/source_crop_test \
 		$(BUILD)/host/map_rect_test $(BUILD)/host/guide_setting_test $(BUILD)/host/decoder_test \
 		$(BUILD)/host/map_state_test $(BUILD)/host/opt_in_test $(BUILD)/host/atlas_scale_test $(BUILD)/host/sps_info_test \
-		$(BUILD)/host/map_size_test $(BUILD)/host/picture_pace_test
+		$(BUILD)/host/map_size_test $(BUILD)/host/picture_pace_test $(BUILD)/host/hud_crop_test $(BUILD)/host/frame_dump_test \
+		$(BUILD)/host/config_keys_test
 # The control socket (accept4) and the producer (pipe2) are Linux's: built and run on Linux only
 # (make test-x86).
 LINUX_TESTS = $(if $(filter Linux,$(shell uname -s)),$(BUILD)/host/refused_test $(BUILD)/host/video_producer_test)
@@ -84,7 +85,11 @@ RUN_JOBS ?= $(JOBS)
 
 test:
 	$(MAKE) -j$(JOBS) test-bin
-	$(MAKE) -j$(RUN_JOBS) --output-sync=target $(CPP_RUNS) $(NODE_RUNS)
+	$(MAKE) -j$(RUN_JOBS) --output-sync=target $(CPP_RUNS) $(NODE_RUNS) py-yuv
+
+# The archive's full CarPlay frame as a PNG (tools/yuv_atlas_to_png.py).
+py-yuv:
+	$(PYTHON) test/yuv_atlas_to_png_test.py
 
 test-bin: $(CPP_TESTS)
 	$(MAKE) -C $(CR) test-kit-bin BUILD=$(abspath $(BUILD))/kit
@@ -93,7 +98,7 @@ test-bin: $(CPP_TESTS)
 # set (077): every file they replace keeps the mode its service needs.
 NODE_TESTS = locate permissions file_mode mutation undo rollback_conf patch patchd_patch patchd_activate \
 	patchd_hud patchd_profile patchd_dlt patchd_reboot patchd_wifi wifi_band dlt_capture capture_host recovery \
-	recovery_lock inmem journal_keep logs collect_logs logs_fw units wide_geometry x86_flow aapd_locate aapd head_unit
+	recovery_lock inmem journal_keep logs collect_logs logs_fw units wide_geometry resolution x86_flow aapd_locate aapd head_unit
 NODE_RUNS = $(addprefix node-,$(NODE_TESTS)) $(addprefix node-rollback.,$(ROLLBACK_PART_IDS))
 
 test-node:
@@ -153,6 +158,12 @@ VP_SRC = test/video_producer_test.cpp test/fake_msdk.cpp src/video_producer.cpp 
 $(BUILD)/host/video_producer_test: $(VP_SRC) $(wildcard src/*.h) test/fake_msdk.h $(KIT)/yuv_atlas.h $(KIT)/frame_clock.h
 	mkdir -p $(@D)
 	$(CXX) $(CXXFLAGS) -Isrc -I$(KIT) -I$(CR)/src -Iabi/include -o $@ $(VP_SRC) -lpthread
+
+# The full CarPlay frame the app's Logs page asks for: one request, one
+# frame, an atomic file and its metadata (frame_dump.h).
+$(BUILD)/host/frame_dump_test: test/frame_dump_test.cpp src/frame_dump.cpp src/frame_dump.h
+	mkdir -p $(@D)
+	$(CXX) $(CXXFLAGS) -Isrc -o $@ test/frame_dump_test.cpp src/frame_dump.cpp
 
 $(BUILD)/host/map_rect_test: test/map_rect_test.cpp src/map_rect.h
 	mkdir -p $(@D)
@@ -241,9 +252,21 @@ $(BUILD)/host/map_state_test: test/map_state_test.cpp src/map_state.cpp src/map_
 	mkdir -p $(@D)
 	$(CXX) $(CXXFLAGS) -Isrc -I$(CR)/src -o $@ test/map_state_test.cpp src/map_state.cpp $(CR)/src/config.cpp $(CR)/src/log.cpp -lpthread
 
+# The tool's own configuration keys: the shipped waze-on-cluster.conf loads
+# whole, crop defaults and custom values read through config_keys.cpp.
+$(BUILD)/host/config_keys_test: test/config_keys_test.cpp src/config_keys.cpp src/config_keys.h $(CR)/src/config.cpp
+	mkdir -p $(@D)
+	$(CXX) $(CXXFLAGS) -Isrc -I$(CR)/src -o $@ test/config_keys_test.cpp src/config_keys.cpp $(CR)/src/config.cpp
+
 $(BUILD)/host/map_size_test: test/map_size_test.cpp src/map_size.h src/map_feed.h $(KIT)/map_geometry.cpp $(KIT)/map_geometry.h
 	mkdir -p $(@D)
 	$(CXX) $(CXXFLAGS) -Isrc -I$(KIT) -I$(CR)/include -I$(CR)/src -o $@ test/map_size_test.cpp $(KIT)/map_geometry.cpp
+
+# The HUD map's centred horizontal crop: box and source crop from the Size
+# setting and hud_crop_width_pct (hud_crop.h).
+$(BUILD)/host/hud_crop_test: test/hud_crop_test.cpp src/hud_crop.h
+	mkdir -p $(@D)
+	$(CXX) $(CXXFLAGS) -Isrc -o $@ test/hud_crop_test.cpp
 
 $(BUILD)/host/opt_in_test: test/opt_in_test.cpp src/opt_in.cpp src/opt_in.h $(CR)/src/config.cpp $(CR)/src/log.cpp
 	mkdir -p $(@D)

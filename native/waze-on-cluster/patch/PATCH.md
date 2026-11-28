@@ -280,8 +280,18 @@ through unscaled.
 
 `--res wide` instead advertises 1440x636 at 183x81 mm, with safe area
 `667x488+379+95`; `map_feed.cpp` crops the cluster's 1088x480 view from that
-source at `crop_x = 176 - cluster_offset_x`. The HUD keeps its own centred
-1088x480 crop. The default above stays 1088x480 for a non-wide patch.
+source. The crop is a calibration rectangle (`cluster_crop_w` 816-1440,
+`cluster_crop_y`, and `cluster_offset_x`, which moves it), scaled to the fixed
+1088x480 output; the baseline is 1088x480 at 176,0. The HUD keeps its own
+centred 1088x480 crop. The default above stays 1088x480 for a non-wide patch.
+
+`--res WxH` also takes a calibration width: any even width 1088-1920 with its
+computed height (`resolution.js`: `H = 2 round(15 W / 68)`, so 1440 -> 636,
+1200 -> 530, 1920 -> 848), and the physical size the two known sizes
+interpolate to (`138 + (W-1088) 45/352` by `61 + (W-1088) 20/352` mm, so 1440
+-> 183x81 and 1920 -> 244x108). A smaller legacy size keeps 138x61 mm. A
+calibration geometry reads back as patched. 1920 is this patcher's limit, not
+a confirmed maximum of the car or the iPhone.
 
 The IC_HIGH builder in `ICSafeAreaProvider` (`0x20ca30`) fills its object from
 four `movabs` immediates; only the 8 immediate bytes after each 2-byte opcode
@@ -298,9 +308,11 @@ The getters at `0x20ce00`–`0x20cf40` read these fields; the config built from
 them (`0x2078f1`) is what `SetVideoParams` and the view-area report carry.
 The IC_MID builder (`0x20caa0`) is never written: `--panel mid` advertises
 stock 1920x720, and switching high → mid restores the IC_HIGH immediates, so
-the binary carries one panel's geometry at a time. `--res WxH` (even, up to
-1920x1080) picks another pixel size at the same physical size; `--res stock`
-keeps stock. The size is negotiated at phone connection, so it applies from
+the binary carries one panel's geometry at a time. `--res WxH` (even, width
+1088-1920 for a calibration size, up to 1920x1080 in the legacy range) picks
+another pixel size, at the calibration width's physical size or the default
+one for a smaller legacy size; `--res stock` keeps stock. The size is
+negotiated at phone connection, so it applies from
 the next CarPlay session after CarPlay restarts.
 
 **Found by** the `ICSafeAreaProvider(const …KombiVariant::Values&)`

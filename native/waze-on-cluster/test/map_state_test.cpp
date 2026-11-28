@@ -33,10 +33,13 @@ static cld::Config conf()
     c.define("cluster", "1");
     c.define("hud", "0");
     c.define("hud_width_pct", "60");
+    c.define("hud_crop_width_pct", "100");
     c.define("hud_offset_x", "0");
     c.define("hud_offset_y", "0");
     c.define("hud_keep_shown", "0");
     c.define("cluster_offset_x", "0");
+    c.define("cluster_crop_w", "1088");
+    c.define("cluster_crop_y", "0");
     return c;
 }
 
@@ -54,30 +57,32 @@ int main()
     unlink(path.c_str());
     cld::Config c = conf();
     load_map_state(&c, path);
-    ok("no state file: the configuration's", settings(c) == "1 0 60 0 0 0 0");
-    std::ofstream(path) << "hud = 1\ncluster = 0\nhud_width_pct = 85\nhud_offset_x = -40\nhud_offset_y = 800\n"
-                           "hud_keep_shown = 1\ncluster_offset_x = -176\n";
+    ok("no state file: the configuration's", settings(c) == "1 0 60 100 0 0 0 0 1088 0");
+    std::ofstream(path) << "hud = 1\ncluster = 0\nhud_width_pct = 85\nhud_crop_width_pct = 50\nhud_offset_x = -40\n"
+                           "hud_offset_y = 800\nhud_keep_shown = 1\ncluster_offset_x = -176\n"
+                           "cluster_crop_w = 1200\ncluster_crop_y = 40\n";
     c = conf();
     load_map_state(&c, path);
-    ok("the state file's, over the configuration's", settings(c) == "0 1 85 -40 800 1 -176");
-    std::ofstream(path) << "cluster = 2\nhud = 1\nhud_width_pct = 10\n\nhud_offset_x = 900\nhud_offset_y = -20\n"
-                           "hud_fps = 30\ntarget = panel\ngarbage\nhud = yes\nhud_keep_shown = 2\ncluster_offset_x = 5\n";
+    ok("the state file's, over the configuration's", settings(c) == "0 1 85 50 -40 800 1 -176 1200 40");
+    std::ofstream(path) << "cluster = 2\nhud = 1\nhud_width_pct = 10\nhud_crop_width_pct = 10\n\nhud_offset_x = 900\n"
+                           "hud_offset_y = -20\nhud_fps = 30\ntarget = panel\ngarbage\nhud = yes\nhud_keep_shown = 2\n"
+                           "cluster_offset_x = 5\ncluster_crop_w = 800\ncluster_crop_y = 700\n";
     c = conf();
     c.define("hud_fps", "10");
     c.define("target", "map");
     load_map_state(&c, path);
     ok("out of range, another key or a line that does not read: left out, the rest taken",
-       settings(c) == "1 1 60 0 -20 0 0" && c.str("hud_fps") == "10" && c.str("target") == "map");
+       settings(c) == "1 1 60 100 0 -20 0 5 1088 0" && c.str("hud_fps") == "10" && c.str("target") == "map");
     std::ofstream(path) << "hud_width_pct = 0\nhud_offset_x = 1x\nhud_offset_y = \ncluster =1\n";
     c = conf();
     load_map_state(&c, path);
-    ok("Standard (0) taken; a number with more after it, or none, left out", settings(c) == "1 0 0 0 0 0 0");
+    ok("Standard (0) taken; a number with more after it, or none, left out", settings(c) == "1 0 0 100 0 0 0 0 1088 0");
     std::ofstream(path) << "hud = 1\n";
     chmod(path.c_str(), 0);
     if (access(path.c_str(), R_OK) != 0) {   /* root reads it anyway */
         c = conf();
         load_map_state(&c, path);
-        ok("a state file that cannot be read: the configuration's", settings(c) == "1 0 60 0 0 0 0");
+        ok("a state file that cannot be read: the configuration's", settings(c) == "1 0 60 100 0 0 0 0 1088 0");
     }
     unlink(path.c_str());
     std::ifstream shipped("waze-on-cluster.conf");

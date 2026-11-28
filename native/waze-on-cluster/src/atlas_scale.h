@@ -11,9 +11,11 @@
  * pixel), separable, in integer arithmetic: each plane is scaled on its
  * own, so U, V and Y never mix. Weights are computed once per size. Values
  * are rounded to the given level bits afterwards (yuv_atlas.h
- * round_levels), as the decoder thread rounds the full frame. Only
- * downscaling: an output larger than the source in either direction is
- * refused. */
+ * round_levels), as the decoder thread rounds the full frame. Downscaling
+ * uses the box filter; a destination larger than the source in a direction
+ * uses bilinear interpolation along that axis (the cluster's calibration
+ * crop can be narrower than the fixed 1088x480 output). Y, U and V each go
+ * through the same separable path, so chroma stays 4:2:0. */
 #ifndef WOC_ATLAS_SCALE_H
 #define WOC_ATLAS_SCALE_H
 
@@ -31,10 +33,10 @@ namespace woc {
 
 class AtlasScaler {
 public:
-    /* Source w x h and destination dw x dh frames (all even, dw <= w,
-     * dh <= h); false if not. With crop_w: only the crop_w x crop_h part at
-     * crop_x, crop_y of the source (all even, inside it) is scaled, dw <=
-     * crop_w and dh <= crop_h (a part shown elsewhere: MapFeed's host). */
+    /* Source w x h and destination dw x dh frames (all even); false if not.
+     * With crop_w: only the crop_w x crop_h part at crop_x, crop_y of the
+     * source (all even, inside it) is scaled, dw x dh of any size (down or
+     * up: a narrower cluster crop is upscaled to the fixed 1088x480). */
     bool configure(uint32_t w, uint32_t h, uint32_t dw, uint32_t dh, unsigned level_bits, uint32_t crop_x = 0,
                    uint32_t crop_y = 0, uint32_t crop_w = 0, uint32_t crop_h = 0);
     bool configured() const { return dw_ != 0; }
@@ -59,13 +61,15 @@ public:
 
 private:
     /* One axis: for each output index, its first source index and weights
-     * (sum kOne) over the source pixels its span covers. */
+     * (sum kOne) over the source pixels its span covers. build: box filter
+     * (downscaling); build_linear: bilinear (upscaling). */
     struct Axis {
         std::vector<uint32_t> first;
         std::vector<uint32_t> count;
         std::vector<uint16_t> weight;   /* concatenated, count[i] per output */
         std::vector<uint32_t> offset;   /* into weight */
         void build(uint32_t src, uint32_t dst);
+        void build_linear(uint32_t src, uint32_t dst);
     };
     void plane(const uint8_t *src, uint32_t sp, uint32_t sh, uint8_t *dst, uint32_t dp, const Axis &x, const Axis &y);
     /* The corner mask on one plane (pw x ph, pitch dp) of radius r with

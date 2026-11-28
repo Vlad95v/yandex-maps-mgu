@@ -41,10 +41,15 @@
  * The Logs page's client (src/logs_control.js): the socket absent before the
  * logs service runs, Save logs sending one save and the list, the address
  * and the status following the service, its errors, and closing.
+ * The calibration page's client: an arbitrary even width selected and saved
+ * by patchd with its computed height and physical size, odd/out-of-range
+ * widths refused, Apply sending the selected resolution, selected and active
+ * shown apart with the pending state, the crop's width/X/Y changed live and
+ * shown exactly, and the frame capture carrying the calibration metadata.
  */
 const assert = require('assert');
 const fs = require('fs');
-const { WazeClusterControl, SIZE, SAFE, ZOOM_STEP, HUD_SIZE_STEPS } = require('../src/waze_cluster_control.js');
+const { WazeClusterControl, SIZE, SAFE, ZOOM_STEP, HUD_SIZE_STEPS, HUD_CROP_STEPS } = require('../src/waze_cluster_control.js');
 const { LogsControl } = require('../src/logs_control.js');
 const { FakeRender, FakePatch, FakeLogs, RENDER_PAGE, RENDER_FPS } = require('./fakes.js');
 
@@ -123,7 +128,7 @@ test('CarPlay\'s Patch button applies the patch; patched line once done', async 
     await until('original', () => c.statusText() === 'Status: Not patched');
     c.enableMap();
     await until('applying', () => c.statusText() === 'Status: Patching…');
-    assert.deepStrictEqual(patch.received.filter((m) => m.cmd === 'apply'), [{ cmd: 'apply', panel: 'high', mode: 'avb' }]);
+    assert.deepStrictEqual(patch.received.filter((m) => m.cmd === 'apply'), [{ cmd: 'apply', panel: 'high', mode: 'avb', res: '1440x636' }]);
     await until('patched', () => c.statusText() === 'Status: Patched' && c.mapText() === 'Cluster map: Waiting for the phone');
     c.close();
 });
@@ -136,7 +141,7 @@ test('A unit on the older mid-panel patch is prompted to CarPlay\'s Patch button
     await until('update patch', () => c.statusText() === 'Status: Update needed');
     c.enableMap();
     await until('apply high', () => patch.count('apply') === 1);
-    assert.deepStrictEqual(patch.received.filter((m) => m.cmd === 'apply'), [{ cmd: 'apply', panel: 'high', mode: 'avb' }]);
+    assert.deepStrictEqual(patch.received.filter((m) => m.cmd === 'apply'), [{ cmd: 'apply', panel: 'high', mode: 'avb', res: '1440x636' }]);
     await until('patched', () => c.statusText() === 'Status: Patched' && c.mapText() === 'Cluster map: Waiting for the phone');
     c.close();
 });
@@ -403,7 +408,7 @@ test('the HUD disabled by the cluster renderer: Disabled after errors, the size 
     c.close();
 });
 
-test('the HUD map size as a slider: 5 % steps from 30 to 85 %, Standard at the step below its ~57 %', async (render, patch) => {
+test('the HUD map size as a slider: 5 % steps from 30 to 100 %, Standard at the step below its ~57 %', async (render, patch) => {
     render.hud = 1;
     const c = control();
     c.open();
@@ -414,16 +419,54 @@ test('the HUD map size as a slider: 5 % steps from 30 to 85 %, Standard at the s
     c.setHudSizeStep(6);
     assert.deepStrictEqual([c.hudSizeText(), c.hudSizeStep()], ['Size: 60 %', 6], 'shown at once');
     await until('60 %', () => render.hudWidth === 60 && c.renderStatus.hud_width_pct === 60);
+    c.setHudSizeStep(HUD_SIZE_STEPS - 1);
+    await until('95 %', () => render.hudWidth === 95 && c.renderStatus.hud_width_pct === 95 && c.hudSizeStep() === HUD_SIZE_STEPS - 1);
     c.setHudSizeStep(HUD_SIZE_STEPS);
-    await until('85 %', () => c.renderStatus.hud_width_pct === 85 && c.hudSizeStep() === HUD_SIZE_STEPS);
+    await until('100 %', () => render.hudWidth === 100 && c.renderStatus.hud_width_pct === 100 && c.hudSizeStep() === HUD_SIZE_STEPS);
+    assert.strictEqual(c.hudSizeText(), 'Size: 100 %');
     c.setHudSizeStep(0);
     await until('30 %', () => c.renderStatus.hud_width_pct === 30 && c.hudSizeText() === 'Size: 30 %');
     const sent = render.received.length;
     [-1, HUD_SIZE_STEPS + 1, 2.5, '3', 0].forEach((step) => c.setHudSizeStep(step));
     assert.strictEqual(render.received.length, sent, 'nothing sent past either end, between steps or for the same step');
-    await until('each one saved', () => patch.received.filter((m) => m.cmd === 'hud-size').map((m) => m.hud_width_pct).join() === '60,85,30');
+    await until('each one saved', () => patch.received.filter((m) => m.cmd === 'hud-size').map((m) => m.hud_width_pct).join() === '60,95,100,30');
+    /* a saved 85 % is a valid step on the wider slider */
+    render.hudWidth = 85;
+    render.announce(render.state, render.reason);
+    await until('saved 85 % still valid', () => c.hudSizeText() === 'Size: 85 %' && c.hudSizeStep() === 11);
     c.close();
     assert.deepStrictEqual([c.hudSizeText(), c.hudSizeStep()], ['Size: —', null], 'nothing known while closed');
+});
+
+test('the full CarPlay frame: asked once, the render reports it, greyed while it waits or is written; a render before it is unavailable', async (render, patch) => {
+    const c = control();
+    c.open();
+    await until('connected', () => c.connectedRender() && c.connectedPatch());
+    render.stream(true);
+    await until('a render with it', () => c.renderStatus && c.frameDump() === 'off');
+    assert.deepStrictEqual([c.frameDumpText(), c.canCaptureFrame()], ['CarPlay frame: Not captured', true]);
+    c.captureFrame();
+    await until('waiting', () => c.frameDump() === 'waiting' && c.frameDumpText() === 'CarPlay frame: Waiting for CarPlay frame');
+    const asked = () => render.received.filter((m) => m.cmd === 'frame-dump').length;
+    assert.strictEqual(asked(), 1, 'one ask');
+    assert(!c.canCaptureFrame(), 'greyed while it waits');
+    c.captureFrame();
+    await sleep(50);
+    assert.strictEqual(asked(), 1, 'no second ask while one waits');
+    render.frameCaptured(false);
+    await until('held for the archive', () => c.frameDump() === 'captured' &&
+        c.frameDumpText() === 'CarPlay frame: Frame captured. Ready to save logs' && !c.canCaptureFrame());
+    render.frameCaptured(true);
+    await until('saved', () => c.frameDumpText() === 'CarPlay frame: Frame captured. Ready to save logs' && c.canCaptureFrame());
+    render.frameFailed('the picture is a part of the frame (hosted_vpp_scale), not the whole CarPlay frame');
+    await until('failed with the reason', () => c.frameDumpText() === 'CarPlay frame: Capture failed — the picture is a part of the ' +
+        'frame (hosted_vpp_scale), not the whole CarPlay frame');
+    render.frameDump = null;
+    render.announce(render.state, render.reason);
+    await until('a render before it', () => c.frameDump() === null && c.frameDumpText() === 'CarPlay frame: Unavailable' && !c.canCaptureFrame());
+    c.captureFrame();
+    assert.strictEqual(asked(), 1, 'nothing sent to a render without it');
+    c.close();
 });
 
 test('the HUD map over BMW\'s pop-ups: gives way by default; a flip goes to the render and patchd, the render\'s status shows it; ' +
@@ -478,6 +521,46 @@ test('an asked HUD size the render does not show: the render\'s own after a mome
     await until('taken again after the reconnect', () => asked() === 3);
     c.close();
     assert.deepStrictEqual([c.hudSizeText(), c.hudSizeStep()], ['Size: —', null], 'nothing asked kept while closed');
+});
+
+test('the HUD map width as a slider: 5 % steps from 20 to 100 %, 100 % the whole of it', async (render, patch) => {
+    render.hud = 1;
+    const c = control();
+    c.open();
+    await until('connected', () => c.connectedRender() && c.connectedPatch());
+    render.stream(true);
+    await until('on', () => c.renderStatus && c.canChangeHudSize());
+    assert.deepStrictEqual([c.hudCropText(), c.hudCropStep()], ['Width: 100 %', HUD_CROP_STEPS], 'the whole of it');
+    c.setHudCropStep(HUD_CROP_STEPS - 1);
+    assert.deepStrictEqual([c.hudCropText(), c.hudCropStep()], ['Width: 95 %', HUD_CROP_STEPS - 1], 'shown at once');
+    await until('95 %', () => render.hudCrop === 95 && c.renderStatus.hud_crop_width_pct === 95);
+    c.setHudCropStep(0);
+    await until('20 %', () => c.renderStatus.hud_crop_width_pct === 20 && c.hudCropText() === 'Width: 20 %');
+    const sent = render.received.length;
+    [-1, HUD_CROP_STEPS + 1, 2.5, '3', HUD_CROP_STEPS].forEach((step) => c.setHudCropStep(step));
+    assert.strictEqual(render.received.length, sent, 'nothing sent past either end, between steps or for the same step');
+    await until('each one saved', () => patch.received.filter((m) => m.cmd === 'hud-crop-width').map((m) => m.hud_crop_width_pct).join() === '95,20');
+    assert.strictEqual(patch.map.hud_crop_width_pct, 20, 'saved for the next start');
+    assert.strictEqual(patch.map.hud_width_pct, 0, 'the size setting untouched');
+    c.close();
+    assert.deepStrictEqual([c.hudCropText(), c.hudCropStep()], ['Width: —', null], 'nothing known while closed');
+});
+
+test('the HUD map width: a render before it is the whole of it; an asked one it does not show goes back to the render\'s own', async (render, patch) => {
+    render.hud = 1;
+    render.hudCrop = null;   /* a tool before the setting */
+    const c = control();
+    c.open();
+    await until('on', () => c.renderStatus && c.canChangeHudSize());
+    assert.deepStrictEqual([c.hudCropText(), c.hudCropStep()], ['Width: 100 %', HUD_CROP_STEPS], 'the whole of it');
+    render.hudCrop = 100;
+    render.announce(render.state, render.reason);
+    const take = render._onCommand.bind(render);
+    render._onCommand = (msg) => (msg.cmd === 'hud' && msg.hud_crop_width_pct !== undefined ? render.received.push(msg) : take(msg));
+    c.setHudCropStep(HUD_CROP_STEPS - 4);
+    assert.strictEqual(c.hudCropText(), 'Width: 80 %', 'shown at once');
+    await until('the render\'s own again', () => c.hudCropText() === 'Width: 100 %');
+    c.close();
 });
 
 test('the HUD map position: 10 px a press each way, Centre back; the render moves it and patchd saves it', async (render, patch) => {
@@ -611,7 +694,9 @@ test('an older full-frame safe area prompts CarPlay\'s Patch button, which write
     await until('update safe area', () => c.statusText() === 'Status: Update needed');
     c.enableMap();
     await until('applied', () => patch.count('apply') === 1 && !patch.busy);
-    assert.strictEqual(patch.safe, SAFE);
+    /* The selected default is the wide 1440x636, so the safe area written is
+     * the one that width gets (667x488 at 379,95), not the 1088 one. */
+    assert.strictEqual(patch.safe, '667x488+379+95');
     await until('current', () => c.statusText() === 'Status: Patched' && c.mapText() === 'Cluster map: Waiting for the phone');
     /* A daemon that omits safe (before the safe area) is taken as current. */
     patch._broadcast({ ev: 'status', state: 'patched', panel: 'high', mode: 'avb', res: '1088x480' });
@@ -623,7 +708,7 @@ test('an older full-frame safe area prompts CarPlay\'s Patch button, which write
     await until('0.10.6 safe area', () => c.statusText() === 'Status: Update needed');
     c.enableMap();
     await until('applied again', () => patch.count('apply') === 2 && !patch.busy);
-    assert.strictEqual(patch.safe, SAFE);
+    assert.strictEqual(patch.safe, '667x488+379+95');
     await until('current again', () => c.statusText() === 'Status: Patched');
     c.close();
 });
@@ -1316,8 +1401,95 @@ test('logs: Save logs saves once, then lists the archive; the address and QR tex
     }
 });
 
-async function main() {
-    let failed = 0;
+/* ---- the calibration page ---- */
+
+test('calibration: an arbitrary even width is selected with its computed height, physical size and safe area', async (render, patch) => {
+    const c = control();
+    c.open();
+    await until('connected', () => c.connectedPatch());
+    assert.strictEqual(c.selectedResText(), '1440x636', 'the wide default');
+    assert.strictEqual(c.setResolutionWidth(1200), true);
+    await until('saved', () => patch.count('carplay-res-select') === 1 && c.selectedWidth() === 1200);
+    assert.deepStrictEqual(patch.received.filter((m) => m.cmd === 'carplay-res-select'), [{ cmd: 'carplay-res-select', width: 1200 }]);
+    assert.strictEqual(c.selectedResText(), '1200x530');
+    assert.strictEqual(c.selectedHeight(), 530);
+    assert.strictEqual(c.selectedMmText(), '152x67 mm');
+    assert.strictEqual(c.widthError(), null);
+    c.close();
+});
+
+test('calibration: an odd or out-of-range width is refused and nothing is sent', async (render, patch) => {
+    const c = control();
+    c.open();
+    await until('connected', () => c.connectedPatch());
+    [1101, 1086, 1922, 0, 1200.5, NaN].forEach((w) => assert.strictEqual(c.setResolutionWidth(w), false, `${w}`));
+    assert(patch.count('carplay-res-select') === 0, 'no selection sent');
+    assert.notStrictEqual(c.widthError(), null);
+    c.adjustResolutionWidth(-100000);
+    await until('clamped low', () => c.selectedWidth() === 1088);
+    c.adjustResolutionWidth(100000);
+    await until('clamped high', () => c.selectedWidth() === 1920);
+    assert.strictEqual(c.selectedHeight(), 848);
+    c.close();
+});
+
+test('calibration: Apply sends the selected resolution; the active one and the pending state follow patchd', async (render, patch) => {
+    const c = control();
+    c.open();
+    await until('connected', () => c.connectedPatch());
+    c.setResolutionWidth(1100);
+    await until('selected', () => c.selectedWidth() === 1100);
+    assert.strictEqual(c.resPending(), false, 'nothing active yet');
+    c.applyResolution();
+    await until('applied', () => patch.count('apply') === 1 && !patch.busy);
+    const sent = patch.received.filter((m) => m.cmd === 'apply');
+    assert.deepStrictEqual(sent, [{ cmd: 'apply', panel: 'high', mode: 'avb', res: '1100x486' }]);
+    await until('active 1100', () => c.activeResText() === '1100x486' && c.resPending() === false);
+    /* A selection not yet applied is pending, not active. */
+    c.setResolutionWidth(1600);
+    await until('selected 1600', () => c.selectedWidth() === 1600);
+    assert.strictEqual(c.activeResText(), '1100x486');
+    assert.strictEqual(c.resPending(), true);
+    c.close();
+});
+
+test('calibration: the crop width, X and Y change the live crop and show exact values', async (render, patch) => {
+    const c = control();
+    c.open();
+    await until('crop known', () => c.renderStatus && c.renderStatus.cluster_crop_w === 1088);
+    assert.deepStrictEqual([c.cropWidth(), c.cropHeight(), c.cropX(), c.cropY(), c.cropZoomText()], [1088, 480, 176, 0, '100 %']);
+    c.setCropWidth(816);
+    await until('816 crop', () => render.cropW === 816 && c.cropWidth() === 816);
+    assert.deepStrictEqual([c.cropX(), c.cropHeight(), c.cropZoomText(), c.cropText()], [312, 360, '133.3 %', '816x360  X 312  Y 0']);
+    c.moveCropX(1);
+    await until('x 314', () => c.cropX() === 314 && render.cropX === 314);
+    c.moveCropX(-1);
+    await until('x back', () => c.cropX() === 312);
+    c.moveCropY(1);
+    await until('y 2', () => c.cropY() === 2 && render.cropY === 2);
+    c.moveCropY(-1);
+    await until('y back', () => c.cropY() === 0);
+    c.resetCrop();
+    await until('baseline', () => c.cropWidth() === 1088 && c.cropX() === 176 && c.cropY() === 0 && render.cropW === 1088);
+    c.close();
+});
+
+test('calibration: the frame capture carries the selected, active and patch state to the render', async (render, patch) => {
+    const c = control();
+    c.open();
+    await until('connected', () => c.connectedPatch() && c.connectedRender());
+    patch.res = '1440x636';
+    patch.announce('patched', 'high', null);
+    c.setResolutionWidth(1200);
+    await until('selected', () => c.selectedWidth() === 1200 && c.activeResText() === '1440x636');
+    c.captureFrame();
+    await until('asked', () => render.received.some((m) => m.cmd === 'frame-dump'));
+    const ask = render.received.filter((m) => m.cmd === 'frame-dump')[0];
+    assert.deepStrictEqual([ask.selected, ask.active, ask.patch], ['1200x530', '1440x636', 'patched']);
+    c.close();
+});
+
+async function main() {    let failed = 0;
     for (const t of tests) {
         const needsServers = t.fn.length > 0;
         const render = new FakeRender(RSOCK);

@@ -293,11 +293,53 @@
                 "type": "SInt"
               },
               "MaxValue": {
-                "value": 11,
+                "value": 14,
                 "type": "SInt"
               },
               "NumberOfSteps": {
-                "value": 11,
+                "value": 14,
+                "type": "SInt"
+              }
+            }
+          ]
+        },
+        "108": {
+          "type": "slider",
+          "name": "wocHudCropWidth",
+          "properties": {
+            "Visible": {
+              "value": 1,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "TextDescription": {
+                "value": "Width: —",
+                "type": "Text"
+              },
+              "TextDescriptionVisible": {
+                "value": true,
+                "type": "Bool"
+              },
+              "MiddleIndicatorVisible": {
+                "value": false,
+                "type": "Bool"
+              },
+              "MinValue": {
+                "value": 0,
+                "type": "SInt"
+              },
+              "MaxValue": {
+                "value": 16,
+                "type": "SInt"
+              },
+              "NumberOfSteps": {
+                "value": 16,
                 "type": "SInt"
               }
             }
@@ -878,6 +920,28 @@
               }
             }
           ]
+        },
+        "113": {
+          "type": "button",
+          "name": "wocCalibration",
+          "properties": {
+            "Visible": {
+              "value": 1,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text": {
+                "value": "CarPlay calibration",
+                "type": "Text"
+              }
+            }
+          ]
         }
       }
     },
@@ -948,6 +1012,72 @@
             {
               "Text": {
                 "value": "Capture: Unavailable",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "110": {
+          "type": "button",
+          "name": "wocCaptureFrame",
+          "properties": {
+            "Visible": {
+              "value": 1,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text": {
+                "value": "Capture full CarPlay frame",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "111": {
+          "type": "label",
+          "name": "wocFrameStatus",
+          "properties": {
+            "Visible": {
+              "value": 1,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 0,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text": {
+                "value": "CarPlay frame: —",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "112": {
+          "type": "label",
+          "name": "wocFrameNote",
+          "properties": {
+            "Visible": {
+              "value": 1,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 0,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text": {
+                "value": "The frame is not scrubbed: the archive may contain the map, addresses, your location and route.",
                 "type": "Text"
               }
             }
@@ -1141,6 +1271,740 @@
             {
               "Text": {
                 "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        }
+      }
+    },
+    "3": {
+      "type": "state",
+      "name": "ST_OnlineApps_WazeClusterCalibration",
+      "properties": {
+        "ParentState": {
+          "value": 1,
+          "type": "UInt"
+        }
+      },
+      "components": {
+        "120": {
+          "type": "title",
+          "name": "wocCalTitle",
+          "properties": {
+            "Visible": {
+              "value": 1,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text": {
+                "value": "SID_WOC_CALIBRATION",
+                "type": "StringId"
+              }
+            }
+          ]
+        },
+        "121": {
+          "type": "label",
+          "name": "wocCalHeadResolution",
+          "properties": {
+            "Visible": {
+              "value": 1,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 0,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text": {
+                "value": "CarPlay resolution",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "122": {
+          "type": "label",
+          "name": "wocCalSelected",
+          "properties": {
+            "Visible": {
+              "value": 1,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 0,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text": {
+                "value": "Selected: 1440x636 · Height: 636",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "125": {
+          "type": "button",
+          "name": "wocCalWidthMinus100",
+          "properties": {
+            "Visible": {
+              "value": 1,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text": {
+                "value": "Width -100",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "126": {
+          "type": "button",
+          "name": "wocCalWidthMinus10",
+          "properties": {
+            "Visible": {
+              "value": 1,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text": {
+                "value": "Width -10",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "127": {
+          "type": "button",
+          "name": "wocCalWidthMinus2",
+          "properties": {
+            "Visible": {
+              "value": 1,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text": {
+                "value": "Width -2",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "128": {
+          "type": "button",
+          "name": "wocCalWidthPlus2",
+          "properties": {
+            "Visible": {
+              "value": 1,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text": {
+                "value": "Width +2",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "129": {
+          "type": "button",
+          "name": "wocCalWidthPlus10",
+          "properties": {
+            "Visible": {
+              "value": 1,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text": {
+                "value": "Width +10",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "130": {
+          "type": "button",
+          "name": "wocCalWidthPlus100",
+          "properties": {
+            "Visible": {
+              "value": 1,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text": {
+                "value": "Width +100",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "131": {
+          "type": "button",
+          "name": "wocCalApply",
+          "properties": {
+            "Visible": {
+              "value": 1,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text": {
+                "value": "Apply",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "132": {
+          "type": "label",
+          "name": "wocCalActive",
+          "properties": {
+            "Visible": {
+              "value": 1,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 0,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text": {
+                "value": "Active: 1440x636 · Resolution: Applied",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "134": {
+          "type": "label",
+          "name": "wocCalHeadCrop",
+          "properties": {
+            "Visible": {
+              "value": 1,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 0,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text": {
+                "value": "Cluster crop",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "135": {
+          "type": "label",
+          "name": "wocCalCrop",
+          "properties": {
+            "Visible": {
+              "value": 1,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 0,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text": {
+                "value": "Crop: 1088x480  X 176  Y 0 · Zoom: 100 %",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "137": {
+          "type": "button",
+          "name": "wocCalCropMinus",
+          "properties": {
+            "Visible": {
+              "value": 1,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text": {
+                "value": "Crop -8",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "138": {
+          "type": "button",
+          "name": "wocCalCropPlus",
+          "properties": {
+            "Visible": {
+              "value": 1,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text": {
+                "value": "Crop +8",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "141": {
+          "type": "button",
+          "name": "wocCalXMinus10",
+          "properties": {
+            "Visible": {
+              "value": 1,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text": {
+                "value": "X -10",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "142": {
+          "type": "button",
+          "name": "wocCalXMinus2",
+          "properties": {
+            "Visible": {
+              "value": 1,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text": {
+                "value": "X -2",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "143": {
+          "type": "button",
+          "name": "wocCalXPlus2",
+          "properties": {
+            "Visible": {
+              "value": 1,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text": {
+                "value": "X +2",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "144": {
+          "type": "button",
+          "name": "wocCalXPlus10",
+          "properties": {
+            "Visible": {
+              "value": 1,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text": {
+                "value": "X +10",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "146": {
+          "type": "button",
+          "name": "wocCalYMinus10",
+          "properties": {
+            "Visible": {
+              "value": 1,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text": {
+                "value": "Y -10",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "147": {
+          "type": "button",
+          "name": "wocCalYMinus2",
+          "properties": {
+            "Visible": {
+              "value": 1,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text": {
+                "value": "Y -2",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "148": {
+          "type": "button",
+          "name": "wocCalYPlus2",
+          "properties": {
+            "Visible": {
+              "value": 1,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text": {
+                "value": "Y +2",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "149": {
+          "type": "button",
+          "name": "wocCalYPlus10",
+          "properties": {
+            "Visible": {
+              "value": 1,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text": {
+                "value": "Y +10",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "150": {
+          "type": "button",
+          "name": "wocCalCentre",
+          "properties": {
+            "Visible": {
+              "value": 1,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text": {
+                "value": "Centre",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "151": {
+          "type": "button",
+          "name": "wocCalReset",
+          "properties": {
+            "Visible": {
+              "value": 1,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text": {
+                "value": "Reset",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "153": {
+          "type": "label",
+          "name": "wocCalSps",
+          "properties": {
+            "Visible": {
+              "value": 1,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 0,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text": {
+                "value": "Incoming SPS: 1440x636 · Decoded: 1440x636",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "155": {
+          "type": "button",
+          "name": "wocCalCaptureFrame",
+          "properties": {
+            "Visible": {
+              "value": 1,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text": {
+                "value": "Capture full CarPlay frame",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "156": {
+          "type": "label",
+          "name": "wocCalFrameStatus",
+          "properties": {
+            "Visible": {
+              "value": 1,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 0,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text": {
+                "value": "CarPlay frame: —",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "158": {
+          "type": "button",
+          "name": "wocCalLogs",
+          "properties": {
+            "Visible": {
+              "value": 1,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text": {
+                "value": "Logs",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "161": {
+          "type": "button",
+          "name": "wocCalCropMinus2",
+          "properties": {
+            "Visible": {
+              "value": 1,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text": {
+                "value": "Crop -2",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "162": {
+          "type": "button",
+          "name": "wocCalCropPlus2",
+          "properties": {
+            "Visible": {
+              "value": 1,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text": {
+                "value": "Crop +2",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "140": {
+          "type": "label",
+          "name": "wocCalX",
+          "properties": {
+            "Visible": {
+              "value": 1,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 0,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text": {
+                "value": "X: 176 · Y: 0",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "124": {
+          "type": "label",
+          "name": "wocCalPhysical",
+          "properties": {
+            "Visible": {
+              "value": 1,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 0,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text": {
+                "value": "Physical: 183x81 mm",
                 "type": "Text"
               }
             }

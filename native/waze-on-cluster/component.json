@@ -1,7 +1,7 @@
 {
   "id": "waze-on-cluster",
   "kind": "tool",
-  "version": "0.14.14",
+  "version": "0.14.18",
   "license": "GPL-3.0-or-later",
   "title": "Maps on cluster",
   "description": "Runs the cluster map in the background. It is installed with the Maps on cluster app, which you use to control it.",
@@ -41,6 +41,11 @@
     {
       "path": "carplay_patch.js",
       "from": "patch/carplay_patch.js",
+      "mode": "0644"
+    },
+    {
+      "path": "resolution.js",
+      "from": "patch/resolution.js",
       "mode": "0644"
     },
     {

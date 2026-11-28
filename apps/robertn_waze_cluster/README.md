@@ -71,7 +71,12 @@ The app is in the head unit's display language.
 - **Keep HUD map over BMW's pop-ups:** unticked (the default), the map steps
   aside while BMW's media and list pop-ups show on the HUD. Ticked, it
   stays.
-- **Size:** how wide the map is on the HUD.
+- **Size:** how wide the map is on the HUD, 30 % to 100 % in 5 % steps
+  (**Standard** is about 57 %, what the fitted box is).
+- **Width:** how much of the map's width the HUD shows, 20 % to 100 %
+  (100 % the whole of it, as before). The map keeps its height and the size
+  of its roads, labels and arrows: the HUD shows a narrower, centred part of
+  it, not a smaller map. Independent of **Size** and **Position**.
 - **Move left / Move right / Move up / Move down** and **Centre:** where the
   map sits on the HUD.
 
@@ -88,6 +93,37 @@ The app is in the head unit's display language.
 
 **Restart head unit** shows when a change needs a restart. Press it to
 apply the change.
+
+## CarPlay calibration (experimental)
+
+For trying the cluster map's geometry on the car. Open **CarPlay
+calibration** from the main page.
+
+- **CarPlay resolution:** **Width -100 / -10 / -2 / +2 / +10 / +100** pick an
+  advertised width from 1088 to 1920 (always even; 1920 is the patcher's
+  limit, not a tested maximum of the car or the iPhone). **Height** and
+  **Physical** show the height that keeps the 1088x480 shape and the
+  physical size the patcher advertises. The choice is only saved until
+  **Apply**; **Selected** is what the next apply writes, **Active** is what
+  CarPlay advertises now, and **Resolution** says **Applied**, **Apply
+  needed** or **Pending restart**. A new size takes effect with a new
+  CarPlay session (carplay restarts where the head unit allows it, otherwise
+  at the next head-unit start; the row says which).
+- **Cluster crop:** **Crop -8 / -2 / +2 / +8** pick the part of the
+  1440x636 source shown on the cluster, 816 to 1440 wide; its height follows
+  the 1088x480 shape. **X -10 / -2 / +2 / +10** and **Y -10 / -2 / +2 /
+  +10** move it, **Centre** centres it and **Reset** goes back to 1088x480
+  at X 176, Y 0 (100 %). It changes while CarPlay runs: no reconnect. A
+  crop narrower than 1088 is upscaled to the fixed 1088x480 output, a wider
+  one downscaled.
+- **Diagnostics:** **Capture full CarPlay frame** and **Save logs** work as
+  on the Logs page; the frame's JSON also records the selected and active
+  resolutions, the incoming SPS size, the decoded atlas, the crop, the
+  output and the zoom.
+
+The page has no text-entry field: the iDrive 7 UI description this app uses
+declares no editable numeric control, so the width is changed in steps with
+the exact value shown, never from a fixed list of presets.
 
 ## If the map doesn't show
 
@@ -127,6 +163,42 @@ car's VIN, network and device names and addresses are removed from it.
 If you are asked for a capture: press **Start capture**, reconnect your
 phone, wait until the problem shows, then press **Save logs**. The capture
 stops by itself after 5 minutes.
+
+### The full CarPlay frame
+
+To see what the phone actually sends, before the map is cropped for the
+cluster and the HUD:
+
+1. With CarPlay running (the map on the cluster or the HUD), open **Logs**
+   and press **Capture full CarPlay frame**.
+2. Wait until **CarPlay frame** reads **Frame captured. Ready to save logs**
+   (while it waits it says **Waiting for CarPlay frame**; if it cannot capture
+   it says why).
+3. Press **Save logs**, then download the archive as above.
+
+The archive holds `carplay-frame-1440x636.yuva` — the whole 1440x636 picture
+as the decoder makes it, 1,373,760 bytes, the map's 4:2:0 atlas format
+(`native/cluster-render/kit/yuv_atlas.h`) — and `carplay-frame-1440x636.json`
+with its size, capture time and that it is a full frame. Nothing is captured
+unless you press the button, and the dump is removed once the archive is
+whole; only the archive keeps it.
+
+**The picture is not anonymised.** Unlike the rest of the archive, the frame
+is a photograph of your map: it can show your location, the route, addresses,
+street names and whatever the navigation app draws. It goes into the archive
+only when you press **Capture full CarPlay frame** and then **Save logs**, so
+attach that archive only where you mean to share the picture.
+
+To look at it on a PC (Python 3, no other packages):
+
+```
+py -3 native\waze-on-cluster\tools\yuv_atlas_to_png.py ^
+  "C:\path\woc-logs-XXXXXXXX.tar.gz" ^
+  --output "C:\path\carplay-full-frame.png"
+```
+
+The colours are the cluster shader's (full-range BT.601, chroma upsampled
+inside its own part), so the PNG is what the renderer drew from.
 
 ![The Logs page](docs/logs-page.png)
 
@@ -194,6 +266,8 @@ node tools/test_control.js           # the socket client against fake sockets
 node tools/test_page.js              # the page against a fake SDK and HMI
 node tools/test_profiles.js          # the driver profiles against fake sockets and SessionManager
 node tools/test_i18n.js              # every language: its words, placeholders, RHMI text files
+node tools/test_calibration.js       # the calibration geometry, against the patcher's copy
+node tools/test_text_encoding.js     # the diagnostic encoding repair; every locale is clean
 node tools/build.js                  # robertn_waze_cluster@<version>.src.tgz
 node tools/build.js --sdk <donor>    # also robertn_waze_cluster@<version>.tgz
 ```

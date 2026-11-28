@@ -2,6 +2,61 @@
 
 ## Unreleased
 
+## 0.6.22
+
+The CarPlay calibration page no longer goes black when the HMI reports it
+visible before the main page hides: the app's hide timer now waits for the
+Calibration page as well as the main and Logs pages, so it keeps its control
+connections and does not report itself inactive. The Calibration page's RHMI
+resources are initialized with the main and Logs pages before the page is
+ready, and the app logs the calibration button, `openState` request/resolve,
+every page visibility event, the hide timer and `_setVisible` calls.
+
+The HUD **Size** slider goes to **100 %**: 30 % to 100 % in 5 % steps
+(**Standard** remains about 57 %). An existing saved 85 % stays valid; the
+new 100 % is available through the slider, not written over the saved value.
+
+## 0.6.21
+
+The CarPlay calibration page is compact enough for the iDrive 7 HMI: the
+stepped crop-width slider is replaced by **Crop -8 / -2 / +2 / +8** buttons
+(2 px fine, 8 px coarse), the page drops to 33 rows, and the selected
+height/physical size and the active resolution/status share fewer rows.
+Capture and its status stay; **Save logs** and the privacy note stay on the
+Logs page, which the page links to. Values are unchanged; the 1088x480
+baseline and Reset stay.
+
+## 0.6.20
+
+A new **CarPlay calibration** page, opened from the main page, for trying the
+geometry directly on the car: an arbitrary advertised width (1088-1920, even,
+in 2/10/100 px steps) with its height and physical size calculated, an
+explicit **Apply**, and the selected and active resolutions shown apart; the
+cluster crop's width (816-1440), its X and Y (fine and coarse), its zoom, a
+**Centre** and a **Reset** to the 1088x480 baseline, applied live; and the
+diagnostics the full-frame capture records (the incoming SPS size, the
+decoded atlas, the crop and the selected/active resolution), with Save logs
+beside it. The Logs page's corrupted Russian (and other languages') frame
+text is readable again, and diagnostic text that arrived as bytes is read as
+UTF-8 or Windows-1251 instead of showing mojibake.
+
+## 0.6.19
+
+A "Capture full CarPlay frame" button on the Logs page keeps one full CarPlay
+picture, before the map is cropped for the cluster and the HUD, and Save logs
+puts it in the archive beside the logs; the page says the picture is not
+scrubbed (it may show the map, addresses, your location and route) and needs
+the next waze-on-cluster.
+
+## 0.6.18
+
+A new **Width** slider under **HUD** sets how much of the map's width the HUD
+shows, 20 % to 100 % (100 % the whole of it, by default). The map keeps its
+height and the size of its roads and labels: the HUD shows a narrower,
+centred part of it, so it takes less room in front of the driver without
+making the map smaller. It is kept per driver profile and across restarts,
+and needs the next waze-on-cluster.
+
 ## 0.6.17
 
 Requires the next waze-on-cluster, which starts with the wide 1440x636

@@ -534,7 +534,7 @@ try {
     r = overlaid(pt, ['--panel', 'high', '--res', '800x360']);
     ok('plan --res 800x360: at 138x61mm with the safe area scaled', r.code === 0 && /res:\s+PATCHED \(IC_HIGH advertises 800x360 at 138x61mm, safe 371x276 at 210,54\)/.test(r.out), r.out);
     r = overlaid(pt, ['--panel', 'high', '--res', '1920x1080']);
-    ok('plan --res 1920x1080: labelled by its size, not stock', r.code === 0 && /res:\s+PATCHED \(IC_HIGH advertises 1920x1080 at 138x61mm/.test(r.out), r.out);
+    ok('plan --res 1920x1080: labelled by its size, not stock, at the width\'s physical size', r.code === 0 && /res:\s+PATCHED \(IC_HIGH advertises 1920x1080 at 244x108mm/.test(r.out), r.out);
     r = overlaid(pt, ['--panel', 'high', '--safe', 'full']);
     ok('plan --safe full: the full-frame safe area', r.code === 0 && /safe 1088x480 at 0,0/.test(r.out), r.out);
     r = overlaid(pt, ['--panel', 'high', '--safe', '600x400+244+40']);

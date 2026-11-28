@@ -12,11 +12,12 @@
  *
  *   Render control socket (RENDER_PATH)
  *     app  -> tool  {"cmd":"guide","hide":0|1}  BMW's turn box hidden while the map shows, or not
- *                   {"cmd":"cluster"|"hud","on":"0"|"1"}, {"cmd":"hud","hud_width_pct"|"hud_x","hud_y"|"hud_keep_shown"}
+ *                   {"cmd":"cluster"|"hud","on":"0"|"1"}, {"cmd":"hud","hud_width_pct"|"hud_crop_width_pct"|
+ *                    "hud_x","hud_y"|"hud_keep_shown"}
  *                    the map's settings (patchd saves them)
  *     tool -> app   {"ev":"status","state":"idle"|"starting"|"showing"|"frozen"|"error"|"unsupported",
  *                    "target","page","reason","hide_bmw_guidance","guide_disabled","cluster","hud",
- *                    "hud_state","hud_width_pct","hud_x","hud_y","hud_keep_shown"}
+ *                    "hud_state","hud_width_pct","hud_crop_width_pct","hud_x","hud_y","hud_keep_shown"}
  *                   (hud_keep_shown 0|1, absent from a tool before it)
  *                   (unsupported: the head unit refuses the tool, which stays idle)
  *                   (idle's reason: why a live stream shows no map; hide_bmw_guidance 0|1,
@@ -26,7 +27,8 @@
  *
  *   Patch daemon socket (PATCH_PATH; root helper, group tm_oap_app)
  *     app    -> daemon  {"cmd":"status"}
- *                       {"cmd":"apply","panel":"high","mode":"avb"}
+ *                       {"cmd":"apply","panel":"high","mode":"avb","res":"WxH"}
+ *                       {"cmd":"carplay-res-select","width":W}
  *                       {"cmd":"revert"}
  *                       {"cmd":"aa-apply"} | {"cmd":"aa-revert"}
  *                       {"cmd":"aa-density","value":n} | {"cmd":"aa-card","value":"shown"|"hidden"}
@@ -37,6 +39,9 @@
  *                        "carplay","reason","pending","conflict","recovered","busy","restart","aa","wifi"}
  *                       res "WxH" and safe "WxH+X+Y": the advertised size and
  *                       its safe area (a daemon before the safe area omits safe)
+ *                       res_selected (and res_selected_w/h, res_selected_mm):
+ *                       the calibration page's saved choice; res_active: the
+ *                       advertised now; res_pending: they differ
  *                       carplay "deferred": the patch is written but takes effect
  *                       only at the next head-unit start (a restart is needed)
  *                       pending "apply" | "revert": which change waits for it
@@ -87,6 +92,7 @@ const EventEmitter = require('events');
 const fs = require('fs');
 const net = require('net');
 const { t } = require('./i18n.js');
+const calibration = require('./calibration.js');
 
 const RENDER_PATH = '/dev/shm/waze-on-cluster/ctl.sock';
 const PATCH_PATH = '/dev/shm/waze-on-cluster/patch.sock';
@@ -101,22 +107,42 @@ const RESTART_FAILED = { refused: 'not accepted', stayed: 'the head unit stayed 
 
 /* The native central-map slot's size, which the patch advertises to the phone. */
 const SIZE = '1088x480';
+/* The selected resolution the app applies when no calibration choice is
+ * known: the wide source the cluster's crop starts from. */
+const DEFAULT_RES_WIDTH = 1440;
 /* The safe area CarPlay's Patch button writes: where the phone keeps its guidance UI,
  * inside the part of the map the gauges leave visible. */
 const SAFE = '504x368+286+72';
-/* The HUD map's size: HUD_STEP_PCT steps from HUD_MIN_PCT to HUD_MAX_PCT (85 %, the widest the HUD shows
- * whole), HUD_SIZE_STEPS of them. Standard (0) counts as HUD_STANDARD_PCT, about what the fitted box is. */
-const HUD_MIN_PCT = 30, HUD_MAX_PCT = 85, HUD_STEP_PCT = 5, HUD_STANDARD_PCT = 57;
+/* The HUD map's size: HUD_STEP_PCT steps from HUD_MIN_PCT to HUD_MAX_PCT (100 %,
+ * the whole width), HUD_SIZE_STEPS of them. Standard (0) counts as
+ * HUD_STANDARD_PCT, about what the fitted box is. */
+const HUD_MIN_PCT = 30, HUD_MAX_PCT = 100, HUD_STEP_PCT = 5, HUD_STANDARD_PCT = 57;
 const HUD_SIZE_STEPS = (HUD_MAX_PCT - HUD_MIN_PCT) / HUD_STEP_PCT;
+/* How much of the HUD map's width it shows: HUD_CROP_STEP_PCT steps from
+ * HUD_CROP_MIN_PCT to HUD_CROP_MAX_PCT, HUD_CROP_DEFAULT_PCT (100 %) the
+ * whole of it, exactly as it was before the setting. The native crop is
+ * centred, the height and the pixel scale kept (hud_crop.h). */
+const HUD_CROP_MIN_PCT = 20, HUD_CROP_MAX_PCT = 100, HUD_CROP_STEP_PCT = 5, HUD_CROP_DEFAULT_PCT = 100;
+const HUD_CROP_STEPS = (HUD_CROP_MAX_PCT - HUD_CROP_MIN_PCT) / HUD_CROP_STEP_PCT;
 /* Where the map can show, the choices in their order on the page. */
 const SHOWN_ON = ['cluster', 'hud', 'both', 'off'];
 /* The HUD map moved from its centre, HUD_MOVE_PX a press, within +-HUD_MOVE_MAX; the render holds it inside the
  * HUD and reports the offset as far as it went. An asked size or place shows until the render's status has it,
  * HUD_ASKED_MS has passed, the render reconnects or patchd fails to save the size; then the render's own. */
 const HUD_MOVE_PX = 10, HUD_MOVE_MAX = 400, HUD_ASKED_MS = 300;
-/* Cluster horizontal offset: CLUSTER_MOVE_PX a press, within +-CLUSTER_MOVE_MAX; the render crops from wider
- * 1440x636 source at crop_x = 176 - cluster_offset_x. */
-const CLUSTER_MOVE_PX = 2, CLUSTER_MOVE_MAX = 176, CLUSTER_ASKED_MS = 300;
+/* Cluster horizontal offset: CLUSTER_MOVE_PX a press, within the crop's own
+ * maximum (half the 1440 source less the crop); the render crops its
+ * calibration rectangle from the wide 1440x636 source, crop_x =
+ * (1440 - crop_w) / 2 - cluster_offset_x. */
+const CLUSTER_MOVE_PX = 2, CLUSTER_ASKED_MS = 300;
+/* The crop width: CROP_BUTTON_STEP (8 px) a coarse button, CROP_MOVE_PX a
+ * fine X/Y press; the calibration page's separate 2 px width buttons are its
+ * own. crop_x and crop_y stay even; the offset from the centre is a
+ * displacement, not a pixel coordinate, so a width whose centre is odd (e.g.
+ * 1086) still has an even crop_x. */
+const CROP_BUTTON_STEP = 8, CROP_MOVE_PX = 2, CROP_ASKED_MS = 300;
+/* A width the page asked for shows until patchd's status has it. */
+const RES_ASKED_MS = 500;
 const MOVES = { left: [-1, 0], right: [1, 0], up: [0, -1], down: [0, 1] };
 
 /* One newline-delimited-JSON stream socket, reconnecting while open.
@@ -304,6 +330,12 @@ class WazeClusterControl extends EventEmitter {
         this._forget();
         this.captureState = { state: 'unavailable' };
         this.renderStatus = null;   /* the render tool's last status while connected */
+        /* The calibration page: the width asked for until patchd's status
+         * has it, the crop asked for until the render's status has it, and a
+         * width that cannot be used (shown, never sent). */
+        this._askedWidth = null;
+        this._widthError = null;
+        this._askedCrop = null;
 
         this.render = new LineSocket({
             path: o.renderPath || RENDER_PATH,
@@ -323,12 +355,14 @@ class WazeClusterControl extends EventEmitter {
             this.renderStatus = null;
             this._askedShownOn = null;
             this._clearAskedHud();
+            this._clearAskedHudCrop();
+            this._clearAskedCrop();
             this.emit('change');
         };
         this.render.on('connect', reset);
         this.render.on('close', reset);
-        this.patch.on('connect', () => { this._forget(); this.emit('change'); });
-        this.patch.on('close', () => { this._forget(); this._restartRequested = false; this.emit('change'); });
+        this.patch.on('connect', () => { this._forget(); this._askedWidth = null; this.emit('change'); });
+        this.patch.on('close', () => { this._forget(); this._restartRequested = false; this._askedWidth = null; this.emit('change'); });
     }
 
     /* Open both sockets, each reconnecting while open. */
@@ -342,6 +376,10 @@ class WazeClusterControl extends EventEmitter {
         clearTimeout(this._askedPosTimer);
         this._askedPos = null;
         this._clearAskedHud();
+        this._clearAskedHudCrop();
+        this._clearAskedCrop();
+        clearTimeout(this._askedWidthTimer);
+        this._askedWidth = null;
         this.render.close();
         this.patch.close();
         this.renderStatus = null;
@@ -370,8 +408,10 @@ class WazeClusterControl extends EventEmitter {
     enableMap() {
         if (this.canEnable()) {
             this._lastPatchCmd = 'apply';
-            /* The stock media-bus sink: the capture path the render joins. */
-            this.patch.send({ cmd: 'apply', panel: 'high', mode: 'avb' });
+            /* The stock media-bus sink: the capture path the render joins.
+             * The resolution is the calibration page's selection. */
+            const g = this.selectedGeometry();
+            this.patch.send({ cmd: 'apply', panel: 'high', mode: 'avb', res: calibration.resText(g.w, g.h) });
         }
     }
 
@@ -520,6 +560,109 @@ class WazeClusterControl extends EventEmitter {
         this._askedHud = null;
     }
 
+    /* ---- the full CarPlay frame (the Logs page) ---- */
+    /* The dump's state as the render reports it: off, waiting, captured,
+     * saved or failed; null from a render before the setting. */
+    frameDump() {
+        const v = this.renderStatus && this.renderStatus.frame_dump;
+        return typeof v === 'string' ? v : null;
+    }
+
+    /* Its status as the Logs page shows it, with the tool's reason when the
+     * capture failed (data: not translated). */
+    frameDumpText() {
+        const s = this.frameDump();
+        if (s === null) {
+            return t('CarPlay frame: {0}', t('Unavailable'));
+        }
+        switch (s) {
+        case 'waiting':
+            return t('CarPlay frame: {0}', t('Waiting for CarPlay frame'));
+        case 'captured':
+        case 'saved':
+            return t('CarPlay frame: {0}', t('Frame captured. Ready to save logs'));
+        case 'failed': {
+            const why = (this.renderStatus && this.renderStatus.frame_dump_reason) || '';
+            return t('CarPlay frame: {0}', why ? t('Capture failed') + ' — ' + why : t('Capture failed'));
+        }
+        default:
+            return t('CarPlay frame: {0}', t('Not captured'));
+        }
+    }
+
+    /* A capture may be asked for when the render has the feature and no
+     * frame waits or is being written. */
+    canCaptureFrame() {
+        const s = this.frameDump();
+        return this.render.connected() && s !== null && s !== 'waiting' && s !== 'captured';
+    }
+
+    /* The next full CarPlay frame, once: the render captures it and reports
+     * the state in its status; the Logs page's Save logs then puts it in the
+     * archive. The calibration metadata travels with the request. */
+    captureFrame() {
+        if (this.canCaptureFrame()) {
+            const ps = this.patchStatus;
+            const patchState = ps && ps.state ? ps.state + (ps.pending ? '/' + ps.pending : '') : 'unknown';
+            this.render.send({ cmd: 'frame-dump', selected: this.selectedResText(), active: this.activeResText(),
+                patch: patchState });
+            this.emit('change');
+        }
+    }
+
+    /* ---- how much of the HUD map's width it shows ---- */
+    hudCropWidth() {
+        if (this._askedHudCrop != null) {
+            return this._askedHudCrop;
+        }
+        const s = this.renderStatus;
+        if (!s) {
+            return null;
+        }
+        /* a render before the setting shows the whole of it */
+        const v = s.hud_crop_width_pct;
+        return typeof v === 'number' && v >= HUD_CROP_MIN_PCT ? v : HUD_CROP_DEFAULT_PCT;
+    }
+
+    hudCropText() {
+        const w = this.hudCropWidth();
+        return t('Width: {0}', w == null ? '—' : t('{0} %', w));
+    }
+
+    /* The share as a slider position, 0 (HUD_CROP_MIN_PCT) to HUD_CROP_STEPS
+     * (HUD_CROP_MAX_PCT). Null while the render has not said. */
+    hudCropStep() {
+        const w = this.hudCropWidth();
+        if (w == null) {
+            return null;
+        }
+        const pct = Math.max(HUD_CROP_MIN_PCT, Math.min(HUD_CROP_MAX_PCT, w));
+        return Math.floor((pct - HUD_CROP_MIN_PCT) / HUD_CROP_STEP_PCT);
+    }
+
+    /* The HUD map at a slider position: the render at once, patchd saves it.
+     * The height, the vertical scale and the place do not change. */
+    setHudCropStep(step) {
+        if (!Number.isInteger(step) || step < 0 || step > HUD_CROP_STEPS || !this.canChangeHudSize() || step === this.hudCropStep()) {
+            return;
+        }
+        const pct = HUD_CROP_MIN_PCT + step * HUD_CROP_STEP_PCT;
+        this._askedHudCrop = pct;
+        clearTimeout(this._askedHudCropTimer);
+        this._askedHudCropTimer = setTimeout(() => {
+            this._askedHudCrop = null;
+            this.emit('change');
+        }, HUD_ASKED_MS);
+        this.render.send({ cmd: 'hud', hud_crop_width_pct: String(pct) });
+        this.patch.send({ cmd: 'hud-crop-width', hud_crop_width_pct: pct });
+        this.emit('change');
+    }
+
+    _clearAskedHudCrop() {
+        clearTimeout(this._askedHudCropTimer);
+        this._askedHudCrop = null;
+    }
+
     /* ---- where the HUD map is: moved from its centre, in HUD pixels ---- */
     hudOffset() {
         if (this._askedPos) {
@@ -620,14 +763,16 @@ class WazeClusterControl extends EventEmitter {
         return this.render.connected() && this.connectedPatch() && this.clusterOn() === true;
     }
 
-    /* Move cluster offset left/right by one step (2 px). */
+    /* Move cluster offset left/right by one step (2 px), within the current
+     * crop's own range. */
     moveCluster(dir) {
         const d = MOVES[dir];
         const off = this.clusterOffset();
         if (!d || off === null || !this.canChangeClusterOffset()) {
             return;
         }
-        const clamp = (v) => Math.max(-CLUSTER_MOVE_MAX, Math.min(CLUSTER_MOVE_MAX, v));
+        const max = calibration.maxCropOffset(this.cropWidth());
+        const clamp = (v) => Math.max(-max, Math.min(max, v));
         this._setClusterOffset(clamp(off + d[0] * CLUSTER_MOVE_PX));
     }
 
@@ -653,6 +798,263 @@ class WazeClusterControl extends EventEmitter {
         this.render.send({ cmd: 'cluster', cluster_x: String(offset) });
         this.patch.send({ cmd: 'cluster', cluster_x: offset });
         this.emit('change');
+    }
+
+    /* ---- CarPlay resolution (the calibration page) ---- */
+    /* The width selected: as just asked for until patchd reports it saved,
+     * else patchd's (1440 when it does not say, the wide default). */
+    selectedWidth() {
+        if (this._askedWidth !== null) {
+            return this._askedWidth;
+        }
+        const ps = this.patchStatus;
+        return ps && typeof ps.res_selected_w === 'number' && calibration.validWidth(ps.res_selected_w)
+            ? ps.res_selected_w : DEFAULT_RES_WIDTH;
+    }
+
+    selectedGeometry() {
+        return calibration.geometryForWidth(this.selectedWidth()) || calibration.geometryForWidth(DEFAULT_RES_WIDTH);
+    }
+
+    /* The selected width as "WxH". */
+    selectedResText() {
+        const g = this.selectedGeometry();
+        return calibration.resText(g.w, g.h);
+    }
+
+    selectedHeight() {
+        return this.selectedGeometry().h;
+    }
+
+    /* "152x67 mm" for the selected width. */
+    selectedMmText() {
+        const g = this.selectedGeometry();
+        return `${g.mmw}x${g.mmh} mm`;
+    }
+
+    /* What carplay advertises now, as patchd read it ("—" when it does not
+     * know: unpatchable, or no patch). */
+    activeResText() {
+        const ps = this.patchStatus;
+        return (ps && ps.res) || '\u2014';
+    }
+
+    /* The selected resolution is not the active one: a new apply (and a
+     * CarPlay session) is needed for it. */
+    resPending() {
+        const ps = this.patchStatus;
+        return !!(ps && ps.res && ps.res !== this.selectedResText());
+    }
+
+    /* A width can be chosen while patchd is connected and idle: the choice is
+     * saved, no patch runs. */
+    canSelectWidth() {
+        return this.connectedPatch() && !this.busy();
+    }
+
+    /* The last width that could not be used (true), else null. */
+    widthError() {
+        return this._widthError;
+    }
+
+    /* Selects an arbitrary even width 1088..1920, saved by patchd for the
+     * next apply. False with widthError() set when it is not one. */
+    setResolutionWidth(w) {
+        if (!calibration.validWidth(w)) {
+            this._widthError = true;
+            this.emit('change');
+            return false;
+        }
+        this._widthError = null;
+        this._askedWidth = w;
+        clearTimeout(this._askedWidthTimer);
+        this._askedWidthTimer = setTimeout(() => {
+            this._askedWidth = null;
+            this.emit('change');
+        }, RES_ASKED_MS);
+        this.patch.send({ cmd: 'carplay-res-select', width: w });
+        this.emit('change');
+        return true;
+    }
+
+    /* One of the calibration page's width steps (±2, ±10, ±100): held to the
+     * range, always even. */
+    adjustResolutionWidth(delta) {
+        const w = this.selectedWidth() + Number(delta);
+        const clamped = Math.max(calibration.MIN_WIDTH, Math.min(calibration.MAX_WIDTH, w));
+        const even = clamped % 2 ? clamped - 1 : clamped;
+        if (even !== this.selectedWidth()) {
+            this.setResolutionWidth(even);
+        }
+    }
+
+    /* Apply is offered while the selected width is not the active one, or
+     * nothing of ours is patched, and patchd is ready. */
+    canApplyResolution() {
+        return this.connectedPatch() && !this.busy() && !this.pending() && calibration.validWidth(this.selectedWidth()) &&
+            (this.resPending() || (this.patchStatus && this.patchStatus.state !== 'patched'));
+    }
+
+    /* The explicit Apply: patchd plans the selected resolution and restarts
+     * carplay where it may; otherwise the change waits for the next start.
+     * The status says which. */
+    applyResolution() {
+        if (!this.canApplyResolution()) {
+            return;
+        }
+        const g = this.selectedGeometry();
+        this._lastPatchCmd = 'apply';
+        this.patch.send({ cmd: 'apply', panel: 'high', mode: 'avb', res: calibration.resText(g.w, g.h) });
+        this.emit('change');
+    }
+
+    /* ---- the cluster crop (the calibration page) ---- */
+    cropWidth() {
+        if (this._askedCrop) {
+            return this._askedCrop.w;
+        }
+        const rs = this.renderStatus;
+        return rs && calibration.validCropWidth(rs.cluster_crop_w) ? rs.cluster_crop_w : calibration.MAP_WIDTH;
+    }
+
+    cropHeight() {
+        return calibration.cropHeightForWidth(this.cropWidth());
+    }
+
+    cropX() {
+        if (this._askedCrop) {
+            return this._askedCrop.x;
+        }
+        const rs = this.renderStatus;
+        if (rs && calibration.validCropWidth(rs.cluster_crop_w) && typeof rs.cluster_crop_x === 'number') {
+            return rs.cluster_crop_x;
+        }
+        return calibration.cropXForOffset(this.cropWidth(), this.clusterOffset() || 0);
+    }
+
+    cropY() {
+        if (this._askedCrop) {
+            return this._askedCrop.y;
+        }
+        const rs = this.renderStatus;
+        return rs && calibration.validCropWidth(rs.cluster_crop_w) && typeof rs.cluster_crop_y === 'number' ? rs.cluster_crop_y : 0;
+    }
+
+    zoomPercent() {
+        return calibration.zoomPercent(this.cropWidth());
+    }
+
+    /* The crop can change while the cluster map is on (a patch in effect). */
+    canChangeCrop() {
+        return this.render.connected() && this.connectedPatch() && this.clusterOn() === true;
+    }
+
+    setCropWidth(w) {
+        if (!this.canChangeCrop() || !calibration.validCropWidth(w)) {
+            return;
+        }
+        const h = calibration.cropHeightForWidth(w);
+        /* zoom around the same horizontal place: the offset from the centre
+         * is kept, so a centred crop stays centred as it narrows or widens */
+        const offset = calibration.offsetForCropX(this.cropWidth(), this.cropX());
+        this._sendCrop(w, h, calibration.cropXForOffset(w, offset), this.cropY());
+    }
+
+    adjustCropWidth(delta) {
+        const w = this.cropWidth() + Number(delta);
+        this.setCropWidth(Math.max(calibration.CROP_MIN_WIDTH, Math.min(calibration.CROP_MAX_WIDTH, w % 2 ? w - 1 : w)));
+    }
+
+    setCropX(x) {
+        if (!this.canChangeCrop()) {
+            return;
+        }
+        this._sendCrop(this.cropWidth(), this.cropHeight(), x, this.cropY());
+    }
+
+    setCropY(y) {
+        if (!this.canChangeCrop()) {
+            return;
+        }
+        this._sendCrop(this.cropWidth(), this.cropHeight(), this.cropX(), y);
+    }
+
+    moveCropX(dx) {
+        this.setCropX(this.cropX() + Number(dx) * CROP_MOVE_PX);
+    }
+
+    moveCropY(dy) {
+        this.setCropY(this.cropY() + Number(dy) * CROP_MOVE_PX);
+    }
+
+    /* The centred crop, the horizontal position at its centre. */
+    canCentreCrop() {
+        return this.canChangeCrop() && this.cropX() !== (calibration.SOURCE_WIDTH - this.cropWidth()) / 2;
+    }
+
+    centreCrop() {
+        if (this.canCentreCrop()) {
+            this._sendCrop(this.cropWidth(), this.cropHeight(), (calibration.SOURCE_WIDTH - this.cropWidth()) / 2, this.cropY());
+        }
+    }
+
+    /* The baseline: 1088x480 at 176,0, zoom 100 %. */
+    canResetCrop() {
+        return this.canChangeCrop() && (this.cropWidth() !== 1088 || this.cropX() !== 176 || this.cropY() !== 0);
+    }
+
+    resetCrop() {
+        if (this.canChangeCrop()) {
+            this._sendCrop(1088, 480, 176, 0);
+        }
+    }
+
+    /* Exact numeric values for the page. */
+    cropText() {
+        return `${this.cropWidth()}x${this.cropHeight()}  X ${this.cropX()}  Y ${this.cropY()}`;
+    }
+
+    cropZoomText() {
+        const z = this.zoomPercent();
+        return `${Number.isInteger(z) ? z : z.toFixed(1)} %`;
+    }
+
+    /* The incoming H.264 sequence's own size (the phone's SPS), which need
+     * not be the normalized decoded atlas nor the advertised resolution. */
+    incomingSpsText() {
+        const rs = this.renderStatus;
+        return rs && rs.sps_w ? `${rs.sps_w}x${rs.sps_h}` : '\u2014';
+    }
+
+    /* The normalized decoded atlas MapFeed crops from (1440x636 today). */
+    normalizedText() {
+        const rs = this.renderStatus;
+        return rs && rs.source_w ? `${rs.source_w}x${rs.source_h}` : '\u2014';
+    }
+
+    /* Sends one crop (w x h at x,y), held inside the 1440x636 source and
+     * even, to the render at once and to patchd to save; the offset from the
+     * centre is what the render and the persisted setting hold. */
+    _sendCrop(w, h, x, y) {
+        const maxX = calibration.SOURCE_WIDTH - w;
+        const maxY = calibration.SOURCE_HEIGHT - h;
+        const even = (v, lo, hi) => Math.max(lo, Math.min(hi, Math.round(v / 2) * 2));
+        const rect = { w, h, x: even(x, 0, maxX), y: even(y, 0, maxY) };
+        this._askedCrop = rect;
+        clearTimeout(this._askedCropTimer);
+        this._askedCropTimer = setTimeout(() => {
+            this._askedCrop = null;
+            this.emit('change');
+        }, CROP_ASKED_MS);
+        const offset = calibration.offsetForCropX(w, rect.x);
+        this.render.send({ cmd: 'cluster', crop_w: String(w), crop_y: String(rect.y), cluster_x: String(offset) });
+        this.patch.send({ cmd: 'cluster', crop_w: w, crop_y: rect.y, cluster_x: offset });
+        this.emit('change');
+    }
+
+    _clearAskedCrop() {
+        clearTimeout(this._askedCropTimer);
+        this._askedCrop = null;
     }
 
     /* CarPlay's Patch button is offered for an original (never patched, or reverted), an
@@ -763,10 +1165,29 @@ class WazeClusterControl extends EventEmitter {
 
     /* A patch other than the one CarPlay's Patch button writes: another capture sink,
      * panel, size or safe area, from an older app, or the cluster map URL without
-     * the arrival-time card. */
+     * the arrival-time card. A calibration size (1088..1920 wide with the
+     * height and physical size its formula gives) is current, whatever it is;
+     * the safe area is current when it is the one that size gets. */
     _outdated(ps) {
-        return !!((ps.mode && ps.mode !== 'avb') || (ps.panel && ps.panel !== 'high') ||
-            (ps.res && ps.res !== SIZE) || (ps.safe && ps.safe !== SAFE) || ps.mapurl === 'no-eta');
+        if ((ps.mode && ps.mode !== 'avb') || (ps.panel && ps.panel !== 'high') || ps.mapurl === 'no-eta') {
+            return true;
+        }
+        if (!ps.res) {
+            /* a daemon before the resolution field: judged by its safe area */
+            return !!(ps.safe && ps.safe !== SAFE);
+        }
+        const g = calibration.parseRes(ps.res);
+        if (!g) {
+            return true;
+        }
+        if (ps.safe) {
+            const s = calibration.safeFor(g.w, g.h);
+            const want = `${s.w}x${s.h}+${s.x}+${s.y}`;
+            if (ps.safe !== want) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /* ---- BMW's turn box ---- */
@@ -1117,8 +1538,15 @@ class WazeClusterControl extends EventEmitter {
             if (this._askedHud != null && msg.hud_width_pct === this._askedHud) {
                 this._clearAskedHud();
             }
+            if (this._askedHudCrop != null && msg.hud_crop_width_pct === this._askedHudCrop) {
+                this._clearAskedHudCrop();
+            }
             if (this._askedPos && msg.hud_x === this._askedPos[0] && msg.hud_y === this._askedPos[1]) {
                 this._askedPos = null;
+            }
+            if (this._askedCrop && msg.cluster_crop_w === this._askedCrop.w && msg.cluster_crop_x === this._askedCrop.x &&
+                msg.cluster_crop_y === this._askedCrop.y) {
+                this._clearAskedCrop();
             }
             this.emit('change');
         }
@@ -1133,11 +1561,15 @@ class WazeClusterControl extends EventEmitter {
             const prev = this.patchStatus;
             const status = this._fromOlder(msg, prev);
             this.patchStatus = !status.aa && prev && prev.aa ? Object.assign({}, status, { aa: prev.aa }) : status;
+            if (this._askedWidth !== null && status.res_selected_w === this._askedWidth) {
+                clearTimeout(this._askedWidthTimer);
+                this._askedWidth = null;
+            }
             this._noteInEffect();
             this._noteCardAsked(msg);
             this._wake();
             this.emit('change');
-        } else if (/^(cluster|hud|hud-size|hud-pos|hud-keep-shown)-reply$/.test(msg.ev)) {
+        } else if (/^(cluster|hud|hud-size|hud-crop-width|hud-pos|hud-keep-shown)-reply$/.test(msg.ev)) {
             if (!msg.ok) {
                 this._log.info(`patchd did not save the setting: ${msg.reason || 'refused'}`);
             }
@@ -1162,5 +1594,7 @@ class WazeClusterControl extends EventEmitter {
 module.exports = {
     WazeClusterControl, LineSocket,
     RENDER_PATH, PATCH_PATH, PENDING_PATH, AA_PENDING_PATH, BOOT_ID_PATH,
-    SIZE, SAFE, ZOOM_STEP, RESTART_FAILED, SHOWN_ON, HUD_SIZE_STEPS
+    SIZE, SAFE, ZOOM_STEP, RESTART_FAILED, SHOWN_ON, HUD_SIZE_STEPS,
+    HUD_CROP_MIN_PCT, HUD_CROP_MAX_PCT, HUD_CROP_STEP_PCT, HUD_CROP_DEFAULT_PCT, HUD_CROP_STEPS,
+    DEFAULT_RES_WIDTH, CLUSTER_MOVE_PX, CROP_BUTTON_STEP, CROP_MOVE_PX
 };
