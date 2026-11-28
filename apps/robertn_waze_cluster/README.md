@@ -174,7 +174,10 @@ cluster and the HUD:
 2. Wait until **CarPlay frame** reads **Frame captured. Ready to save logs**
    (while it waits it says **Waiting for CarPlay frame**; if it cannot capture
    it says why).
-3. Press **Save logs**, then download the archive as above.
+3. The page shows the whole source under the status as a 720x318 preview
+   (the uncropped 1440x636 frame at half size), so the picture can be
+   checked on the spot without downloading the archive.
+4. Press **Save logs**, then download the archive as above.
 
 The archive holds `carplay-frame-1440x636.yuva` — the whole 1440x636 picture
 as the decoder makes it, 1,373,760 bytes, the map's 4:2:0 atlas format

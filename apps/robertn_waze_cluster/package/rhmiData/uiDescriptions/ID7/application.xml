@@ -193,6 +193,10 @@
                 <property id="2" value="1"/>
                 <property id="3" value="0"/>
             </component>
+            <component id="113" type="label" widget="LT_Label_1Graphic_Scalable">
+                <property id="2" value="0"/>
+                <property id="3" value="0"/>
+            </component>
             <component id="81" type="button" widget="LT_Button_1Row">
                 <property id="2" value="1"/>
                 <property id="3" value="3"/>
